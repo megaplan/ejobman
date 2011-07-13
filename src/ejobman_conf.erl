@@ -3,7 +3,18 @@
 %%%-----------------------------------------------------------------
 -module(ejobman_conf).
 -export([get_config/1]).
+-export([get_config_hdl/1]).
 -include("ejobman.hrl").
+%-------------------------------------------------------------------
+% @doc reads config file, fill ejm record with configured values
+-spec get_config_hdl(string()) -> #ejm{}.
+
+get_config_hdl(File) ->
+    List = misc_conf:read_config(File),
+    Hdl_list = proplists:get_value(handler, List, []),
+    #ejm{
+        debug = proplists:get_value(debug, Hdl_list, [])
+    }.
 %-------------------------------------------------------------------
 % @doc reads config file, fill ejm record with configured values
 -spec get_config(string()) -> #ejm{}.
