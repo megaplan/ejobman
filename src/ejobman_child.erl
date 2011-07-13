@@ -16,7 +16,7 @@ start() ->
 start_link() ->
     start_link([]).
 start_link(Config) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, Config, []).
 %-------------------------------------------------------------------
 stop() ->
     gen_server:call(?MODULE, stop).

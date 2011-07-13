@@ -17,12 +17,12 @@ start() ->
 start_link() ->
     start_link(?CONF).
 start_link(Config) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, Config, []).
 %-------------------------------------------------------------------
 stop() ->
     gen_server:call(?MODULE, stop).
 %-------------------------------------------------------------------
-init([Config]) ->
+init(Config) ->
     application:start(inets),
     C = ejobman_conf:get_config_hdl(Config),
     p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),

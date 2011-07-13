@@ -5,7 +5,9 @@
 -define(SECONDS, 5).
 
 start_link() ->
-    supervisor:start_link({local, ejobman_supervisor}, ejobman_sup, []).
+    supervisor:start_link({local, ejobman_child_supervisor},
+        ejobman_child_sup,
+        []).
 
 init(_Args) ->
     Worker = {
