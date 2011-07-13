@@ -2,15 +2,14 @@
 -define(ejobman_params, true).
 
 -define(T, 1000).
-%-define(LOG, "/var/log/nums/n").
+-define(LOG, "/var/log/ejobman/ejm").
 -define(CONF, "ejobman.conf").
 
 -record(ejm, {
-	rses,
-	conn,
-	rabbit,
-	log,
-	debug
+    rses,
+    conn,
+    log,
+    debug
 }).
 
 -endif.

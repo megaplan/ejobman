@@ -3,19 +3,19 @@
 -export([start/0, start/2, stop/0, stop/1]).
 
 start() ->
-	Res = ejobman_sup:start_link(),
-	error_logger:info_msg("app start res:~n~p~n", [Res]),
-	Res
+    Res = ejobman_sup:start_link(),
+    error_logger:info_msg("app start res:~n~p~n", [Res]),
+    Res
 .
 
 start(_Type, _Args) ->
-	start()
+    start()
 .
 
 stop(_State) ->
-	ok
+    ok
 .
 
 stop() ->
-	ok
+    ok
 .

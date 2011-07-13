@@ -13,13 +13,13 @@
 -ifdef(use_p_debug).
 
 p(Str, Pars, Conf, Facility, Limit) ->
-	Cur_val = proplists:get_value(Facility, Conf, 0),
-	if	Cur_val >= Limit ->
-			Time = misc_time:get_time_str_us(),
-			error_logger:info_msg(Time ++ "~n" ++ Str, Pars);
-		true ->
-			ok
-	end
+    Cur_val = proplists:get_value(Facility, Conf, 0),
+    if    Cur_val >= Limit ->
+            Time = misc_time:get_time_str_us(),
+            error_logger:info_msg(Time ++ "~n" ++ Str, Pars);
+        true ->
+            ok
+    end
 .
 
 -else.
@@ -35,13 +35,13 @@ p(_Str, _Pars, _Conf, _Facility, _Limit) -> ok.
 -ifdef(use_p_debug).
 
 pr(Param, Conf, Facility, Limit) ->
-	Cur_val = proplists:get_value(Facility, Conf, 0),
-	if	Cur_val >= Limit ->
-			Time = misc_time:get_time_str_us(),
-			error_logger:info_report({Time, Param});
-		true ->
-			ok
-	end
+    Cur_val = proplists:get_value(Facility, Conf, 0),
+    if    Cur_val >= Limit ->
+            Time = misc_time:get_time_str_us(),
+            error_logger:info_report({Time, Param});
+        true ->
+            ok
+    end
 .
 
 -else.
@@ -57,14 +57,14 @@ pr(_Param, _Conf, _Facility, _Limit) -> ok.
 -ifdef(use_p_debug).
 
 p_ets(Str, Pars, Conf, Facility, Limit, Table) ->
-	Cur_val = proplists:get_value(Facility, Conf, 0),
-	if	Cur_val >= Limit ->
-			error_logger:info_msg(Str, Pars),
-			List = ets:tab2list(Table),
-			error_logger:info_msg("~n~p~n", [List]);
-		true ->
-			ok
-	end
+    Cur_val = proplists:get_value(Facility, Conf, 0),
+    if    Cur_val >= Limit ->
+            error_logger:info_msg(Str, Pars),
+            List = ets:tab2list(Table),
+            error_logger:info_msg("~n~p~n", [List]);
+        true ->
+            ok
+    end
 .
 
 -else.

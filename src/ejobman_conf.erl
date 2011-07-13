@@ -9,13 +9,18 @@
 -spec get_config(string()) -> #ejm{}.
 
 get_config(File) ->
-	List = misc_conf:read_config(File),
-	fill_config(List).
+    List = misc_conf:read_config(File),
+    fill_config(List).
 %-------------------------------------------------------------------
 % @doc gets data from the list of key-value tuples and stores it into
 % ejm record
 -spec fill_config(list()) -> #ejm{}.
 
 fill_config(List) ->
-	#ejm{}.
+    Rses = ejobman_conf_rabbit:stuff_rabbit_with(List),
+    #ejm{
+        rses = Rses,
+        debug = proplists:get_value(debug, List, []),
+        log = proplists:get_value(log, List, ?LOG)
+    }.
 %-------------------------------------------------------------------
