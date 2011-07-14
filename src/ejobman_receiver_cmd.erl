@@ -12,13 +12,13 @@
 
 store_rabbit_cmd(#ejm{rses=#rses{sep=Sep}} = State,
         <<"cmd", Sep:2/binary-unit:8, Rest/binary>>) ->
-    p_debug:pr({?MODULE, store_rabbit_cmd, ?LINE, cmd, Rest},
+    p_debug:pr({?MODULE, 'store_rabbit_cmd cmd', ?LINE, cmd, Rest},
         State#ejm.debug, run, 4),
     send_cmd(State, Rest),
     State
 ;
 store_rabbit_cmd(State, Payload) ->
-    p_debug:pr({?MODULE, store_rabbit_cmd, ?LINE, Payload},
+    p_debug:pr({?MODULE, 'store_rabbit_cmd http', ?LINE, Payload},
         State#ejm.debug, run, 4),
     Url = binary_to_list(Payload),
     Res = http:request(head, {Url, []},

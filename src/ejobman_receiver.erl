@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------
-%%% nums server
+%%% command receiver. Gets AMQP messages with commands.
 %%%-----------------------------------------------------------------
 -module(ejobman_receiver).
 -behaviour(gen_server).
@@ -51,7 +51,7 @@ terminate(_, #ejm{conn=Conn} = _State) ->
     ok.
 %-------------------------------------------------------------------
 handle_info(timeout, State) ->
-    p_debug:pr({?MODULE, info_timeout, ?LINE}, State#ejm.debug, run, 6),
+    p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#ejm.debug, run, 6),
     {noreply, State, ?T};
 handle_info({#'basic.deliver'{delivery_tag = _Tag}, Content} = _Req, State) ->
     p_debug:p("~p::~p basic.deliver:~n~p~n",
@@ -61,7 +61,7 @@ handle_info({#'basic.deliver'{delivery_tag = _Tag}, Content} = _Req, State) ->
     New = ejobman_receiver_cmd:store_rabbit_cmd(State, Payload),
     {noreply, New, ?T};
 handle_info(_Req, State) ->
-    p_debug:pr({other, ?MODULE, ?LINE, _Req}, State#ejm.debug, run, 3),
+    p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#ejm.debug, run, 3),
     {noreply, State, ?T}.
 %-------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->

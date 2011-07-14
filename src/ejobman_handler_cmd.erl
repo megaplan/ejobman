@@ -10,7 +10,7 @@
 -spec do_command(#ejm{}, any(), binary()) -> #ejm{}.
 
 do_command(St, From, Cmd) ->
-    p_debug:pr({?MODULE, 'do_command', ?LINE, Cmd}, St#ejm.debug, run, 4),
+    p_debug:pr({?MODULE, 'do_command cmd', ?LINE, Cmd}, St#ejm.debug, run, 4),
     % parameters for ejobman_child
     Params = [
         {from, From},
@@ -18,7 +18,7 @@ do_command(St, From, Cmd) ->
         {debug, St#ejm.debug}
         ],
     Res = supervisor:start_child(ejobman_child_supervisor, [Params]),
-    p_debug:pr({?MODULE, 'do_command', ?LINE, Res}, St#ejm.debug, run, 4),
+    p_debug:pr({?MODULE, 'do_command res', ?LINE, Res}, St#ejm.debug, run, 4),
     St
 .
 %-------------------------------------------------------------------

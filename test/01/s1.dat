@@ -1,0 +1,6 @@
+/page2 method=POST contents='fir1=cmd%3D%7Ehttp%3A%2F%2Flocalhost%3A8182%2F'
+    /page2 method=POST contents='fir1=cmd%3D%7Ehttp%3A%2F%2Flocalhost%3A8182%2Fpage1'
+    /page2 method=POST contents='fir1=cmd%3D%7Ehttp%3A%2F%2Flocalhost%3A8182%2Fpage1'
+    /page2 method=POST contents='fir1=cmd%3D%7Ehttp%3A%2F%2Flocalhost%3A8182%2F'
+    /page2 method=POST contents='fir1=cmd%3D%7Ehttp%3A%2F%2Flocalhost%3A8182%2Fpage1'
+    /page2 method=POST contents='fir1=cmd%3D%7Ehttp%3A%2F%2Flocalhost%3A8182%2F'
