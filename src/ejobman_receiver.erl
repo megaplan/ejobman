@@ -7,9 +7,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 -include("ejobman.hrl").
-%-include("rabbit_session.hrl").
 -include("amqp_client.hrl").
--define(HTTP_TIMEOUT, 15000).
 %-------------------------------------------------------------------
 start() ->
     start_link().
@@ -53,14 +51,14 @@ terminate(_, #ejm{conn=Conn} = _State) ->
     ok.
 %-------------------------------------------------------------------
 handle_info(timeout, State) ->
-    p_debug:pr({?MODULE, info_timeout, ?LINE}, State#ejm.debug, run, 4),
+    p_debug:pr({?MODULE, info_timeout, ?LINE}, State#ejm.debug, run, 6),
     {noreply, State, ?T};
 handle_info({#'basic.deliver'{delivery_tag = _Tag}, Content} = _Req, State) ->
     p_debug:p("~p::~p basic.deliver:~n~p~n",
         [?MODULE, ?LINE, _Req], State#ejm.debug, run, 5),
     Payload = Content#amqp_msg.payload,
     ejobman_rb:send_ack(State#ejm.conn, _Tag),
-    New = store_rabbit_cmd(State, Payload),
+    New = ejobman_receiver_cmd:store_rabbit_cmd(State, Payload),
     {noreply, New, ?T};
 handle_info(_Req, State) ->
     p_debug:pr({other, ?MODULE, ?LINE, _Req}, State#ejm.debug, run, 3),
@@ -79,15 +77,4 @@ prepare_all(C) ->
 prepare_q(C) ->
     {ok, Conn} = ejobman_rb:start(C#ejm.rses),
     C#ejm{conn=Conn}.
-%-------------------------------------------------------------------
-store_rabbit_cmd(State, Payload) ->
-    p_debug:pr({?MODULE, store_rabbit_cmd, ?LINE, Payload},
-        State#ejm.debug, run, 4),
-    Url = binary_to_list(Payload),
-    Res = http:request(head, {Url, []},
-        [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
-        []),
-    p_debug:p("~p:store_rabbit_cmd:~p http result:~n~p~n",
-        [?MODULE, ?LINE, Res], State#ejm.debug, run, 3),
-    State.
 %-------------------------------------------------------------------

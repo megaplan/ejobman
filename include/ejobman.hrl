@@ -5,6 +5,12 @@
 -define(LOG, "/var/log/ejobman/ejm").
 -define(CONF, "ejobman.conf").
 
+-record(child, {
+    from,
+    cmd,
+    debug
+}).
+
 -record(ejm, {
     rses,
     conn,

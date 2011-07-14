@@ -12,7 +12,7 @@ start_link() ->
 init(_Args) ->
     Worker = {
         ejobman_child, {ejobman_child, start_link, []},
-        permanent, brutal_kill, worker, [ejobman_child]
+        temporary, brutal_kill, worker, [ejobman_child]
         },
     {ok, {{simple_one_for_one, ?RESTARTS, ?SECONDS},
         [Worker]}}.

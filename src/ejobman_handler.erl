@@ -6,10 +6,11 @@
 -export([start/0, start_link/0, stop/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
+
+-export([cmd/1]).
+
 -include("ejobman.hrl").
-%-include("rabbit_session.hrl").
 -include("amqp_client.hrl").
--define(HTTP_TIMEOUT, 15000).
 %-------------------------------------------------------------------
 start() ->
     start_link().
@@ -28,6 +29,9 @@ init(Config) ->
     p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),
     {ok, C, ?T}.
 %-------------------------------------------------------------------
+handle_call({cmd, Cmd}, From, St) ->
+    New = ejobman_handler_cmd:do_command(St, From, Cmd),
+    {noreply, New, ?T};
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
 handle_call(status, _From, St) ->
@@ -47,7 +51,7 @@ terminate(_, _State) ->
     ok.
 %-------------------------------------------------------------------
 handle_info(timeout, State) ->
-    p_debug:pr({?MODULE, info_timeout, ?LINE}, State#ejm.debug, run, 4),
+    p_debug:pr({?MODULE, info_timeout, ?LINE}, State#ejm.debug, run, 6),
     {noreply, State, ?T};
 handle_info(_Req, State) ->
     p_debug:pr({other, ?MODULE, ?LINE, _Req}, State#ejm.debug, run, 3),
@@ -55,4 +59,11 @@ handle_info(_Req, State) ->
 %-------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
+%-------------------------------------------------------------------
+% @doc api to call any command.
+-spec cmd(binary()) -> ok.
+
+cmd(Cmd) ->
+    gen_server:call(?MODULE, {cmd, Cmd})
+.
 %-------------------------------------------------------------------

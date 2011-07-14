@@ -4,9 +4,20 @@
 -module(ejobman_conf).
 -export([get_config/1]).
 -export([get_config_hdl/1]).
+-export([get_config_child/1]).
 -include("ejobman.hrl").
 %-------------------------------------------------------------------
-% @doc reads config file, fill ejm record with configured values
+% @doc fills in the child config with values from input list.
+-spec get_config_child(list()) -> #child{}.
+
+get_config_child(List) ->
+    #child{
+        from = proplists:get_value(from, List),
+        cmd = proplists:get_value(cmd, List, <<>>),
+        debug = proplists:get_value(debug, List, [])
+    }.
+%-------------------------------------------------------------------
+% @doc reads config file, fills in ejm record with configured values
 -spec get_config_hdl(string()) -> #ejm{}.
 
 get_config_hdl(File) ->
@@ -16,7 +27,7 @@ get_config_hdl(File) ->
         debug = proplists:get_value(debug, Hdl_list, [])
     }.
 %-------------------------------------------------------------------
-% @doc reads config file, fill ejm record with configured values
+% @doc reads config file, fills in ejm record with configured values
 -spec get_config(string()) -> #ejm{}.
 
 get_config(File) ->
