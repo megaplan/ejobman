@@ -13,7 +13,8 @@
 get_config_child(List) ->
     #child{
         from = proplists:get_value(from, List),
-        cmd = proplists:get_value(cmd, List, <<>>),
+        method = proplists:get_value(method, List, <<>>),
+        url = proplists:get_value(url, List, <<>>),
         debug = proplists:get_value(debug, List, [])
     }.
 %-------------------------------------------------------------------

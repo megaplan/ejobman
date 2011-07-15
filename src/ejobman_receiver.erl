@@ -43,6 +43,9 @@ handle_cast(rotate, St) ->
     {noreply, St, ?T};
 handle_cast(st0p, St) ->
     St;
+handle_cast({test, Payload}, State) ->
+    New = ejobman_receiver_cmd:store_rabbit_cmd(State, Payload),
+    {noreply, New, ?T};
 handle_cast(_, St) ->
     {noreply, St, ?T}.
 %-------------------------------------------------------------------

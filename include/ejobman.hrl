@@ -8,7 +8,8 @@
 
 -record(child, {
     from,
-    cmd,
+    method,
+    url,
     debug
 }).
 

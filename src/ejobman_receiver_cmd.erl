@@ -12,24 +12,46 @@
 
 store_rabbit_cmd(#ejm{rses=#rses{sep=Sep}} = State,
         <<"cmd", Sep:2/binary-unit:8, Rest/binary>>) ->
-    p_debug:pr({?MODULE, 'store_rabbit_cmd cmd', ?LINE, cmd, Rest},
+    p_debug:pr({?MODULE, 'store_rabbit_cmd cmd', ?LINE, Rest},
         State#ejm.debug, run, 4),
     send_cmd(State, Rest),
     State
 ;
-store_rabbit_cmd(State, Payload) ->
-    p_debug:pr({?MODULE, 'store_rabbit_cmd http', ?LINE, Payload},
+store_rabbit_cmd(State, Bin) ->
+    p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Bin},
         State#ejm.debug, run, 4),
-    Url = binary_to_list(Payload),
-    Res = http:request(head, {Url, []},
-        [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
-        []),
-    p_debug:p("~p:store_rabbit_cmd:~p http result:~n~p~n",
-        [?MODULE, ?LINE, Res], State#ejm.debug, run, 3),
-    State.
-%-------------------------------------------------------------------
-send_cmd(State, Rest) ->
-    % should we use catch, timeout, etc... ?
-    ejobman_handler:cmd(Rest)
+    case catch mochijson2:decode(Bin) of
+        {'EXIT', Reason} ->
+            p_debug:pr({?MODULE, 'store_rabbit_cmd error', ?LINE, Reason},
+                State#ejm.debug, run, 2);
+        Data ->
+            send_json_cmd(State, Data)
+    end,
+    State
 .
+%-------------------------------------------------------------------
+send_cmd(_State, Rest) ->
+    % should we use catch, timeout, etc... ?
+    ejobman_handler:cmd(<<"head">>, Rest)
+.
+%-------------------------------------------------------------------
+-spec send_json_cmd(#ejm{}, any()) -> ok.
+
+send_json_cmd(State, Data) ->
+    Type = misc_json:get_type(Data),
+    proceed_cmd_type(State, Type, Data).
+%-------------------------------------------------------------------
+-spec proceed_cmd_type(#ejm{}, binary(), any()) -> ok.
+
+proceed_cmd_type(State, <<"rest">>, Data) ->
+    Info = misc_json:get_job_info(Data),
+    Method = misc_json:get_method(Info),
+    Url = misc_json:get_url(Info),
+    % timeout on child crash leads to exception
+    Res = (catch ejobman_handler:cmd(Method, Url)),
+    p_debug:pr({?MODULE, 'proceed_cmd_type res', ?LINE, Res},
+        State#ejm.debug, run, 5);
+proceed_cmd_type(State, Other, _Data) ->
+    p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Other},
+        State#ejm.debug, run, 2).
 %-------------------------------------------------------------------

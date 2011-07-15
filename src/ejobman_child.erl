@@ -70,23 +70,32 @@ code_change(_Old_vsn, State, _Extra) ->
 do_smth(State) ->
     process_cmd(State),
     gen_server:cast(self(), stop),
-    State#child{cmd = <<>>, from = 'undefined'}.
+    State#child{method = <<>>, url = <<>>, from = 'undefined'}.
 %-------------------------------------------------------------------
 % @doc check for a command, do the command, send reply to the client.
 -spec process_cmd(#child{}) -> ok.
 
 process_cmd(#child{from = 'undefined'}) ->
     ok;
-process_cmd(#child{cmd = <<>>}) ->
+process_cmd(#child{url = <<>>}) ->
     ok;
-process_cmd(#child{cmd = Cmd, from = From} = St) ->
-    p_debug:pr({?MODULE, 'process_cmd params', ?LINE, self(), Cmd, From},
-        St#child.debug, run, 3),
-    Url = binary_to_list(Cmd),
-    Res = http:request(head, {Url, []},
+process_cmd(#child{method = Method_bin, url = <<_, _/binary>> = Url_bin,
+        from = From} = St) ->
+    p_debug:pr({?MODULE, 'process_cmd params', ?LINE, self(),
+        Method_bin, Url_bin, From}, St#child.debug, run, 3),
+    Url = binary_to_list(Url_bin),
+    Method = get_method(Method_bin),
+    Res = http:request(Method, {Url, []},
         [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
         []),
     gen_server:reply(From, Res),
     p_debug:pr({?MODULE, 'process_cmd res', ?LINE, self(), Res},
-        St#child.debug, run, 4).
+        St#child.debug, run, 4);
+process_cmd(_) ->
+    ok.
+%-------------------------------------------------------------------
+get_method(<<"get">>)  -> get;
+get_method(<<"head">>) -> head;
+get_method(<<"post">>) -> post;
+get_method(_)          -> get.
 %-------------------------------------------------------------------

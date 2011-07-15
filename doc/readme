@@ -1,9 +1,16 @@
 Content
 =======
 
+Depends
 Problems
 
 
+Depends
+=======
+
+Erlang/OTP R13B3
+rabbitmq-erlang-client 2.3.1+hg20110303.1-0ubuntu2
+mochiweb 2.0.0 (mochijson2.erl)
 
 Problems
 ========
