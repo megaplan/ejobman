@@ -20,7 +20,7 @@
 %%% SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 %%%
 %%% @author arkdro <arkdro@gmail.com>
-%%% @sinse 2011-07-15 10:00
+%%% @since 2011-07-15 10:00
 %%% @license MIT
 %%% @doc a gen_server that gets messages from ejobman_receiver and calls
 %%% ejobman_child_supervisor to spawn a new child to do all the dirty work
@@ -54,13 +54,14 @@ init(Config) ->
     p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),
     {ok, C, ?T}.
 %------------------------------------------------------------------------------
--spec handle_call(any(), any(), #ejm{}) ->
-    {noreply, #ejm{}, non_neg_integer()}
-    | {any(), any(), #ejm{}, non_neg_integer()}.
 %%
 %% Handling call messages
 %% @since 2011-07-15 11:00
 %%
+-spec handle_call(any(), any(), #ejm{}) ->
+    {noreply, #ejm{}, non_neg_integer()}
+    | {any(), any(), #ejm{}, non_neg_integer()}.
+
 handle_call({cmd, Method, Url}, From, St) ->
     New = ejobman_handler_cmd:do_command(St, From, Method, Url),
     {noreply, New, ?T};
@@ -72,11 +73,12 @@ handle_call(_N, _From, St) ->
     p_debug:pr({?MODULE, 'other', ?LINE, _N}, St#ejm.debug, run, 4),
     {reply, {error, unknown_request}, St, ?T}.
 %------------------------------------------------------------------------------
--spec handle_cast(any(), #ejm{}) -> any().
 %%
 %% Handling cast messages
 %% @since 2011-07-15 11:00
 %%
+-spec handle_cast(any(), #ejm{}) -> any().
+
 handle_cast(stop, St) ->
     {stop, normal, St};
 handle_cast(st0p, St) ->
@@ -87,10 +89,11 @@ handle_cast(_, St) ->
 terminate(_, _State) ->
     ok.
 %------------------------------------------------------------------------------
--spec handle_info(any(), #ejm{}) -> {noreply, #ejm{}, non_neg_integer()}.
 %%
 %% Handling all non call/cast messages
 %%
+-spec handle_info(any(), #ejm{}) -> {noreply, #ejm{}, non_neg_integer()}.
+
 handle_info(timeout, State) ->
     p_debug:pr({?MODULE, info_timeout, ?LINE}, State#ejm.debug, run, 6),
     {noreply, State, ?T};
@@ -114,11 +117,12 @@ start_link(Config) ->
 stop() ->
     gen_server:call(?MODULE, stop).
 %------------------------------------------------------------------------------
--spec cmd(binary(), binary()) -> ok.
 %%
 %% @doc API to call any received command.
 %% @since 2011-07-15 11:00
 %%
+-spec cmd(binary(), binary()) -> ok.
+
 cmd(Method, Url) ->
     gen_server:call(?MODULE, {cmd, Method, Url})
 .

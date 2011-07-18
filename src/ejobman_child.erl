@@ -20,7 +20,7 @@
 %%% SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 %%%
 %%% @author arkdro <arkdro@gmail.com>
-%%% @sinse 2011-07-15 10:00
+%%% @since 2011-07-15 10:00
 %%% @license MIT
 %%% @doc dynamically added worker that does the read thing.
 %%%
@@ -49,12 +49,12 @@
 %%%----------------------------------------------------------------------------
 start() ->
     start_link().
-%-------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 start_link() ->
     start_link([]).
 start_link(Params) ->
     gen_server:start_link(?MODULE, Params, []).
-%-------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 stop() ->
     gen_server:call(?MODULE, stop).
 
@@ -66,7 +66,7 @@ init(Params) ->
     p_debug:pr({?MODULE, 'init done', ?LINE, self()},
         C#child.debug, run, 1),
     {ok, C, ?TC}. % yes, this is fast and dirty hack (?TC)
-%-------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %%
 %% Handling call messages
 %% @since 2011-07-15 11:00
@@ -82,7 +82,7 @@ handle_call(_N, _From, St) ->
         St#child.debug, run, 4),
     New = do_smth(St),
     {reply, {error, unknown_request}, New, ?TC}.
-%-------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %%
 %% Handling cast messages
 %% @since 2011-07-15 11:00
@@ -96,16 +96,16 @@ handle_cast(st0p, St) ->
 handle_cast(_, St) ->
     New = do_smth(St),
     {noreply, New, ?TC}.
-%-------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 terminate(_, State) ->
     p_debug:pr({?MODULE, terminate, ?LINE, self()},
         State#child.debug, run, 2),
     ok.
-%-------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %%
 %% Handling all non call/cast messages
 %%
--spec handle_info(any(), #ejm{}) -> any().
+-spec handle_info(any(), #child{}) -> any().
 
 handle_info(timeout, State) ->
     p_debug:pr({?MODULE, info_timeout, ?LINE, self()},
@@ -117,7 +117,7 @@ handle_info(_Req, State) ->
         State#child.debug, run, 3),
     New = do_smth(State),
     {noreply, New, ?TC}.
-%-------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
 
@@ -134,9 +134,9 @@ do_smth(State) ->
     process_cmd(State),
     gen_server:cast(self(), stop),
     State#child{method = <<>>, url = <<>>, from = 'undefined'}.
-%-------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %%
-%% @doc checks for a command, does the command, sends reply to the client.
+%% @doc checks the command, then follows real_cmd
 %% @since 2011-07-15
 %%
 -spec process_cmd(#child{}) -> ok.
@@ -145,23 +145,31 @@ process_cmd(#child{from = 'undefined'}) ->
     ok;
 process_cmd(#child{url = <<>>}) ->
     ok;
-process_cmd(#child{method = Method_bin, url = <<_, _/binary>> = Url_bin,
-        from = From} = St) ->
-    p_debug:pr({?MODULE, 'process_cmd params', ?LINE, self(),
-        Method_bin, Url_bin, From}, St#child.debug, run, 3),
+process_cmd(#child{url = [_ | _]} = St) ->
+    real_cmd(St);
+process_cmd(#child{url = <<_, _/binary>> = Url_bin} = St) ->
     Url = binary_to_list(Url_bin),
+    real_cmd(St#child{url = Url});
+process_cmd(_) ->
+    ok.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc does the command, sends reply to the client.
+%% @since 2011-07-18
+%%
+real_cmd(#child{method = Method_bin, url = Url, from = From} = St) ->
+    p_debug:pr({?MODULE, 'process_cmd params', ?LINE, self(),
+        Method_bin, Url, From}, St#child.debug, run, 3),
     Method = get_method(Method_bin),
     Res = http:request(Method, {Url, []},
         [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
         []),
     gen_server:reply(From, Res),
     p_debug:pr({?MODULE, 'process_cmd res', ?LINE, self(), Res},
-        St#child.debug, run, 4);
-process_cmd(_) ->
-    ok.
-%-------------------------------------------------------------------
+        St#child.debug, run, 4).
+%%-----------------------------------------------------------------------------
 get_method(<<"get">>)  -> get;
 get_method(<<"head">>) -> head;
 get_method(<<"post">>) -> post;
 get_method(_)          -> get.
-%-------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
