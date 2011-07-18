@@ -1,7 +1,7 @@
 %%%-----------------------------------------------------------------
 %%% functions related to config file read, config processing
 %%%-----------------------------------------------------------------
--module(misc_conf).
+-module(mpln_misc_conf).
 -export([read_config/1]).
 %-------------------------------------------------------------------
 -spec read_config(string()) -> list().

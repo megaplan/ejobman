@@ -65,7 +65,7 @@ get_config_child(List) ->
 -spec get_config_hdl(string()) -> #ejm{}.
 
 get_config_hdl(File) ->
-    List = misc_conf:read_config(File),
+    List = mpln_misc_conf:read_config(File),
     Hdl_list = proplists:get_value(handler, List, []),
     #ejm{
         debug = proplists:get_value(debug, Hdl_list, [])
@@ -78,7 +78,7 @@ get_config_hdl(File) ->
 -spec get_config(string()) -> #ejm{}.
 
 get_config(File) ->
-    List = misc_conf:read_config(File),
+    List = mpln_misc_conf:read_config(File),
     fill_config(List).
 %%-----------------------------------------------------------------------------
 %%

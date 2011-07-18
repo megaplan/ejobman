@@ -14,7 +14,7 @@
         ejobman_receiver_cmd.erl,
         ejobman_receiver.erl,
         ejobman_sup.erl,
-        misc_conf.erl,
+        mpln_misc_conf.erl,
         mpln_misc_json.erl,
         misc_log.erl,
         misc_time.erl,
