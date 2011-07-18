@@ -89,7 +89,7 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 handle_cast(rotate, St) ->
-    misc_log:prepare_log(St#ejm.log),
+    mpln_misc_log:prepare_log(St#ejm.log),
     {noreply, St, ?T};
 handle_cast(st0p, St) ->
     St;
@@ -133,7 +133,7 @@ code_change(_Old_vsn, State, _Extra) ->
 %%
 
 prepare_all(C) ->
-    misc_log:prepare_log(C#ejm.log),
+    mpln_misc_log:prepare_log(C#ejm.log),
     prepare_q(C).
 %------------------------------------------------------------------------------
 -spec prepare_q(#ejm{}) -> #ejm{}.
