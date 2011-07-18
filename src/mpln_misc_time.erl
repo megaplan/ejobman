@@ -1,7 +1,7 @@
 %%%-----------------------------------------------------------------
 %%% functions related to time processing
 %%%-----------------------------------------------------------------
--module(misc_time).
+-module(mpln_misc_time).
 -export([get_ts/0]).
 -export([uuid/0]).
 -export([get_time_str_us/0, get_time_str_us/1]).

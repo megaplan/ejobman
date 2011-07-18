@@ -15,7 +15,7 @@
 p(Str, Pars, Conf, Facility, Limit) ->
     Cur_val = proplists:get_value(Facility, Conf, 0),
     if    Cur_val >= Limit ->
-            Time = misc_time:get_time_str_us(),
+            Time = mpln_misc_time:get_time_str_us(),
             error_logger:info_msg(Time ++ "~n" ++ Str, Pars);
         true ->
             ok
@@ -37,7 +37,7 @@ p(_Str, _Pars, _Conf, _Facility, _Limit) -> ok.
 pr(Param, Conf, Facility, Limit) ->
     Cur_val = proplists:get_value(Facility, Conf, 0),
     if    Cur_val >= Limit ->
-            Time = misc_time:get_time_str_us(),
+            Time = mpln_misc_time:get_time_str_us(),
             error_logger:info_report({Time, Param});
         true ->
             ok
