@@ -168,8 +168,11 @@ real_cmd(#child{method = Method_bin, url = Url, from = From} = St) ->
     p_debug:pr({?MODULE, 'process_cmd res', ?LINE, self(), Res},
         St#child.debug, run, 4).
 %%-----------------------------------------------------------------------------
-get_method(<<"get">>)  -> get;
-get_method(<<"head">>) -> head;
-get_method(<<"post">>) -> post;
-get_method(_)          -> get.
+get_method(B) when is_binary(B) ->
+    Str = string:to_lower(binary_to_list(B)),
+    get_method(Str);
+get_method("get")      -> get;
+get_method("head")     -> head;
+get_method("post")     -> post;
+get_method(_)          -> head.
 %%-----------------------------------------------------------------------------
