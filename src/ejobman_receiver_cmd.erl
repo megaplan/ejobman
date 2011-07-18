@@ -10,13 +10,13 @@
 % @doc sends received command to command handler. Returns nothing actually.
 -spec store_rabbit_cmd(#ejm{}, binary()) -> #ejm{}.
 
-store_rabbit_cmd(#ejm{rses=#rses{sep=Sep}} = State,
-        <<"cmd", Sep:2/binary-unit:8, Rest/binary>>) ->
-    p_debug:pr({?MODULE, 'store_rabbit_cmd cmd', ?LINE, Rest},
-        State#ejm.debug, run, 4),
-    send_cmd(State, Rest),
-    State
-;
+%store_rabbit_cmd(#ejm{rses=#rses{sep=Sep}} = State,
+%        <<"cmd", Sep:2/binary-unit:8, Rest/binary>>) ->
+%    p_debug:pr({?MODULE, 'store_rabbit_cmd cmd', ?LINE, Rest},
+%        State#ejm.debug, run, 4),
+%    send_cmd(State, Rest),
+%    State
+%;
 store_rabbit_cmd(State, Bin) ->
     p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Bin},
         State#ejm.debug, run, 4),

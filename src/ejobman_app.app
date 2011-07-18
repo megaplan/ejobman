@@ -4,8 +4,21 @@
     {vsn, "1.0"},
     {modules, [
         ejobman_app.erl,
-        ejobman.erl,
-        ejobman_sup.erl
+        ejobman_child.erl,
+        ejobman_child_sup.erl,
+        ejobman_conf.erl,
+        ejobman_conf_rabbit.erl,
+        ejobman_handler_cmd.erl,
+        ejobman_handler.erl,
+        ejobman_rb.erl,
+        ejobman_receiver_cmd.erl,
+        ejobman_receiver.erl,
+        ejobman_sup.erl,
+        misc_conf.erl,
+        misc_json.erl,
+        misc_log.erl,
+        misc_time.erl,
+        p_debug.erl
     ]},
     {registered, []},
     {env, []},

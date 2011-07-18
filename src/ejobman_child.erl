@@ -1,15 +1,52 @@
-%%%-----------------------------------------------------------------
-%%% dynamically added worker
-%%%-----------------------------------------------------------------
+%%% 
+%%% Copyright (c) 2011 Megaplan Ltd. (Russia)
+%%%
+%%% Permission is hereby granted, free of charge, to any person obtaining a copy
+%%% of this software and associated documentation files (the "Software"),
+%%% to deal in the Software without restriction, including without limitation
+%%% the rights to use, copy, modify, merge, publish, distribute, sublicense,
+%%% and/or sell copies of the Software, and to permit persons to whom
+%%% the Software is furnished to do so, subject to the following conditions:
+%%%
+%%% The above copyright notice and this permission notice shall be included
+%%% in all copies or substantial portions of the Software.
+%%%
+%%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+%%% EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+%%% MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+%%% IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+%%% CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+%%% TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+%%% SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+%%%
+%%% @author arkdro <arkdro@gmail.com>
+%%% @sinse 2011-07-15 10:00
+%%% @license MIT
+%%% @doc dynamically added worker that does the read thing.
+%%%
+
 -module(ejobman_child).
 -behaviour(gen_server).
+
+%%%----------------------------------------------------------------------------
+%%% Exports
+%%%----------------------------------------------------------------------------
 -export([start/0, start_link/0, start_link/1, stop/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
+
+%%%----------------------------------------------------------------------------
+%%% Includes
+%%%----------------------------------------------------------------------------
+
 -include("ejobman.hrl").
 -include("amqp_client.hrl").
+
 -define(HTTP_TIMEOUT, 15000).
-%-------------------------------------------------------------------
+
+%%%----------------------------------------------------------------------------
+%%% api
+%%%----------------------------------------------------------------------------
 start() ->
     start_link().
 %-------------------------------------------------------------------
@@ -20,13 +57,22 @@ start_link(Params) ->
 %-------------------------------------------------------------------
 stop() ->
     gen_server:call(?MODULE, stop).
-%-------------------------------------------------------------------
+
+%%%----------------------------------------------------------------------------
+%%% gen_server callbacks
+%%%----------------------------------------------------------------------------
 init(Params) ->
     C = ejobman_conf:get_config_child(Params),
     p_debug:pr({?MODULE, 'init done', ?LINE, self()},
         C#child.debug, run, 1),
     {ok, C, ?TC}. % yes, this is fast and dirty hack (?TC)
 %-------------------------------------------------------------------
+%%
+%% Handling call messages
+%% @since 2011-07-15 11:00
+%%
+-spec handle_call(any(), any(), #ejm{}) -> {stop|reply, any(), any(), any()}.
+
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
 handle_call(status, _From, St) ->
@@ -37,6 +83,12 @@ handle_call(_N, _From, St) ->
     New = do_smth(St),
     {reply, {error, unknown_request}, New, ?TC}.
 %-------------------------------------------------------------------
+%%
+%% Handling cast messages
+%% @since 2011-07-15 11:00
+%%
+-spec handle_cast(any(), #ejm{}) -> any().
+
 handle_cast(stop, St) ->
     {stop, normal, St};
 handle_cast(st0p, St) ->
@@ -50,6 +102,11 @@ terminate(_, State) ->
         State#child.debug, run, 2),
     ok.
 %-------------------------------------------------------------------
+%%
+%% Handling all non call/cast messages
+%%
+-spec handle_info(any(), #ejm{}) -> any().
+
 handle_info(timeout, State) ->
     p_debug:pr({?MODULE, info_timeout, ?LINE, self()},
         State#child.debug, run, 6),
@@ -63,8 +120,14 @@ handle_info(_Req, State) ->
 %-------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
-%-------------------------------------------------------------------
-% @doc process command, then send stop message to itself
+
+%%%----------------------------------------------------------------------------
+%%% Internal functions
+%%%----------------------------------------------------------------------------
+%%
+%% @doc processes command, then sends stop message to itself
+%% @since 2011-07-15
+%%
 -spec do_smth(#child{}) -> #child{}.
 
 do_smth(State) ->
@@ -72,7 +135,10 @@ do_smth(State) ->
     gen_server:cast(self(), stop),
     State#child{method = <<>>, url = <<>>, from = 'undefined'}.
 %-------------------------------------------------------------------
-% @doc check for a command, do the command, send reply to the client.
+%%
+%% @doc checks for a command, does the command, sends reply to the client.
+%% @since 2011-07-15
+%%
 -spec process_cmd(#child{}) -> ok.
 
 process_cmd(#child{from = 'undefined'}) ->
