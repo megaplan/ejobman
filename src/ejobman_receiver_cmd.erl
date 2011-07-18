@@ -57,11 +57,11 @@
 -spec store_rabbit_cmd(#ejm{}, binary()) -> #ejm{}.
 
 store_rabbit_cmd(State, Bin) ->
-    p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Bin},
+    mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Bin},
         State#ejm.debug, run, 4),
     case catch mochijson2:decode(Bin) of
         {'EXIT', Reason} ->
-            p_debug:pr({?MODULE, 'store_rabbit_cmd error', ?LINE, Reason},
+            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd error', ?LINE, Reason},
                 State#ejm.debug, run, 2);
         Data ->
             Type = mpln_misc_json:get_type(Data),
@@ -82,9 +82,9 @@ proceed_cmd_type(State, <<"rest">>, Data) ->
     Url = mpln_misc_json:get_url(Info),
     % timeout on child crash leads to exception
     Res = (catch ejobman_handler:cmd(Method, Url)),
-    p_debug:pr({?MODULE, 'proceed_cmd_type res', ?LINE, Res},
+    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type res', ?LINE, Res},
         State#ejm.debug, run, 5);
 proceed_cmd_type(State, Other, _Data) ->
-    p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Other},
+    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Other},
         State#ejm.debug, run, 2).
 %%-----------------------------------------------------------------------------

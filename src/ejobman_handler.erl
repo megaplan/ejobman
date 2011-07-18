@@ -51,7 +51,7 @@
 init(Config) ->
     application:start(inets),
     C = ejobman_conf:get_config_hdl(Config),
-    p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),
+    mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),
     {ok, C, ?T}.
 %------------------------------------------------------------------------------
 %%
@@ -70,7 +70,7 @@ handle_call(stop, _From, St) ->
 handle_call(status, _From, St) ->
     {reply, St, St, ?T};
 handle_call(_N, _From, St) ->
-    p_debug:pr({?MODULE, 'other', ?LINE, _N}, St#ejm.debug, run, 4),
+    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N}, St#ejm.debug, run, 4),
     {reply, {error, unknown_request}, St, ?T}.
 %------------------------------------------------------------------------------
 %%
@@ -95,10 +95,10 @@ terminate(_, _State) ->
 -spec handle_info(any(), #ejm{}) -> {noreply, #ejm{}, non_neg_integer()}.
 
 handle_info(timeout, State) ->
-    p_debug:pr({?MODULE, info_timeout, ?LINE}, State#ejm.debug, run, 6),
+    mpln_p_debug:pr({?MODULE, info_timeout, ?LINE}, State#ejm.debug, run, 6),
     {noreply, State, ?T};
 handle_info(_Req, State) ->
-    p_debug:pr({other, ?MODULE, ?LINE, _Req}, State#ejm.debug, run, 3),
+    mpln_p_debug:pr({other, ?MODULE, ?LINE, _Req}, State#ejm.debug, run, 3),
     {noreply, State, ?T}.
 %------------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->

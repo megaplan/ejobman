@@ -18,7 +18,7 @@
         mpln_misc_json.erl,
         mpln_misc_log.erl,
         mpln_misc_time.erl,
-        p_debug.erl
+        mpln_p_debug.erl
     ]},
     {registered, []},
     {env, []},

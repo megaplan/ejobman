@@ -64,7 +64,7 @@ init([Config]) ->
     application:start(inets),
     C = ejobman_conf:get_config(Config),
     New = prepare_all(C),
-    p_debug:pr({'init done', ?MODULE, ?LINE}, New#ejm.debug, run, 1),
+    mpln_p_debug:pr({'init done', ?MODULE, ?LINE}, New#ejm.debug, run, 1),
     {ok, New, ?T}.
 %------------------------------------------------------------------------------
 -spec handle_call(any(), any(), #ejm{}) -> {stop|reply, any(), any(), any()}.
@@ -77,7 +77,7 @@ handle_call(stop, _From, St) ->
 handle_call(status, _From, St) ->
     {reply, St, St, ?T};
 handle_call(_N, _From, St) ->
-    p_debug:p("~p::~p other:~n~p~n",
+    mpln_p_debug:p("~p::~p other:~n~p~n",
         [?MODULE, ?LINE, _N], St#ejm.debug, run, 4),
     {reply, {error, unknown_request}, St, ?T}.
 %------------------------------------------------------------------------------
@@ -108,17 +108,17 @@ terminate(_, #ejm{conn=Conn} = _State) ->
 %% Handling all non call/cast messages
 %%
 handle_info(timeout, State) ->
-    p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#ejm.debug, run, 6),
+    mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#ejm.debug, run, 6),
     {noreply, State, ?T};
 handle_info({#'basic.deliver'{delivery_tag = _Tag}, Content} = _Req, State) ->
-    p_debug:p("~p::~p basic.deliver:~n~p~n",
+    mpln_p_debug:p("~p::~p basic.deliver:~n~p~n",
         [?MODULE, ?LINE, _Req], State#ejm.debug, run, 5),
     Payload = Content#amqp_msg.payload,
     ejobman_rb:send_ack(State#ejm.conn, _Tag),
     New = ejobman_receiver_cmd:store_rabbit_cmd(State, Payload),
     {noreply, New, ?T};
 handle_info(_Req, State) ->
-    p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#ejm.debug, run, 3),
+    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#ejm.debug, run, 3),
     {noreply, State, ?T}.
 %------------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->

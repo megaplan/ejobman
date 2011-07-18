@@ -63,7 +63,7 @@ stop() ->
 %%%----------------------------------------------------------------------------
 init(Params) ->
     C = ejobman_conf:get_config_child(Params),
-    p_debug:pr({?MODULE, 'init done', ?LINE, self()},
+    mpln_p_debug:pr({?MODULE, 'init done', ?LINE, self()},
         C#child.debug, run, 1),
     {ok, C, ?TC}. % yes, this is fast and dirty hack (?TC)
 %%-----------------------------------------------------------------------------
@@ -78,7 +78,7 @@ handle_call(stop, _From, St) ->
 handle_call(status, _From, St) ->
     {reply, St, St, ?TC};
 handle_call(_N, _From, St) ->
-    p_debug:pr({?MODULE, 'other', ?LINE, _N, self()},
+    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N, self()},
         St#child.debug, run, 4),
     New = do_smth(St),
     {reply, {error, unknown_request}, New, ?TC}.
@@ -98,7 +98,7 @@ handle_cast(_, St) ->
     {noreply, New, ?TC}.
 %%-----------------------------------------------------------------------------
 terminate(_, State) ->
-    p_debug:pr({?MODULE, terminate, ?LINE, self()},
+    mpln_p_debug:pr({?MODULE, terminate, ?LINE, self()},
         State#child.debug, run, 2),
     ok.
 %%-----------------------------------------------------------------------------
@@ -108,12 +108,12 @@ terminate(_, State) ->
 -spec handle_info(any(), #child{}) -> any().
 
 handle_info(timeout, State) ->
-    p_debug:pr({?MODULE, info_timeout, ?LINE, self()},
+    mpln_p_debug:pr({?MODULE, info_timeout, ?LINE, self()},
         State#child.debug, run, 6),
     New = do_smth(State),
     {noreply, New, ?TC};
 handle_info(_Req, State) ->
-    p_debug:pr({?MODULE, other, ?LINE, _Req, self()},
+    mpln_p_debug:pr({?MODULE, other, ?LINE, _Req, self()},
         State#child.debug, run, 3),
     New = do_smth(State),
     {noreply, New, ?TC}.
@@ -158,14 +158,14 @@ process_cmd(_) ->
 %% @since 2011-07-18
 %%
 real_cmd(#child{method = Method_bin, url = Url, from = From} = St) ->
-    p_debug:pr({?MODULE, 'process_cmd params', ?LINE, self(),
+    mpln_p_debug:pr({?MODULE, 'process_cmd params', ?LINE, self(),
         Method_bin, Url, From}, St#child.debug, run, 3),
     Method = get_method(Method_bin),
     Res = http:request(Method, {Url, []},
         [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
         []),
     gen_server:reply(From, Res),
-    p_debug:pr({?MODULE, 'process_cmd res', ?LINE, self(), Res},
+    mpln_p_debug:pr({?MODULE, 'process_cmd res', ?LINE, self(), Res},
         St#child.debug, run, 4).
 %%-----------------------------------------------------------------------------
 get_method(B) when is_binary(B) ->

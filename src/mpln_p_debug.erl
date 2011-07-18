@@ -1,7 +1,7 @@
 %%%-----------------------------------------------------------------
 %%% debug print functions
 %%%-----------------------------------------------------------------
--module(p_debug).
+-module(mpln_p_debug).
 -export([p/5, p_ets/6]).
 -export([pr/4]).
 -define(use_p_debug, true).
