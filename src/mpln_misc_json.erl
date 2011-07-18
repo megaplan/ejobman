@@ -22,69 +22,70 @@
 %%% @author arkdro <arkdro@gmail.com>
 %%% @since 2011-07-15 10:00
 %%% @license MIT
-%%% @doc functions that do real handling of the payload received via AMQP
+%%% @doc JSON related functions
 %%%
 
--module(ejobman_receiver_cmd).
+-module(mpln_misc_json).
 
 %%%----------------------------------------------------------------------------
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([store_rabbit_cmd/2]).
+-export([get_type/1, get_job_info/1, get_method/1, get_url/1]).
 
-%%%----------------------------------------------------------------------------
-%%% Includes
-%%%----------------------------------------------------------------------------
-
--include("ejobman.hrl").
--include("rabbit_session.hrl").
-
-%%%----------------------------------------------------------------------------
-%%% Defines
-%%%----------------------------------------------------------------------------
-
--define(HTTP_TIMEOUT, 15000).
-
-%%%----------------------------------------------------------------------------
-%%% api
-%%%----------------------------------------------------------------------------
-
-%%
-%% @doc sends received command to a command handler. Returns nothing actually.
-%% @since 2011-07-15
-%%
--spec store_rabbit_cmd(#ejm{}, binary()) -> #ejm{}.
-
-store_rabbit_cmd(State, Bin) ->
-    p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Bin},
-        State#ejm.debug, run, 4),
-    case catch mochijson2:decode(Bin) of
-        {'EXIT', Reason} ->
-            p_debug:pr({?MODULE, 'store_rabbit_cmd error', ?LINE, Reason},
-                State#ejm.debug, run, 2);
-        Data ->
-            Type = mpln_misc_json:get_type(Data),
-            proceed_cmd_type(State, Type, Data)
-    end,
-    State.
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
 %%
-%% @doc calls ejobman_handler with received command info
+%% @doc extracts value for tagged item from deserialized json structure
 %%
--spec proceed_cmd_type(#ejm{}, binary(), any()) -> ok.
+-spec get_value(any(), binary()) -> any().
 
-proceed_cmd_type(State, <<"rest">>, Data) ->
-    Info = mpln_misc_json:get_job_info(Data),
-    Method = mpln_misc_json:get_method(Info),
-    Url = mpln_misc_json:get_url(Info),
-    % timeout on child crash leads to exception
-    Res = (catch ejobman_handler:cmd(Method, Url)),
-    p_debug:pr({?MODULE, 'proceed_cmd_type res', ?LINE, Res},
-        State#ejm.debug, run, 5);
-proceed_cmd_type(State, Other, _Data) ->
-    p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Other},
-        State#ejm.debug, run, 2).
+get_value({struct, List}, Tag) ->
+    case catch proplists:get_value(Tag, List) of
+        {'EXIT', _} ->
+            undefined;
+        undefined ->
+            undefined;
+        Type ->
+            Type
+    end.
+%%%----------------------------------------------------------------------------
+%%% api
+%%%----------------------------------------------------------------------------
+%%
+%% @doc extracts value for "type" item from deserialized json structure
+%% @since 2011-07-15
+%%
+-spec get_type(any()) -> any().
+
+get_type(Data) ->
+    get_value(Data, <<"type">>).
+
+%%
+%% @doc extracts value for "job_info" item from deserialized json structure
+%% @since 2011-07-15
+%%
+-spec get_job_info(any()) -> any().
+
+get_job_info(Data) ->
+    get_value(Data, <<"job_info">>).
+
+%%
+%% @doc extracts value for "method" item from job_info json structure
+%% @since 2011-07-15
+%%
+-spec get_method(any()) -> any().
+
+get_method(Data) ->
+    get_value(Data, <<"method">>).
+
+%%
+%% @doc extracts value for "url" item from job_info json structure
+%% @since 2011-07-15
+%%
+-spec get_url(any()) -> any().
+
+get_url(Data) ->
+    get_value(Data, <<"url">>).
 %%-----------------------------------------------------------------------------
