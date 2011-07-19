@@ -39,6 +39,10 @@
 %%% Includes
 %%%----------------------------------------------------------------------------
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -include("ejobman.hrl").
 -include("amqp_client.hrl").
 
@@ -168,11 +172,49 @@ real_cmd(#child{method = Method_bin, url = Url, from = From} = St) ->
     mpln_p_debug:pr({?MODULE, 'process_cmd res', ?LINE, self(), Res},
         St#child.debug, run, 4).
 %%-----------------------------------------------------------------------------
+get_method(A) when is_atom(A) ->
+    Str = string:to_lower(atom_to_list(A)),
+    get_method(Str);
 get_method(B) when is_binary(B) ->
     Str = string:to_lower(binary_to_list(B)),
     get_method(Str);
-get_method("get")      -> get;
-get_method("head")     -> head;
-get_method("post")     -> post;
-get_method(_)          -> head.
+get_method(L) when is_list(L) ->
+    get_method_aux(string:to_lower(L));
+get_method(D) ->
+    get_method_aux(D).
+    
+get_method_aux("get")      -> get;
+get_method_aux("head")     -> head;
+get_method_aux("post")     -> post;
+get_method_aux(_)          -> head.
+
+%%%----------------------------------------------------------------------------
+%%% EUnit tests
+%%%----------------------------------------------------------------------------
+-ifdef(TEST).
+get_method_test() ->
+    List = [
+        {get, ["get", 'get', <<"GeT">>, "Get", 'gET']},
+        {post, ["post", "PoST", <<"pOsT">>, 'pOSt']},
+        {head, ['heAD', "HEad", <<"hEaD">>, "head"]},
+        {head, ['options', "OPTions", <<"OpTiOnS">>, "TraCE", <<"any_other">>]}
+    ],
+    get_method_test_list(List).
+
+get_method_test_list(List) ->
+    lists:map(fun get_method_test_one_row/1, List).
+
+get_method_test_one_row({Key, Vals}) ->
+    lists:map(fun(X) -> get_method_test_one_item(Key, X) end, Vals).
+
+get_method_test_one_item(Key, Item) ->
+    Key = get_method(Item).
+
+process_cmd_test() ->
+    ok = process_cmd(#child{}),
+    ok = process_cmd(#child{from = 'undefined'}),
+    ok = process_cmd(#child{url = <<>>}),
+    ok = process_cmd(#child{url = ""}),
+    ok = process_cmd([]).
+-endif.
 %%-----------------------------------------------------------------------------

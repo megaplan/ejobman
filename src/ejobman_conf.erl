@@ -39,6 +39,10 @@
 %%% Includes
 %%%----------------------------------------------------------------------------
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -include("ejobman.hrl").
 
 %%%----------------------------------------------------------------------------
@@ -95,4 +99,15 @@ fill_config(List) ->
         debug = proplists:get_value(debug, List, []),
         log = proplists:get_value(log, List, ?LOG)
     }.
-%%-----------------------------------------------------------------------------
+
+%%%----------------------------------------------------------------------------
+%%% EUnit tests
+%%%----------------------------------------------------------------------------
+-ifdef(TEST).
+fill_config_test() ->
+    #ejm{rses=_, debug=[], log=?LOG} = fill_config([]),
+    #ejm{rses=_, debug=[{info, 5}, {run, 2}], log=?LOG} =
+    fill_config([
+        {debug, [{info, 5}, {run, 2}]}
+        ]).
+-endif.
