@@ -3,3 +3,6 @@ ebin/
 tags
 log/
 *.swp
+*.sublime-*
+.project
+.settings/*

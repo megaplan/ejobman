@@ -24,7 +24,7 @@
 %%% @license MIT
 %%% @doc a gen_server that gets messages from ejobman_receiver and calls
 %%% ejobman_child_supervisor to spawn a new child to do all the dirty work
-%%% 
+%%%
 -module(ejobman_handler).
 -behaviour(gen_server).
 

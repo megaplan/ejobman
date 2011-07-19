@@ -1,4 +1,6 @@
 %%%
+%%% mpln_misc_json: JSON related functions
+%%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -34,13 +36,52 @@
 -export([get_type/1, get_job_info/1, get_method/1, get_url/1]).
 
 %%%----------------------------------------------------------------------------
+%%% Public API
+%%%----------------------------------------------------------------------------
+
+-spec get_type(any()) -> any().
+%%
+%% @doc Extracts value for "type" item from deserialized json structure
+%% @since 2011-07-15
+%%
+get_type(Data) ->
+    get_value(Data, <<"type">>).
+%%-----------------------------------------------------------------------------
+
+-spec get_job_info(any()) -> any().
+%%
+%% @doc Extracts value for "job_info" item from deserialized json structure
+%% @since 2011-07-15
+%%
+get_job_info(Data) ->
+    get_value(Data, <<"job_info">>).
+%%-----------------------------------------------------------------------------
+
+-spec get_method(any()) -> any().
+%%
+%% @doc Extracts value for "method" item from job_info json structure
+%% @since 2011-07-15
+%%
+get_method(Data) ->
+    get_value(Data, <<"method">>).
+
+-spec get_url(any()) -> any().
+%%
+%% @doc Extracts value for "url" item from job_info json structure
+%% @since 2011-07-15
+%%
+get_url(Data) ->
+    get_value(Data, <<"url">>).
+%%-----------------------------------------------------------------------------
+
+%%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
-%%
-%% @doc extracts value for tagged item from deserialized json structure
-%%
--spec get_value(any(), binary()) -> any().
 
+-spec get_value(any(), binary()) -> any().
+%%
+%% @doc Extracts value for tagged item from deserialized json structure
+%%
 get_value({struct, List}, Tag) ->
     case catch proplists:get_value(Tag, List) of
         {'EXIT', _} ->
@@ -50,42 +91,3 @@ get_value({struct, List}, Tag) ->
         Type ->
             Type
     end.
-%%%----------------------------------------------------------------------------
-%%% api
-%%%----------------------------------------------------------------------------
-%%
-%% @doc extracts value for "type" item from deserialized json structure
-%% @since 2011-07-15
-%%
--spec get_type(any()) -> any().
-
-get_type(Data) ->
-    get_value(Data, <<"type">>).
-
-%%
-%% @doc extracts value for "job_info" item from deserialized json structure
-%% @since 2011-07-15
-%%
--spec get_job_info(any()) -> any().
-
-get_job_info(Data) ->
-    get_value(Data, <<"job_info">>).
-
-%%
-%% @doc extracts value for "method" item from job_info json structure
-%% @since 2011-07-15
-%%
--spec get_method(any()) -> any().
-
-get_method(Data) ->
-    get_value(Data, <<"method">>).
-
-%%
-%% @doc extracts value for "url" item from job_info json structure
-%% @since 2011-07-15
-%%
--spec get_url(any()) -> any().
-
-get_url(Data) ->
-    get_value(Data, <<"url">>).
-%%-----------------------------------------------------------------------------
