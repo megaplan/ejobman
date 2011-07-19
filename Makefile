@@ -8,6 +8,8 @@ TEST_DIR = test
 EBIN_DIR := ebin
 ERLC_OPTS = +debug_info
 ERLC := erlc $(ERLC_OPTS)
+VSN=1.0
+APP_NAME=ejobman
 
 all: $(EBIN_DIR)
 	$(ERLC) -W $(INCLUDES) -o $(EBIN_DIR) $(SRC_DIR)/*.erl
@@ -32,3 +34,7 @@ dia:
 		--src \
 		-r $(SRC_DIR)
 
+doc:
+	erl -noshell -run edoc_run application "'$(APP_NAME)'" \
+		'"."' \
+		'[{new, true},{hidden, true},{private, true},{def,{vsn,"$(VSN)"}}]'

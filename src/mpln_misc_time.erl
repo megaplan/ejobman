@@ -126,7 +126,7 @@ make_str_float(DateTime) ->
 %%
 %% @doc returns time string (y-m-d h:m:s) for given time
 %% @since 2011-07-15
-%%
+%% @clear
 % NOTE: function is commented out to shut dialyzer up.
 %-spec make_str_int(t_datetime()) -> string().
 %
