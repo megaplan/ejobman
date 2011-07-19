@@ -61,9 +61,11 @@ store_rabbit_cmd(State, Bin) ->
         State#ejm.debug, run, 4),
     case catch mochijson2:decode(Bin) of
         {'EXIT', Reason} ->
-            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd error', ?LINE, Reason},
-                State#ejm.debug, run, 2);
+            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd error',
+                ?LINE, Reason}, State#ejm.debug, run, 2);
         Data ->
+            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json dat',
+                ?LINE, Data}, State#ejm.debug, run, 5),
             Type = mpln_misc_json:get_type(Data),
             proceed_cmd_type(State, Type, Data)
     end,
