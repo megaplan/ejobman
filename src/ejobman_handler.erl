@@ -36,11 +36,15 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 
--export([cmd/2]).
+-export([cmd/2, remove_child/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
 %%%----------------------------------------------------------------------------
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
 
 -include("ejobman.hrl").
 -include("amqp_client.hrl").
@@ -62,8 +66,13 @@ init(Config) ->
     {noreply, #ejm{}, non_neg_integer()}
     | {any(), any(), #ejm{}, non_neg_integer()}.
 
+handle_call({remove_child, Pid}, _From, St) ->
+    St_d = do_smth(St),
+    New = remove_child(St_d, Pid),
+    {reply, ok, New, ?T};
 handle_call({cmd, Method, Url}, From, St) ->
-    New = ejobman_handler_cmd:do_command(St, From, Method, Url),
+    St_d = do_smth(St),
+    New = ejobman_handler_cmd:do_command(St_d, From, Method, Url),
     {noreply, New, ?T};
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
@@ -71,7 +80,8 @@ handle_call(status, _From, St) ->
     {reply, St, St, ?T};
 handle_call(_N, _From, St) ->
     mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N}, St#ejm.debug, run, 4),
-    {reply, {error, unknown_request}, St, ?T}.
+    New = do_smth(St),
+    {reply, {error, unknown_request}, New, ?T}.
 %------------------------------------------------------------------------------
 %%
 %% Handling cast messages
@@ -84,7 +94,8 @@ handle_cast(stop, St) ->
 handle_cast(st0p, St) ->
     St;
 handle_cast(_, St) ->
-    {noreply, St, ?T}.
+    New = do_smth(St),
+    {noreply, New, ?T}.
 %------------------------------------------------------------------------------
 terminate(_, _State) ->
     ok.
@@ -96,10 +107,12 @@ terminate(_, _State) ->
 
 handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, info_timeout, ?LINE}, State#ejm.debug, run, 6),
-    {noreply, State, ?T};
+    New = do_smth(State),
+    {noreply, New, ?T};
 handle_info(_Req, State) ->
     mpln_p_debug:pr({other, ?MODULE, ?LINE, _Req}, State#ejm.debug, run, 3),
-    {noreply, State, ?T}.
+    New = do_smth(State),
+    {noreply, New, ?T}.
 %------------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
@@ -124,6 +137,93 @@ stop() ->
 -spec cmd(binary(), binary()) -> ok.
 
 cmd(Method, Url) ->
-    gen_server:call(?MODULE, {cmd, Method, Url})
+    gen_server:call(?MODULE, {cmd, Method, Url}).
+%%-----------------------------------------------------------------------------
+%%
+%% @doc asks ejobman_handler to remove child from the list
+%%
+-spec remove_child(pid()) -> ok.
+
+remove_child(Pid) ->
+    gen_server:call(?MODULE, {remove_child, Pid}).
+%%%----------------------------------------------------------------------------
+%%% Internal functions
+%%%----------------------------------------------------------------------------
+%%
+%% @doc removes child from the list of children
+%%
+-spec remove_child(#ejm{}, pid()) -> #ejm{}.
+
+remove_child(#ejm{ch_data=Ch} = St, Pid) ->
+    F = fun(#chi{pid=X}) when X == Pid ->
+            false;
+        (_) ->
+            true
+    end,
+    New = lists:filter(F, Ch),
+    St#ejm{ch_data=New}
 .
-%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
+%%
+%% @doc does periodic checks. E.g.: check for children
+%%
+-spec do_smth(#ejm{}) -> #ejm{}.
+
+do_smth(State) ->
+    check_children(State)
+.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks that all the children are alive. Returns new state with
+%% live children only
+%%
+-spec check_children(#ejm{}) -> #ejm{}.
+
+check_children(#ejm{ch_data=Ch} = State) ->
+    New = lists:filter(fun check_child/1, Ch),
+    State#ejm{ch_data = New}
+.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks whether the given child does something
+%%
+-spec check_child(#chi{}) -> boolean().
+
+check_child(#chi{pid=Pid}) ->
+    case process_info(Pid, reductions) of
+        {reductions, _N} ->
+            true;
+        _ ->
+            false
+    end.
+
+%%%----------------------------------------------------------------------------
+%%% EUnit tests
+%%%----------------------------------------------------------------------------
+-ifdef(TEST).
+remove_child_test() ->
+    Pid = self(),
+    Me = #chi{pid=Pid, start=now()},
+    Ch = make_fake_children(),
+    St = #ejm{ch_data = [Me | Ch]},
+    ?assert(#ejm{ch_data=Ch} =:= remove_child(St, Pid)).
+
+check_mix_children_test() ->
+    Me = #chi{pid=self(), start=now()},
+    Ch = make_fake_children(),
+    St = #ejm{ch_data = [Me | Ch]},
+    ?assert(#ejm{ch_data=[Me]} =:= check_children(St)).
+ 
+check_fake_children_test() ->
+    Ch = make_fake_children(),
+    St = #ejm{ch_data = Ch},
+    ?assert(#ejm{ch_data=[]} =:= check_children(St)).
+ 
+make_fake_children() ->
+    L = [
+        "<0.12340.5678>",
+        "<0.32767.7136>",
+        "<0.7575.5433>"
+    ],
+    lists:map(fun(X) -> #chi{pid=list_to_pid(X), start=now()} end, L).
+-endif.

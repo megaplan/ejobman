@@ -6,3 +6,4 @@ log/
 *.sublime-*
 .project
 .settings/*
+doc/html

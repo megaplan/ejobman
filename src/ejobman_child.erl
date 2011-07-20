@@ -102,6 +102,7 @@ handle_cast(_, St) ->
     {noreply, New, ?TC}.
 %%-----------------------------------------------------------------------------
 terminate(_, State) ->
+    ejobman_handler:remove_child(self()),
     mpln_p_debug:pr({?MODULE, terminate, ?LINE, self()},
         State#child.debug, run, 2),
     ok.

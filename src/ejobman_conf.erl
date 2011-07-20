@@ -72,6 +72,8 @@ get_config_hdl(File) ->
     List = mpln_misc_conf:read_config(File),
     Hdl_list = proplists:get_value(handler, List, []),
     #ejm{
+        ch_data = [],
+        max_children = proplists:get_value(max_children, Hdl_list, 32767),
         debug = proplists:get_value(debug, Hdl_list, [])
     }.
 %%-----------------------------------------------------------------------------

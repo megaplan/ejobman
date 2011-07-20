@@ -6,14 +6,14 @@ INCLUDES = $(INCLUDE_DIR:%=-I%)
 SRC_DIR = src
 TEST_DIR = test
 EBIN_DIR := ebin
-ERLC_OPTS = +debug_info
+ERLC_OPTS = +debug_info -DTEST
 ERLC := erlc $(ERLC_OPTS)
 VSN=1.0
 APP_NAME=ejobman
 
 all: $(EBIN_DIR)
 	$(ERLC) -W $(INCLUDES) -o $(EBIN_DIR) $(SRC_DIR)/*.erl
-	cp $(SRC_DIR)/ejobman_app.app $(EBIN_DIR)
+	cp $(SRC_DIR)/ejobman.app.src $(EBIN_DIR)/ejobman_app.app
 	
 tests: $(EBIN_DIR)
 	@$(ERLC) -W $(INCLUDES) -o $(EBIN_DIR) $(TEST_DIR)/*.erl
@@ -37,4 +37,6 @@ dia:
 doc:
 	erl -noshell -run edoc_run application "'$(APP_NAME)'" \
 		'"."' \
-		'[{new, true},{hidden, true},{private, true},{def,{vsn,"$(VSN)"}}]'
+		'[{dir,"doc/html"},{new, true},{hidden, true},{private, true},{def,{vsn,"$(VSN)"}}]'
+
+.PHONY: clean ctags dia doc

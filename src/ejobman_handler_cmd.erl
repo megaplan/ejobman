@@ -38,18 +38,41 @@
 %%% Includes
 %%%----------------------------------------------------------------------------
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -include("ejobman.hrl").
 
 %%%----------------------------------------------------------------------------
 %%% api
 %%%----------------------------------------------------------------------------
 %%
-%% @doc do command processing in background then send reply to the client
+%% @doc checks for reaching the configured maximum number of children.
+%% Proceeds to command if there is a space for a new child.
 %%
 -spec do_command(#ejm{}, any(), binary(), binary()) -> #ejm{}.
 
-do_command(St, From, Method, Url) ->
-    mpln_p_debug:pr({?MODULE, 'do_command cmd', ?LINE, Method, Url},
+do_command(#ejm{ch_data=Ch, max_children = Max} = St, From, Method, Url) ->
+    Len = length(Ch),
+    if  Len < Max ->
+            proceed_command(St, From, Method, Url);
+        true ->
+            mpln_p_debug:pr({?MODULE, 'do_command too many children', ?LINE,
+                Len, Max}, St#ejm.debug, run, 2),
+            St
+    end.
+
+%%-----------------------------------------------------------------------------
+%% Internal functions
+%%-----------------------------------------------------------------------------
+%%
+%% @doc do command processing in background then send reply to the client
+%%
+-spec proceed_command(#ejm{}, any(), binary(), binary()) -> #ejm{}.
+
+proceed_command(St, From, Method, Url) ->
+    mpln_p_debug:pr({?MODULE, 'proceed_command cmd', ?LINE, Method, Url},
         St#ejm.debug, run, 4),
     % parameters for ejobman_child
     Params = [
@@ -59,8 +82,32 @@ do_command(St, From, Method, Url) ->
         {debug, St#ejm.debug}
         ],
     Res = supervisor:start_child(ejobman_child_supervisor, [Params]),
-    mpln_p_debug:pr({?MODULE, 'do_command res', ?LINE, Res},
+    mpln_p_debug:pr({?MODULE, 'proceed_command res', ?LINE, Res},
         St#ejm.debug, run, 4),
-    St
+    case Res of
+        {ok, Pid} ->
+            add_child(St, Pid);
+        _ ->
+            St
+    end.
+%%-----------------------------------------------------------------------------
+%% @doc adds child's pid to the list for later use
+%% (e.g.: assign a job, kill, rip, etc...)
+-spec add_child(#ejm{}, pid()) -> #ejm{}.
+
+add_child(#ejm{ch_data=Children} = St, Pid) ->
+    Ch = #chi{pid = Pid, start = now()},
+    St#ejm{ch_data = [Ch | Children]}
 .
+%%%----------------------------------------------------------------------------
+%%% EUnit tests
+%%%----------------------------------------------------------------------------
+-ifdef(TEST).
+do_command_test() ->
+    Pid = self(),
+    Me = #chi{pid=Pid, start=now()},
+    St = #ejm{ch_data=[Me], max_children = 1, debug=[{run, -1}]},
+    New = do_command(St, {self(), 'tag'}, "head", "http://localhost:8182/"),
+    ?assert(St =:= New).
+-endif.
 %%-----------------------------------------------------------------------------
