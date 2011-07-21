@@ -1,4 +1,6 @@
 %%%
+%%% ejobman_receiver_cmd: payload handling
+%%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -49,7 +51,6 @@
 %%%----------------------------------------------------------------------------
 %%% api
 %%%----------------------------------------------------------------------------
-
 %%
 %% @doc sends received command to a command handler. Returns nothing actually.
 %% @since 2011-07-15
@@ -66,7 +67,7 @@ store_rabbit_cmd(State, Bin) ->
         Data ->
             mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json dat',
                 ?LINE, Data}, State#ejm.debug, run, 5),
-            Type = mpln_misc_json:get_type(Data),
+            Type = ejobman_data:get_type(Data),
             proceed_cmd_type(State, Type, Data)
     end,
     State.
@@ -79,9 +80,9 @@ store_rabbit_cmd(State, Bin) ->
 -spec proceed_cmd_type(#ejm{}, binary(), any()) -> ok.
 
 proceed_cmd_type(State, <<"rest">>, Data) ->
-    Info = mpln_misc_json:get_job_info(Data),
-    Method = mpln_misc_json:get_method(Info),
-    Url = mpln_misc_json:get_url(Info),
+    Info = ejobman_data:get_job_info(Data),
+    Method = ejobman_data:get_method(Info),
+    Url = ejobman_data:get_url(Info),
     % timeout on child crash leads to exception
     Res = (catch ejobman_handler:cmd(Method, Url)),
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type res', ?LINE, Res},

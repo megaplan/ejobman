@@ -1,4 +1,6 @@
 %%% 
+%%% ejobman_sup: main supervisor
+%%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,10 +22,11 @@
 %%% SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 %%%
 %%% @author arkdro <arkdro@gmail.com>
-%%% @sinse 2011-07-15 10:00
+%%% @since 2011-07-15 10:00
 %%% @license MIT
 %%% @doc main supervisor that spawns receiver, handler and child supervisor
 %%% 
+
 -module(ejobman_sup).
 -behaviour(supervisor).
 
@@ -39,12 +42,6 @@
 
 -define(RESTARTS, 5).
 -define(SECONDS, 2).
-
-%%%----------------------------------------------------------------------------
-%%% api
-%%%----------------------------------------------------------------------------
-start_link() ->
-    supervisor:start_link({local, ejobman_supervisor}, ejobman_sup, []).
 
 %%%----------------------------------------------------------------------------
 %%% supervisor callbacks
@@ -64,4 +61,10 @@ init(_Args) ->
         },
     {ok, {{one_for_one, ?RESTARTS, ?SECONDS},
         [Receiver, Handler, Sup]}}.
+%%%----------------------------------------------------------------------------
+%%% api
+%%%----------------------------------------------------------------------------
+start_link() ->
+    supervisor:start_link({local, ejobman_supervisor}, ejobman_sup, []).
+
 %%-----------------------------------------------------------------------------

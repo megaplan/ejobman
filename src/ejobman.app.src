@@ -8,6 +8,7 @@
         ejobman_child_sup.erl,
         ejobman_conf.erl,
         ejobman_conf_rabbit.erl,
+        ejobman_data.erl,
         ejobman_handler_cmd.erl,
         ejobman_handler.erl,
         ejobman_rb.erl,
@@ -15,7 +16,6 @@
         ejobman_receiver.erl,
         ejobman_sup.erl,
         mpln_misc_conf.erl,
-        mpln_misc_json.erl,
         mpln_misc_log.erl,
         mpln_misc_time.erl,
         mpln_p_debug.erl

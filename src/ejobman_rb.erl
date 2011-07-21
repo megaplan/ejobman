@@ -1,4 +1,6 @@
 %%%
+%%% ejobman_rb: RabbitMQ interaction
+%%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -177,4 +179,4 @@ cancel_consumer(Channel, ConsumerTag) ->
     #'basic.cancel_ok'{consumer_tag = ConsumerTag} =
         amqp_channel:call(Channel,BasicCancel)
 .
-%---------------------------------------------------------------------
+%%-----------------------------------------------------------------------------

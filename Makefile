@@ -6,10 +6,12 @@ INCLUDES = $(INCLUDE_DIR:%=-I%)
 SRC_DIR = src
 TEST_DIR = test
 EBIN_DIR := ebin
+HTML_DOC_DIR = doc/html
 ERLC_OPTS = +debug_info -DTEST
 ERLC := erlc $(ERLC_OPTS)
 VSN=1.0
 APP_NAME=ejobman
+LICENSE=MIT
 
 all: $(EBIN_DIR)
 	$(ERLC) -W $(INCLUDES) -o $(EBIN_DIR) $(SRC_DIR)/*.erl
@@ -19,7 +21,7 @@ tests: $(EBIN_DIR)
 	@$(ERLC) -W $(INCLUDES) -o $(EBIN_DIR) $(TEST_DIR)/*.erl
 	
 clean:
-	@rm -rvf $(EBIN_DIR)/*
+	@rm -rvf $(EBIN_DIR)/* $(HTML_DOC_DIR)
 
 ctags:
 	cd $(SRC_DIR) ; ctags -R . ../include 
@@ -37,6 +39,6 @@ dia:
 doc:
 	erl -noshell -run edoc_run application "'$(APP_NAME)'" \
 		'"."' \
-		'[{dir,"doc/html"},{new, true},{hidden, true},{private, true},{def,{vsn,"$(VSN)"}}]'
+		'[{dir,"$(HTML_DOC_DIR)"},{new, true},{hidden, true},{private, true},{def,[{vsn,"$(VSN)"}, {license, "(License: $(LICENSE))"}]}]'
 
 .PHONY: clean ctags dia doc

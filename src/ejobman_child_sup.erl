@@ -1,4 +1,6 @@
 %%% 
+%%% ejobman_child_sup: supervisor for dynamic children
+%%% 
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,10 +22,11 @@
 %%% SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 %%%
 %%% @author arkdro <arkdro@gmail.com>
-%%% @sinse 2011-07-15 10:00
+%%% @since 2011-07-15 10:00
 %%% @license MIT
 %%% @doc a supervisor that spawns dynamic children
 %%% 
+
 -module(ejobman_child_sup).
 -behaviour(supervisor).
 
@@ -41,14 +44,6 @@
 -define(SECONDS, 5).
 
 %%%----------------------------------------------------------------------------
-%%% api
-%%%----------------------------------------------------------------------------
-start_link() ->
-    supervisor:start_link({local, ejobman_child_supervisor},
-        ejobman_child_sup,
-        []).
-
-%%%----------------------------------------------------------------------------
 %%% supervisor callbacks
 %%%----------------------------------------------------------------------------
 init(_Args) ->
@@ -58,4 +53,13 @@ init(_Args) ->
         },
     {ok, {{simple_one_for_one, ?RESTARTS, ?SECONDS},
         [Worker]}}.
+
+%%%----------------------------------------------------------------------------
+%%% api
+%%%----------------------------------------------------------------------------
+start_link() ->
+    supervisor:start_link({local, ejobman_child_supervisor},
+        ejobman_child_sup,
+        []).
+
 %%-----------------------------------------------------------------------------

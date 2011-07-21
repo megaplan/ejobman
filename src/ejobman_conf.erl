@@ -1,4 +1,6 @@
 %%%
+%%% ejobman_conf: functions for config
+%%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy

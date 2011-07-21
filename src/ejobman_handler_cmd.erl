@@ -1,3 +1,5 @@
+%%%
+%%% ejobman_handler_cmd: received command handling
 %%% 
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%

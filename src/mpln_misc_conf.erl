@@ -1,4 +1,6 @@
 %%%
+%%% mpln_misc_conf: config file read and processing
+%%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy

@@ -1,4 +1,6 @@
 %%%
+%%% ejobman_handler: gen_server that handles messages from ejobman_receiver
+%%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,6 +27,7 @@
 %%% @doc a gen_server that gets messages from ejobman_receiver and calls
 %%% ejobman_child_supervisor to spawn a new child to do all the dirty work
 %%%
+
 -module(ejobman_handler).
 -behaviour(gen_server).
 
@@ -57,7 +60,7 @@ init(Config) ->
     C = ejobman_conf:get_config_hdl(Config),
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),
     {ok, C, ?T}.
-%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %%
 %% Handling call messages
 %% @since 2011-07-15 11:00
@@ -82,7 +85,7 @@ handle_call(_N, _From, St) ->
     mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N}, St#ejm.debug, run, 4),
     New = do_smth(St),
     {reply, {error, unknown_request}, New, ?T}.
-%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %%
 %% Handling cast messages
 %% @since 2011-07-15 11:00
@@ -96,12 +99,13 @@ handle_cast(st0p, St) ->
 handle_cast(_, St) ->
     New = do_smth(St),
     {noreply, New, ?T}.
-%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 terminate(_, _State) ->
     ok.
-%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %%
 %% Handling all non call/cast messages
+%% @since 2011-07-15 11:00
 %%
 -spec handle_info(any(), #ejm{}) -> {noreply, #ejm{}, non_neg_integer()}.
 
@@ -113,23 +117,24 @@ handle_info(_Req, State) ->
     mpln_p_debug:pr({other, ?MODULE, ?LINE, _Req}, State#ejm.debug, run, 3),
     New = do_smth(State),
     {noreply, New, ?T}.
-%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
+
 %%%----------------------------------------------------------------------------
 %%% api
 %%%----------------------------------------------------------------------------
 start() ->
     start_link().
-%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 start_link() ->
     start_link(?CONF).
 start_link(Config) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Config, []).
-%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 stop() ->
     gen_server:call(?MODULE, stop).
-%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %%
 %% @doc API to call any received command.
 %% @since 2011-07-15 11:00
@@ -165,7 +170,8 @@ remove_child(#ejm{ch_data=Ch} = St, Pid) ->
 .
 %%-----------------------------------------------------------------------------
 %%
-%% @doc does periodic checks. E.g.: check for children
+%% @doc does miscellaneous periodic checks. E.g.: check for children. Returns
+%% updated state.
 %%
 -spec do_smth(#ejm{}) -> #ejm{}.
 
@@ -227,3 +233,4 @@ make_fake_children() ->
     ],
     lists:map(fun(X) -> #chi{pid=list_to_pid(X), start=now()} end, L).
 -endif.
+%%-----------------------------------------------------------------------------

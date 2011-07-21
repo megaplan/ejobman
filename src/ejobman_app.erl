@@ -1,3 +1,5 @@
+%%%
+%%% ejobman_app: application for ejobman
 %%% 
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
@@ -20,7 +22,7 @@
 %%% SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 %%%
 %%% @author arkdro <arkdro@gmail.com>
-%%% @sinse 2011-07-15 10:00
+%%% @since 2011-07-15 10:00
 %%% @license MIT
 %%% @doc application for ejobman
 %%% 

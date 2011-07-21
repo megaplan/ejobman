@@ -1,5 +1,5 @@
 %%%
-%%% mpln_misc_json: JSON related functions
+%%% ejobman_data: ejobman data functions
 %%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
@@ -24,10 +24,10 @@
 %%% @author arkdro <arkdro@gmail.com>
 %%% @since 2011-07-15 10:00
 %%% @license MIT
-%%% @doc JSON related functions
+%%% @doc ejobman data related functions
 %%%
 
--module(mpln_misc_json).
+-module(ejobman_data).
 
 %%%----------------------------------------------------------------------------
 %%% Exports
@@ -64,6 +64,7 @@ get_job_info(Data) ->
 %%
 get_method(Data) ->
     get_value(Data, <<"method">>).
+%%-----------------------------------------------------------------------------
 
 -spec get_url(any()) -> any().
 %%
@@ -72,7 +73,6 @@ get_method(Data) ->
 %%
 get_url(Data) ->
     get_value(Data, <<"url">>).
-%%-----------------------------------------------------------------------------
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions
@@ -91,3 +91,4 @@ get_value({struct, List}, Tag) ->
         Type ->
             Type
     end.
+%%-----------------------------------------------------------------------------
