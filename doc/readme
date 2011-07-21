@@ -3,7 +3,7 @@ Content
 
 Depends
 Problems
-
+Workers
 
 Depends
 =======
@@ -20,5 +20,17 @@ Problems
   Currently the client is an unzipped copy of the distro's package
   (rabbitmq-erlang-client, 2.3.1+hg20110303.1-0ubuntu2)
   Possible solutions:
-  - keep it. Build beam files on linux, use them everywhere. The only parts
+  - let it be. Build beam files on linux, use them everywhere. The only parts
     to be changed are start/stop scripts, configs(?), etc.
+
+Workers
+=======
+
+There are two types of workers: long living and short living processes.
+The min and the max number of long lasting workers are defined in config file
+in the handler section (parameters min_workers, max_workers).
+The max number of short living processes is also defined in handler section
+of the config (parameter max_children)
+Long living workers are controlled (spawn, assign a job, terminate)
+by ejobman_handler.
+

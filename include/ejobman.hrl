@@ -15,10 +15,14 @@
 
 -record(chi, {
     pid,
+    id,
     start={0,0,0} % time in now() format
 }).
 
 -record(ejm, {
+    workers,
+    min_workers = 5,
+    max_workers = 255,
     ch_data, % spawned children
     max_children = 32767,
     rses,

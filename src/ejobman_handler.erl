@@ -53,13 +53,20 @@
 -include("amqp_client.hrl").
 
 %%%----------------------------------------------------------------------------
+%%% Defines
+%%%----------------------------------------------------------------------------
+
+-define(GRP, ejobman_handler_workers).
+
+%%%----------------------------------------------------------------------------
 %%% gen_server callbacks
 %%%----------------------------------------------------------------------------
 init(Config) ->
     application:start(inets),
     C = ejobman_conf:get_config_hdl(Config),
+    New = prepare_workers(C),
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),
-    {ok, C, ?T}.
+    {ok, New, ?T}.
 %%-----------------------------------------------------------------------------
 %%
 %% Handling call messages
@@ -100,7 +107,8 @@ handle_cast(_, St) ->
     New = do_smth(St),
     {noreply, New, ?T}.
 %%-----------------------------------------------------------------------------
-terminate(_, _State) ->
+terminate(_, State) ->
+    remove_workers(State),
     ok.
 %%-----------------------------------------------------------------------------
 %%
@@ -202,6 +210,93 @@ check_child(#chi{pid=Pid}) ->
         _ ->
             false
     end.
+
+%%-----------------------------------------------------------------------------
+-spec prepare_workers(#ejm{}) -> #ejm{}.
+%%
+%% @doc creates process group, asks supervisor to spawn
+%% the configured minimum of long
+%% lasting workers, adds workers to the group
+%%
+prepare_workers(C) ->
+    pg2:start(),
+    pg2:create(?GRP),
+    spawn_workers(C).
+
+-spec spawn_workers(#ejm{}) -> #ejm{}.
+spawn_workers(#ejm{min_workers=N} = C) ->
+    lists:foldl(
+        fun(_X, Acc) -> spawn_one_worker(Acc) end,
+        C,
+        lists:duplicate(N, true)
+    ).
+%%-----------------------------------------------------------------------------
+-spec spawn_one_worker(#ejm{}) -> #ejm{}.
+%%
+%% @doc checks for max number of workers. Spawns a new worker if possible.
+%%
+spawn_one_worker(#ejm{max_workers = Max, workers = Workers} = C) ->
+    Len = length(Workers),
+    if  Len < Max ->
+            real_spawn_one_worker(C);
+        true ->
+            C
+    end.
+%%-----------------------------------------------------------------------------
+-spec real_spawn_one_worker(#ejm{}) -> #ejm{}.
+%%
+%% @doc Spawns a new worker, stores its pid (and a ref) in a list,
+%% returns modified state.
+%%
+real_spawn_one_worker(C) ->
+    Id = make_ref(),
+    Child_config = make_child_config(C),
+    StartFunc = {ejobman_long_worker, start_link, [Child_config]},
+    Child = {Id, StartFunc, permanent, 1000, worker, [ejobman_long_worker]},
+    Workers = C#ejm.workers,
+    Res = supervisor:start_child(ejobman_long_supervisor, Child),
+    mpln_p_debug:pr({?MODULE, 'real_spawn_one_worker res', ?LINE, Res},
+        C#ejm.debug, run, 3),
+    case Res of
+        {ok, Pid} ->
+            ok = pg2:join(?GRP, Pid),
+            Ch = #chi{pid=Pid, id=Id, start=now()},
+            C#ejm{workers = [Ch | Workers]};
+        {ok, Pid, _Info} ->
+            ok = pg2:join(?GRP, Pid),
+            Ch = #chi{pid=Pid, id=Id, start=now()},
+            C#ejm{workers = [Ch | Workers]};
+        {error, _Reason} ->
+            C
+    end.
+%%-----------------------------------------------------------------------------
+make_child_config(C) ->
+    [{debug, C#ejm.debug}]
+.
+%%-----------------------------------------------------------------------------
+-spec remove_workers(#ejm{}) -> ok.
+%%
+%% @doc terminates all the workers. Deletes the process group.
+%%
+remove_workers(C) ->
+    terminate_workers(C),
+    pg2:delete(?GRP).
+
+-spec terminate_workers(#ejm{}) -> ok.
+%%
+%% @doc terminates all the workers
+%%
+terminate_workers(#ejm{workers = Workers}) ->
+    lists:foreach(fun terminate_one_worker/1, Workers).
+
+-spec terminate_one_worker(#chi{}) -> any().
+%%
+%% @doc terminates one worker
+%%
+terminate_one_worker(#chi{pid=Pid, id=Id}) ->
+    pg2:leave(?GRP, Pid),
+    supervisor:terminate_child(ejobman_long_supervisor, Id),
+    supervisor:delete_child(ejobman_long_supervisor, Id).
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests

@@ -1,6 +1,6 @@
 %%% 
-%%% ejobman_sup: main supervisor
-%%%
+%%% ejobman_long_sup: supervisor for long-lasting workers
+%%% 
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,12 +22,12 @@
 %%% SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 %%%
 %%% @author arkdro <arkdro@gmail.com>
-%%% @since 2011-07-15 10:00
+%%% @since 2011-07-21 18:09
 %%% @license MIT
-%%% @doc main supervisor that spawns receiver, handler and child supervisor
+%%% @doc a supervisor that spawns long-lasting workers
 %%% 
 
--module(ejobman_sup).
+-module(ejobman_long_sup).
 -behaviour(supervisor).
 
 %%%----------------------------------------------------------------------------
@@ -40,35 +40,22 @@
 %%% Defines
 %%%----------------------------------------------------------------------------
 
--define(RESTARTS, 5).
--define(SECONDS, 2).
+-define(RESTARTS, 25).
+-define(SECONDS, 5).
 
 %%%----------------------------------------------------------------------------
 %%% supervisor callbacks
 %%%----------------------------------------------------------------------------
 init(_Args) ->
-    Receiver = {
-        ejobman_receiver, {ejobman_receiver, start_link, []},
-        permanent, brutal_kill, worker, [ejobman_receiver]
-        },
-    Handler = {
-        ejobman_handler, {ejobman_handler, start_link, []},
-        permanent, brutal_kill, worker, [ejobman_handler]
-        },
-    Sup = {
-        ejobman_child_sup, {ejobman_child_sup, start_link, []},
-        transient, infinity, supervisor, [ejobman_child_sup]
-        },
-    LSup = {
-        ejobman_long_sup, {ejobman_long_sup, start_link, []},
-        transient, infinity, supervisor, [ejobman_long_sup]
-        },
     {ok, {{one_for_one, ?RESTARTS, ?SECONDS},
-        [LSup, Sup, Receiver, Handler]}}. % LSup must be started before Handler
+        []}}.
+
 %%%----------------------------------------------------------------------------
 %%% api
 %%%----------------------------------------------------------------------------
 start_link() ->
-    supervisor:start_link({local, ejobman_supervisor}, ejobman_sup, []).
+    supervisor:start_link({local, ejobman_long_supervisor},
+        ejobman_long_sup,
+        []).
 
 %%-----------------------------------------------------------------------------
