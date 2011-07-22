@@ -235,7 +235,8 @@ do_smth(State) ->
 -spec check_queued_commands(#ejm{}) -> #ejm{}.
 
 check_queued_commands(St) ->
-    ejobman_handler_cmd:do_all_commands(St).
+    St_short = ejobman_handler_cmd:do_short_commands(St),
+    ejobman_handler_cmd:do_long_commands(St_short).
 %%-----------------------------------------------------------------------------
 %%
 %% @doc stops old disengaged workers, stops any too old workers.
@@ -284,52 +285,13 @@ prepare_workers(C) ->
 %% @doc spawns N workers
 %%
 spawn_workers(#ejm{min_workers=N} = C) ->
-    lists:foldl(
-        fun(_X, Acc) -> spawn_one_worker(Acc) end,
+    lists:foldl(fun(_X, Acc) ->
+            {_, New} = ejobman_worker_spawn:spawn_one_worker(Acc),
+            New
+        end,
         C,
         lists:duplicate(N, true)
     ).
-%%-----------------------------------------------------------------------------
--spec spawn_one_worker(#ejm{}) -> #ejm{}.
-%%
-%% @doc checks for max number of workers. Spawns a new worker if possible.
-%%
-spawn_one_worker(#ejm{max_workers = Max, workers = Workers} = C) ->
-    Len = length(Workers),
-    if  Len < Max ->
-            real_spawn_one_worker(C);
-        true ->
-            C
-    end.
-%%-----------------------------------------------------------------------------
--spec real_spawn_one_worker(#ejm{}) -> #ejm{}.
-%%
-%% @doc Spawns a new worker, stores its pid (and a ref) in a list,
-%% returns the modified state.
-%%
-real_spawn_one_worker(C) ->
-    Id = make_ref(),
-    Child_config = make_child_config(C),
-    StartFunc = {ejobman_long_worker, start_link, [Child_config]},
-    Child = {Id, StartFunc, permanent, 1000, worker, [ejobman_long_worker]},
-    Workers = C#ejm.workers,
-    Res = supervisor:start_child(ejobman_long_supervisor, Child),
-    mpln_p_debug:pr({?MODULE, 'real_spawn_one_worker res', ?LINE, Res},
-        C#ejm.debug, run, 3),
-    case Res of
-        {ok, Pid} ->
-            Ch = #chi{pid=Pid, id=Id, start=now()},
-            C#ejm{workers = [Ch | Workers]};
-        {ok, Pid, _Info} ->
-            Ch = #chi{pid=Pid, id=Id, start=now()},
-            C#ejm{workers = [Ch | Workers]};
-        {error, _Reason} ->
-            C
-    end.
-%%-----------------------------------------------------------------------------
-make_child_config(C) ->
-    [{debug, C#ejm.debug}]
-.
 %%-----------------------------------------------------------------------------
 -spec remove_workers(#ejm{}) -> ok.
 %%

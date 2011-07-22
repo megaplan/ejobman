@@ -24,7 +24,7 @@
 %%% @author arkdro <arkdro@gmail.com>
 %%% @since 2011-07-21 18:09
 %%% @license MIT
-%%% @doc dynamically added worker that does the read thing.
+%%% @doc dynamically added worker that does the real thing.
 %%%
 
 -module(ejobman_long_worker).
@@ -33,9 +33,12 @@
 %%%----------------------------------------------------------------------------
 %%% Exports
 %%%----------------------------------------------------------------------------
+
 -export([start/0, start_link/0, start_link/1, stop/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
+
+-export([cmd/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -71,6 +74,14 @@ init(Params) ->
 
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
+handle_call({cmd, Job}, _From, St) ->
+    mpln_p_debug:pr({?MODULE, 'cmd', ?LINE, Job, self()},
+        St#child.debug, run, 4),
+    New = do_smth(St),
+    % 'ok' reply goes to the caller of gen_server api
+    % (ejobman_handler_cmd:do_one_long_command). The real requestor is in
+    % the From field of the Job tuple.
+    {reply, ok, New, ?T};
 handle_call(status, _From, St) ->
     {reply, St, St, ?T};
 handle_call(_N, _From, St) ->
@@ -119,7 +130,7 @@ code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
 
 %%%----------------------------------------------------------------------------
-%%% api
+%%% API
 %%%----------------------------------------------------------------------------
 start() ->
     start_link().
@@ -131,7 +142,15 @@ start_link(Params) ->
 %%-----------------------------------------------------------------------------
 stop() ->
     gen_server:call(?MODULE, stop).
+%%-----------------------------------------------------------------------------
+%%
+%% @doc transmit the command to a gen_server with the given pid
+%% @since 2011-07-22 19:00
+%%
+-spec cmd(pid(), tuple()) -> ok.
 
+cmd(Pid, Job) ->
+    gen_server:call(Pid, {cmd, Job}).
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------

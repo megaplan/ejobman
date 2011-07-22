@@ -24,7 +24,7 @@
 %%% @author arkdro <arkdro@gmail.com>
 %%% @since 2011-07-15 10:00
 %%% @license MIT
-%%% @doc dynamically added worker that does the read thing.
+%%% @doc dynamically added worker that does the real thing.
 %%%
 
 -module(ejobman_child).
