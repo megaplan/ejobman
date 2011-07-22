@@ -40,6 +40,7 @@
 -export([terminate/2, code_change/3]).
 
 -export([cmd/2, remove_child/1]).
+-export([cmd2/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -56,7 +57,7 @@
 %%% Defines
 %%%----------------------------------------------------------------------------
 
--define(GRP, ejobman_handler_workers).
+%-define(GRP, ejobman_handler_workers).
 
 %%%----------------------------------------------------------------------------
 %%% gen_server callbacks
@@ -76,20 +77,30 @@ init(Config) ->
     {noreply, #ejm{}, non_neg_integer()}
     | {any(), any(), #ejm{}, non_neg_integer()}.
 
+%% @doc deletes disposable child from the state
 handle_call({remove_child, Pid}, _From, St) ->
     St_d = do_smth(St),
     New = remove_child(St_d, Pid),
     {reply, ok, New, ?T};
+
+%% @doc calls disposable child
 handle_call({cmd, Method, Url}, From, St) ->
     St_d = do_smth(St),
     New = ejobman_handler_cmd:do_command(St_d, From, Method, Url),
     {noreply, New, ?T};
+
+%% @doc calls long-lasting worker
+handle_call({cmd2, Method, Url}, From, St) ->
+    St_d = do_smth(St),
+    New = ejobman_handler_cmd:do_worker_cmd(St_d, From, Method, Url),
+    {noreply, New, ?T};
+
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
 handle_call(status, _From, St) ->
     {reply, St, St, ?T};
 handle_call(_N, _From, St) ->
-    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N}, St#ejm.debug, run, 4),
+    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N}, St#ejm.debug, run, 3),
     New = do_smth(St),
     {reply, {error, unknown_request}, New, ?T}.
 %%-----------------------------------------------------------------------------
@@ -130,21 +141,51 @@ code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
 
 %%%----------------------------------------------------------------------------
-%%% api
+%%% API
 %%%----------------------------------------------------------------------------
+-spec start() -> any().
+%%
+%% @doc starts handler gen_server
+%% @since 2011-07-15 11:00
+%%
 start() ->
     start_link().
 %%-----------------------------------------------------------------------------
+-spec start_link() -> any().
+%%
+%% @doc starts handler gen_server with pre-defined config
+%% @since 2011-07-15 11:00
+%%
 start_link() ->
     start_link(?CONF).
+
+-spec start_link(string()) -> any().
+%%
+%% @doc starts handler gen_server with given config
+%% @since 2011-07-15 11:00
+%%
 start_link(Config) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Config, []).
 %%-----------------------------------------------------------------------------
+-spec stop() -> any().
+%%
+%% @doc stops handler gen_server
+%% @since 2011-07-15 11:00
+%%
 stop() ->
     gen_server:call(?MODULE, stop).
 %%-----------------------------------------------------------------------------
 %%
-%% @doc API to call any received command.
+%% @doc calls any received command to be executed by long-lasting worker
+%% @since 2011-07-22 12:00
+%%
+-spec cmd2(binary(), binary()) -> ok.
+
+cmd2(Method, Url) ->
+    gen_server:call(?MODULE, {cmd2, Method, Url}).
+%%-----------------------------------------------------------------------------
+%%
+%% @doc calls any received command to be executed by disposable child
 %% @since 2011-07-15 11:00
 %%
 -spec cmd(binary(), binary()) -> ok.
@@ -174,8 +215,7 @@ remove_child(#ejm{ch_data=Ch} = St, Pid) ->
             true
     end,
     New = lists:filter(F, Ch),
-    St#ejm{ch_data=New}
-.
+    St#ejm{ch_data=New}.
 %%-----------------------------------------------------------------------------
 %%
 %% @doc does miscellaneous periodic checks. E.g.: check for children. Returns
@@ -184,7 +224,29 @@ remove_child(#ejm{ch_data=Ch} = St, Pid) ->
 -spec do_smth(#ejm{}) -> #ejm{}.
 
 do_smth(State) ->
-    check_children(State)
+    Stw = check_workers(State),
+    Stc = check_children(Stw),
+    check_queued_commands(Stc).
+%%-----------------------------------------------------------------------------
+%%
+%% @doc calls to process all the queued commands (currently -
+%% disposable children only)
+%%
+-spec check_queued_commands(#ejm{}) -> #ejm{}.
+
+check_queued_commands(St) ->
+    ejobman_handler_cmd:do_all_commands(St).
+%%-----------------------------------------------------------------------------
+%%
+%% @doc stops old disengaged workers, stops any too old workers.
+%% Returns a new state with quite young workers only
+%%
+%% @TODO not implemented yet
+%%
+-spec check_workers(#ejm{}) -> #ejm{}.
+
+check_workers(State) ->
+    State
 .
 %%-----------------------------------------------------------------------------
 %%
@@ -195,8 +257,7 @@ do_smth(State) ->
 
 check_children(#ejm{ch_data=Ch} = State) ->
     New = lists:filter(fun check_child/1, Ch),
-    State#ejm{ch_data = New}
-.
+    State#ejm{ch_data = New}.
 %%-----------------------------------------------------------------------------
 %%
 %% @doc checks whether the given child does something
@@ -210,20 +271,18 @@ check_child(#chi{pid=Pid}) ->
         _ ->
             false
     end.
-
 %%-----------------------------------------------------------------------------
 -spec prepare_workers(#ejm{}) -> #ejm{}.
 %%
-%% @doc creates process group, asks supervisor to spawn
-%% the configured minimum of long
-%% lasting workers, adds workers to the group
+%% @doc spawns the configured minimum of long lasting workers
 %%
 prepare_workers(C) ->
-    pg2:start(),
-    pg2:create(?GRP),
     spawn_workers(C).
 
 -spec spawn_workers(#ejm{}) -> #ejm{}.
+%%
+%% @doc spawns N workers
+%%
 spawn_workers(#ejm{min_workers=N} = C) ->
     lists:foldl(
         fun(_X, Acc) -> spawn_one_worker(Acc) end,
@@ -246,7 +305,7 @@ spawn_one_worker(#ejm{max_workers = Max, workers = Workers} = C) ->
 -spec real_spawn_one_worker(#ejm{}) -> #ejm{}.
 %%
 %% @doc Spawns a new worker, stores its pid (and a ref) in a list,
-%% returns modified state.
+%% returns the modified state.
 %%
 real_spawn_one_worker(C) ->
     Id = make_ref(),
@@ -259,11 +318,9 @@ real_spawn_one_worker(C) ->
         C#ejm.debug, run, 3),
     case Res of
         {ok, Pid} ->
-            ok = pg2:join(?GRP, Pid),
             Ch = #chi{pid=Pid, id=Id, start=now()},
             C#ejm{workers = [Ch | Workers]};
         {ok, Pid, _Info} ->
-            ok = pg2:join(?GRP, Pid),
             Ch = #chi{pid=Pid, id=Id, start=now()},
             C#ejm{workers = [Ch | Workers]};
         {error, _Reason} ->
@@ -276,28 +333,25 @@ make_child_config(C) ->
 %%-----------------------------------------------------------------------------
 -spec remove_workers(#ejm{}) -> ok.
 %%
-%% @doc terminates all the workers. Deletes the process group.
+%% @doc terminates all the workers
 %%
 remove_workers(C) ->
-    terminate_workers(C),
-    pg2:delete(?GRP).
-
+    terminate_workers(C).
+%%-----------------------------------------------------------------------------
 -spec terminate_workers(#ejm{}) -> ok.
 %%
 %% @doc terminates all the workers
 %%
 terminate_workers(#ejm{workers = Workers}) ->
     lists:foreach(fun terminate_one_worker/1, Workers).
-
+%%-----------------------------------------------------------------------------
 -spec terminate_one_worker(#chi{}) -> any().
 %%
 %% @doc terminates one worker
 %%
-terminate_one_worker(#chi{pid=Pid, id=Id}) ->
-    pg2:leave(?GRP, Pid),
+terminate_one_worker(#chi{id=Id}) ->
     supervisor:terminate_child(ejobman_long_supervisor, Id),
     supervisor:delete_child(ejobman_long_supervisor, Id).
-
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
 %%%----------------------------------------------------------------------------

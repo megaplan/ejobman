@@ -47,19 +47,6 @@
 -include("amqp_client.hrl").
 
 %%%----------------------------------------------------------------------------
-%%% api
-%%%----------------------------------------------------------------------------
-start() ->
-    start_link().
-%------------------------------------------------------------------------------
-start_link() ->
-    start_link(?CONF).
-start_link(Config) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
-%------------------------------------------------------------------------------
-stop() ->
-    gen_server:call(?MODULE, stop).
-%%%----------------------------------------------------------------------------
 %%% gen_server callbacks
 %%%----------------------------------------------------------------------------
 init([Config]) ->
@@ -126,6 +113,40 @@ handle_info(_Req, State) ->
 code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
 %%%----------------------------------------------------------------------------
+%%% API
+%%%----------------------------------------------------------------------------
+-spec start() -> any().
+%%
+%% @doc starts receiver gen_server
+%% @since 2011-07-15 10:00
+%%
+start() ->
+    start_link().
+%------------------------------------------------------------------------------
+-spec start_link() -> any().
+%%
+%% @doc starts receiver gen_server with pre-defined config
+%% @since 2011-07-15 10:00
+%%
+start_link() ->
+    start_link(?CONF).
+
+-spec start_link(string()) -> any().
+%%
+%% @doc starts receiver gen_server with given config
+%% @since 2011-07-15 10:00
+%%
+start_link(Config) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
+%------------------------------------------------------------------------------
+-spec stop() -> any().
+%%
+%% @doc stops receiver gen_server
+%% @since 2011-07-15 10:00
+%%
+stop() ->
+    gen_server:call(?MODULE, stop).
+%%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
 -spec prepare_all(#ejm{}) -> #ejm{}.
@@ -133,7 +154,6 @@ code_change(_Old_vsn, State, _Extra) ->
 %% @doc does all necessary preparations: [re]opens log file.
 %% @since 2011-07-15
 %%
-
 prepare_all(C) ->
     mpln_misc_log:prepare_log(C#ejm.log),
     prepare_q(C).

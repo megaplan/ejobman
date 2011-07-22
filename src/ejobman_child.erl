@@ -138,6 +138,7 @@ stop() ->
 -spec do_smth(#child{}) -> #child{}.
 
 do_smth(State) ->
+    %timer:sleep(100), % FIXME: for debug only
     process_cmd(State),
     gen_server:cast(self(), stop),
     State#child{method = <<>>, url = <<>>, from = 'undefined'}.

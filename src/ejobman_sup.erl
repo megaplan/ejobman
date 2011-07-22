@@ -66,9 +66,12 @@ init(_Args) ->
     {ok, {{one_for_one, ?RESTARTS, ?SECONDS},
         [LSup, Sup, Receiver, Handler]}}. % LSup must be started before Handler
 %%%----------------------------------------------------------------------------
-%%% api
+%%% API
 %%%----------------------------------------------------------------------------
+-spec start_link() -> any().
+%%
+%% @doc calls supervisor:start_link to create ejobman_supervisor
+%%
 start_link() ->
     supervisor:start_link({local, ejobman_supervisor}, ejobman_sup, []).
-
 %%-----------------------------------------------------------------------------
