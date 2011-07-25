@@ -40,7 +40,7 @@
 -export([terminate/2, code_change/3]).
 
 -export([cmd/2, remove_child/1]).
--export([cmd2/2]).
+-export([cmd2/2, cmd2/3]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -182,7 +182,17 @@ stop() ->
 -spec cmd2(binary(), binary()) -> ok.
 
 cmd2(Method, Url) ->
-    gen_server:call(?MODULE, {cmd2, Method, Url}).
+    cmd2(Method, Url, 5000).
+
+%%
+%% @doc calls any received command to be executed by long-lasting worker
+%% with timeout defined
+%% @since 2011-07-22 12:00
+%%
+-spec cmd2(binary(), binary(), non_neg_integer()) -> ok.
+
+cmd2(Method, Url, Timeout) ->
+    gen_server:call(?MODULE, {cmd2, Method, Url}, Timeout).
 %%-----------------------------------------------------------------------------
 %%
 %% @doc calls any received command to be executed by disposable child

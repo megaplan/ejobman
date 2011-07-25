@@ -173,6 +173,8 @@ do_one_long_command(St, Item) ->
     {Ref, Stw} = ejobman_worker_spawn:spawn_one_worker(St),
     case Ref of
         error ->
+            mpln_p_debug:pr({?MODULE, 'do_one_long_command error', ?LINE},
+                St#ejm.debug, run, 2),
             ok;
         _ ->
             Pid = find_pid(Stw, Ref),

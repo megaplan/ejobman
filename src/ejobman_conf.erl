@@ -58,6 +58,8 @@
 
 get_config_child(List) ->
     #child{
+        id = proplists:get_value(id, List),
+        duration = proplists:get_value(duration, List, 86400000),
         from = proplists:get_value(from, List),
         method = proplists:get_value(method, List, <<>>),
         url = proplists:get_value(url, List, <<>>),
@@ -72,8 +74,10 @@ get_config_child(List) ->
 
 get_config_hdl(File) ->
     List = mpln_misc_conf:read_config(File),
+    Worker_list = proplists:get_value(worker, List, []),
     Hdl_list = proplists:get_value(handler, List, []),
     #ejm{
+        worker_config = Worker_list,
         workers = [],
         w_queue = queue:new(),
         min_workers = proplists:get_value(min_workers, Hdl_list, 2),

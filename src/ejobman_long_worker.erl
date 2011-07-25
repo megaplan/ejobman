@@ -62,7 +62,7 @@ init(Params) ->
     mpln_p_debug:pr({?MODULE, 'init 1', ?LINE}, [], run, 0),
     C = ejobman_conf:get_config_child(Params),
     mpln_p_debug:pr({?MODULE, 'init 2', ?LINE, C}, [], run, 0),
-    mpln_p_debug:pr({?MODULE, 'init done', ?LINE, self()},
+    mpln_p_debug:pr({?MODULE, 'init done', ?LINE, self(), C#child.id},
         C#child.debug, run, 1),
     {ok, C, ?T}.
 %%-----------------------------------------------------------------------------
@@ -75,8 +75,9 @@ init(Params) ->
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
 handle_call({cmd, Job}, _From, St) ->
-    mpln_p_debug:pr({?MODULE, 'cmd', ?LINE, Job, self()},
+    mpln_p_debug:pr({?MODULE, 'cmd', ?LINE, Job, St#child.id},
         St#child.debug, run, 4),
+    process_cmd(St, Job),
     New = do_smth(St),
     % 'ok' reply goes to the caller of gen_server api
     % (ejobman_handler_cmd:do_one_long_command). The real requestor is in
@@ -85,7 +86,7 @@ handle_call({cmd, Job}, _From, St) ->
 handle_call(status, _From, St) ->
     {reply, St, St, ?T};
 handle_call(_N, _From, St) ->
-    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N, self()},
+    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N, St#child.id},
         St#child.debug, run, 4),
     New = do_smth(St),
     {reply, {error, unknown_request}, New, ?T}.
@@ -105,8 +106,8 @@ handle_cast(_, St) ->
     {noreply, New, ?T}.
 %%-----------------------------------------------------------------------------
 terminate(_, State) ->
-    ejobman_handler:remove_child(self()),
-    mpln_p_debug:pr({?MODULE, terminate, ?LINE, self()},
+    ejobman_handler:remove_child(self()), % FIXME: is it necessary?
+    mpln_p_debug:pr({?MODULE, terminate, ?LINE, State#child.id},
         State#child.debug, run, 2),
     ok.
 %%-----------------------------------------------------------------------------
@@ -116,12 +117,12 @@ terminate(_, State) ->
 -spec handle_info(any(), #child{}) -> any().
 
 handle_info(timeout, State) ->
-    mpln_p_debug:pr({?MODULE, info_timeout, ?LINE, self()},
+    mpln_p_debug:pr({?MODULE, info_timeout, ?LINE, State#child.id},
         State#child.debug, run, 6),
     New = do_smth(State),
     {noreply, New, ?T};
 handle_info(_Req, State) ->
-    mpln_p_debug:pr({?MODULE, other, ?LINE, _Req, self()},
+    mpln_p_debug:pr({?MODULE, other, ?LINE, _Req, State#child.id},
         State#child.debug, run, 3),
     New = do_smth(State),
     {noreply, New, ?T}.
@@ -162,5 +163,24 @@ cmd(Pid, Job) ->
 
 do_smth(State) ->
     State.
-
+%%-----------------------------------------------------------------------------
+%%
+%% @doc processes received command. Returns result to the real requestor
+%% @todo make it async
+%%
+process_cmd(St, {From, Method, Url}) ->
+    real_cmd(St#child{method=Method, url=Url, from=From})
+.
+%%-----------------------------------------------------------------------------
+real_cmd(#child{method = Method_bin, url = Url, from = From} = St) ->
+    mpln_p_debug:pr({?MODULE, 'process_cmd params', ?LINE, St#child.id,
+        Method_bin, Url, From}, St#child.debug, run, 3),
+    Method = ejobman_clean:get_method(Method_bin),
+    Res = http:request(Method, {Url, []},
+        [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
+        []),
+    gen_server:reply(From, Res),
+    mpln_p_debug:pr({?MODULE, 'process_cmd res', ?LINE, St#child.id, Res},
+        St#child.debug, run, 4)
+.
 %%-----------------------------------------------------------------------------

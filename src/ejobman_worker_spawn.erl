@@ -22,7 +22,7 @@ spawn_one_worker(#ejm{max_workers = Max, workers = Workers} = C) ->
 %%
 real_spawn_one_worker(C) ->
     Id = make_ref(),
-    Child_config = make_child_config(C),
+    Child_config = make_child_config(C, Id),
     StartFunc = {ejobman_long_worker, start_link, [Child_config]},
     Child = {Id, StartFunc, permanent, 1000, worker, [ejobman_long_worker]},
     Workers = C#ejm.workers,
@@ -44,9 +44,9 @@ real_spawn_one_worker(C) ->
 %% @doc creates config (proplist actually) for a child
 %% @since 2011-07-21 18:00
 %%
--spec make_child_config(#ejm{}) -> list().
+-spec make_child_config(#ejm{}, reference()) -> list().
 
-make_child_config(C) ->
-    [{debug, C#ejm.debug}]
+make_child_config(C, Ref) ->
+    [{id, Ref} | C#ejm.worker_config]
 .
 %%-----------------------------------------------------------------------------

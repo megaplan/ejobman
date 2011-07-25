@@ -1,1 +1,3 @@
 - check for correct data on receive
+- format functions for edoc to work. That means put an empty line (or a line
+  with just one dot, he-he...) after a function body

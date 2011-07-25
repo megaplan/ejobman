@@ -7,6 +7,8 @@
 -define(CONF, "ejobman.conf").
 
 -record(child, {
+    id,
+    duration,
     from,
     method,
     url,
@@ -20,6 +22,7 @@
 }).
 
 -record(ejm, {
+    worker_config,
     workers,
     w_queue,
     min_workers = 5,
