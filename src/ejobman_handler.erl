@@ -234,6 +234,7 @@ remove_child(#ejm{ch_data=Ch} = St, Pid) ->
 -spec do_smth(#ejm{}) -> #ejm{}.
 
 do_smth(State) ->
+    mpln_p_debug:pr({?MODULE, 'do_smth', ?LINE}, State#ejm.debug, run, 5),
     Stw = check_workers(State),
     Stc = check_children(Stw),
     check_queued_commands(Stc).

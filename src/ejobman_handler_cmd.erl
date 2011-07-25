@@ -117,9 +117,9 @@ do_long_commands(#ejm{w_queue=Q, workers=Workers, max_workers=Max} = St) ->
         false ->
             mpln_p_debug:pr({?MODULE, 'do_long_commands too many workers',
                 ?LINE, Len, Max}, St#ejm.debug, run, 3),
-            St;
+            assign_one_long_command(St);
         _ ->
-            mpln_p_debug:pr({?MODULE, 'do_long_commands no new worker',
+            mpln_p_debug:pr({?MODULE, 'do_long_commands empty queue',
                 ?LINE, Len, Max}, St#ejm.debug, run, 4),
             St
     end.
@@ -252,6 +252,78 @@ do_one_command(St, {From, Method, Url}) ->
 add_child(#ejm{ch_data=Children} = St, Pid) ->
     Ch = #chi{pid = Pid, start = now()},
     St#ejm{ch_data = [Ch | Children]}
+.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc assigns a job to any (or best fit) worker
+%% @since 2011-07-25 15:40
+%%
+assign_one_long_command(#ejm{w_queue = Q} = St) ->
+    mpln_p_debug:pr({?MODULE, 'assign_one_long_command', ?LINE},
+        St#ejm.debug, run, 4),
+    case queue:out(Q) of
+        {{value, Item}, Q2} ->
+            Worker = find_best_pid(St),
+            mpln_p_debug:pr({?MODULE, 'assign_one_long_command', ?LINE, Worker},
+                St#ejm.debug, run, 3),
+            ejobman_long_worker:cmd(Worker, Item),
+            St#ejm{w_queue = Q2};
+        _ ->
+            St
+    end
+.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc finds a worker that fits best to do some work. Search is based on
+%% process memory usage, message queue length and a random number as
+%% the last resort
+%%
+-spec find_best_pid(#ejm{}) -> pid().
+
+find_best_pid(#ejm{workers=Workers} = St) ->
+    {A, B, C} = now(),
+    random:seed(A, B, C),
+    List = lists:map(fun(#chi{pid=X}) ->
+            R = random:uniform(100),
+            {X, process_info(X, [memory, message_queue_len]), R}
+        end, Workers),
+    mpln_p_debug:pr({?MODULE, 'find_best_pid list', ?LINE, List},
+        St#ejm.debug, run, 5),
+    Sorted = lists:sort(fun compare_workers/2, List),
+    {Pid, _, _} = hd(Sorted),
+    %Short = lists:sublist(Sorted, 4),
+    %Idx = crypto:rand_uniform(1, length(Short)+1),
+    %{Pid, _, _} = lists:nth(Idx, Short),
+    Pid
+.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc compares two workers on smoothed memory usage, message_queue_len
+%% and random value. Random value is only used if the others are equal
+%%
+-spec compare_workers({pid(), list(), integer()},
+    {pid(), list(), integer()}) -> boolean().
+
+compare_workers({_A, La, Ra}, {_B, Lb, Rb}) ->
+    Qa = proplists:get_value(message_queue_len, La, 0),
+    Qb = proplists:get_value(message_queue_len, Lb, 0),
+    Msa = proplists:get_value(memory, La, 0),
+    Msb = proplists:get_value(memory, Lb, 0),
+    Ma = round(Msa / 32768), % kind of smoothing to eliminate small differences
+    Mb = round(Msb / 32768),
+    if  Qa < Qb ->
+            true;
+        Qa == Qb ->
+            if  Ma < Mb ->
+                    true;
+                Ma == Mb ->
+                    Ra =< Rb;
+                Ma > Mb ->
+                    false
+            end;
+        Qa > Qb ->
+            false
+    end
 .
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
