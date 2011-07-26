@@ -226,6 +226,7 @@ remove_child(#ejm{ch_data=Ch} = St, Pid) ->
     end,
     New = lists:filter(F, Ch),
     St#ejm{ch_data=New}.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc does miscellaneous periodic checks. E.g.: check for children. Returns
@@ -238,6 +239,7 @@ do_smth(State) ->
     Stw = check_workers(State),
     Stc = check_children(Stw),
     check_queued_commands(Stc).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc calls to process all the queued commands (currently -
@@ -248,18 +250,51 @@ do_smth(State) ->
 check_queued_commands(St) ->
     St_short = ejobman_handler_cmd:do_short_commands(St),
     ejobman_handler_cmd:do_long_commands(St_short).
+
 %%-----------------------------------------------------------------------------
 %%
-%% @doc stops old disengaged workers, stops any too old workers.
+%% @doc stops old disengaged workers (?), stops any too old workers.
 %% Returns a new state with quite young workers only
-%%
-%% @TODO not implemented yet
 %%
 -spec check_workers(#ejm{}) -> #ejm{}.
 
-check_workers(State) ->
-    State
+check_workers(#ejm{min_workers=Min} = St) ->
+    {Ok, Old} = separate_workers(St),
+    mpln_p_debug:pr({?MODULE, 'check_workers', ?LINE, Ok, Old},
+        St#ejm.debug, run, 5),
+    terminate_old_workers(Old),
+    Delta = Min - length(Ok),
+    New = St#ejm{workers=Ok},
+    if  Delta > 0 ->
+            spawn_n_workers(New, Delta);
+        true ->
+            New
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc for each worker in a list calls supervisor to stop the worker
+%%
+-spec terminate_old_workers([#chi{}]) -> any().
+
+terminate_old_workers(List) ->
+    lists:foreach(fun terminate_one_worker/1, List)
 .
+%%-----------------------------------------------------------------------------
+%%
+%% @doc separate workers on their working time. Returns lists of normal
+%% workers and workers that need to be terminated
+%%
+-spec separate_workers(#ejm{}) -> {list(), list()}.
+
+separate_workers(#ejm{w_duration=Limit, workers=Workers}) ->
+    Now = now(),
+    F = fun(#chi{start = T}) ->
+        Delta = timer:now_diff(Now, T),
+        Delta < Limit * 1000
+    end,
+    lists:partition(F, Workers).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc checks that all the children are alive. Returns new state with
@@ -270,6 +305,7 @@ check_workers(State) ->
 check_children(#ejm{ch_data=Ch} = State) ->
     New = lists:filter(fun check_child/1, Ch),
     State#ejm{ch_data = New}.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc checks whether the given child does something
@@ -291,18 +327,28 @@ check_child(#chi{pid=Pid}) ->
 prepare_workers(C) ->
     spawn_workers(C).
 
+%%
+%% @doc spawns the configured minimum number of workers
+%%
 -spec spawn_workers(#ejm{}) -> #ejm{}.
+
+spawn_workers(#ejm{min_workers=N} = C) ->
+    spawn_n_workers(C, N).
+
 %%
 %% @doc spawns N workers
 %%
-spawn_workers(#ejm{min_workers=N} = C) ->
+-spec spawn_n_workers(#ejm{}, non_neg_integer()) -> #ejm{}.
+
+spawn_n_workers(State, N) ->
     lists:foldl(fun(_X, Acc) ->
             {_, New} = ejobman_worker_spawn:spawn_one_worker(Acc),
             New
         end,
-        C,
+        State,
         lists:duplicate(N, true)
     ).
+
 %%-----------------------------------------------------------------------------
 -spec remove_workers(#ejm{}) -> ok.
 %%
@@ -310,6 +356,7 @@ spawn_workers(#ejm{min_workers=N} = C) ->
 %%
 remove_workers(C) ->
     terminate_workers(C).
+
 %%-----------------------------------------------------------------------------
 -spec terminate_workers(#ejm{}) -> ok.
 %%
@@ -317,6 +364,7 @@ remove_workers(C) ->
 %%
 terminate_workers(#ejm{workers = Workers}) ->
     lists:foreach(fun terminate_one_worker/1, Workers).
+
 %%-----------------------------------------------------------------------------
 -spec terminate_one_worker(#chi{}) -> any().
 %%
@@ -325,6 +373,7 @@ terminate_workers(#ejm{workers = Workers}) ->
 terminate_one_worker(#chi{id=Id}) ->
     supervisor:terminate_child(ejobman_long_supervisor, Id),
     supervisor:delete_child(ejobman_long_supervisor, Id).
+
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
 %%%----------------------------------------------------------------------------

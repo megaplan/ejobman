@@ -80,6 +80,7 @@ get_config_hdl(File) ->
         worker_config = Worker_list,
         workers = [],
         w_queue = queue:new(),
+        w_duration = proplists:get_value(worker_duration, Hdl_list, 86400000),
         min_workers = proplists:get_value(min_workers, Hdl_list, 2),
         max_workers = proplists:get_value(max_workers, Hdl_list, 255),
         ch_data = [],

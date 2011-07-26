@@ -22,6 +22,7 @@
 }).
 
 -record(ejm, {
+    w_duration = 86400000, % milliseconds
     worker_config,
     workers,
     w_queue,

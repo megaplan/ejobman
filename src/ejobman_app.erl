@@ -26,6 +26,7 @@
 %%% @license MIT
 %%% @doc application for ejobman
 %%% 
+
 -module(ejobman_app).
 -behaviour(application).
 

@@ -305,10 +305,10 @@ find_best_pid(#ejm{workers=Workers} = St) ->
     {pid(), list(), integer()}) -> boolean().
 
 compare_workers({_A, La, Ra}, {_B, Lb, Rb}) ->
-    Qa = proplists:get_value(message_queue_len, La, 0),
-    Qb = proplists:get_value(message_queue_len, Lb, 0),
-    Msa = proplists:get_value(memory, La, 0),
-    Msb = proplists:get_value(memory, Lb, 0),
+    Qa = get_int_value(La, message_queue_len),
+    Qb = get_int_value(Lb, message_queue_len),
+    Msa = get_int_value(La, memory),
+    Msb = get_int_value(Lb, memory),
     Ma = round(Msa / 32768), % kind of smoothing to eliminate small differences
     Mb = round(Msb / 32768),
     if  Qa < Qb ->
@@ -325,6 +325,21 @@ compare_workers({_A, La, Ra}, {_B, Lb, Rb}) ->
             false
     end
 .
+
+%%
+%% @doc extracts a value from a proper list. Sometimes process_info
+%% returns 'undefined' instead of an integer, so it must be handled
+%%
+-spec get_int_value(list(), atom()) -> non_neg_integer().
+
+get_int_value(List, Key) ->
+    case proplists:get_value(Key, List) of
+        N when is_integer(N) ->
+            N;
+        _ ->
+            0
+    end.
+
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
 %%%----------------------------------------------------------------------------
