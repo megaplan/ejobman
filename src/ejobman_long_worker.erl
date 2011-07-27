@@ -49,7 +49,7 @@
 -endif.
 
 -include("ejobman.hrl").
--include("amqp_client.hrl").
+%-include("amqp_client.hrl").
 
 -define(HTTP_TIMEOUT, 15000).
 
@@ -57,14 +57,11 @@
 %%% gen_server callbacks
 %%%----------------------------------------------------------------------------
 init(Params) ->
-    error_logger:info_report({?MODULE, init, Params}),
-    timer:sleep(500),
-    mpln_p_debug:pr({?MODULE, 'init 1', ?LINE}, [], run, 0),
     C = ejobman_conf:get_config_child(Params),
-    mpln_p_debug:pr({?MODULE, 'init 2', ?LINE, C}, [], run, 0),
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE, self(), C#child.id},
-        C#child.debug, run, 1),
+        C#child.debug, run, 2),
     {ok, C, ?T}.
+
 %%-----------------------------------------------------------------------------
 %%
 %% Handling call messages
@@ -86,10 +83,11 @@ handle_call({cmd, Job}, _From, St) ->
 handle_call(status, _From, St) ->
     {reply, St, St, ?T};
 handle_call(_N, _From, St) ->
-    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N, St#child.id},
+    mpln_p_debug:pr({?MODULE, 'call other', ?LINE, _N, St#child.id},
         St#child.debug, run, 4),
     New = do_smth(St),
     {reply, {error, unknown_request}, New, ?T}.
+
 %%-----------------------------------------------------------------------------
 %%
 %% Handling cast messages
@@ -101,15 +99,16 @@ handle_cast(stop, St) ->
     {stop, normal, St};
 handle_cast(st0p, St) ->
     St;
-handle_cast(_, St) ->
+handle_cast(_Req, St) ->
     New = do_smth(St),
+    mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Req, St#child.id},
+        St#child.debug, run, 4),
     {noreply, New, ?T}.
+
 %%-----------------------------------------------------------------------------
-terminate(_, State) ->
-    ejobman_handler:remove_child(self()), % FIXME: is it necessary?
-    mpln_p_debug:pr({?MODULE, terminate, ?LINE, State#child.id},
-        State#child.debug, run, 2),
+terminate(_R, State) ->
     ok.
+
 %%-----------------------------------------------------------------------------
 %%
 %% Handling all non call/cast messages
@@ -122,10 +121,11 @@ handle_info(timeout, State) ->
     New = do_smth(State),
     {noreply, New, ?T};
 handle_info(_Req, State) ->
-    mpln_p_debug:pr({?MODULE, other, ?LINE, _Req, State#child.id},
+    mpln_p_debug:pr({?MODULE, 'info other', ?LINE, _Req, State#child.id},
         State#child.debug, run, 3),
     New = do_smth(State),
     {noreply, New, ?T}.
+
 %%-----------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
@@ -152,6 +152,7 @@ stop() ->
 
 cmd(Pid, Job) ->
     gen_server:call(Pid, {cmd, Job}).
+
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -163,6 +164,7 @@ cmd(Pid, Job) ->
 
 do_smth(State) ->
     State.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc processes received command. Returns result to the real requestor

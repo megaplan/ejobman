@@ -209,7 +209,7 @@ cmd(Method, Url) ->
 -spec remove_child(pid()) -> ok.
 
 remove_child(Pid) ->
-    gen_server:call(?MODULE, {remove_child, Pid}).
+    gen_server:cast(?MODULE, {remove_child, Pid}).
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
