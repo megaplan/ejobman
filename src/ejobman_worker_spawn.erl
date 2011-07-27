@@ -24,6 +24,9 @@ real_spawn_one_worker(C) ->
     Id = make_ref(),
     Child_config = make_child_config(C, Id),
     StartFunc = {ejobman_long_worker, start_link, [Child_config]},
+    % for 'permanent' restart policy either worker or handler must contact
+    % one another so handler keeps actual list of children. Or use gproc...
+    % In the case of 'temporary' the handler does all the housekeeping
     Child = {Id, StartFunc, temporary, 1000, worker, [ejobman_long_worker]},
     Workers = C#ejm.workers,
     Res = supervisor:start_child(ejobman_long_supervisor, Child),

@@ -23,6 +23,18 @@ Problems
   - let it be. Build beam files on linux, use them everywhere. The only parts
     to be changed are start/stop scripts, configs(?), etc.
 
+- how to restart workers? By supervisor ('permanent' policy) or by handler
+  ('temporary' policy).
+  - permanent:
+    in case of supervisor restarted workers handler must somehow know about
+    its workers (to assign jobs to them, to terminate on duration).
+    Either via gproc like registry or worker must report its pid (or ref, etc)
+    to handler.
+  - temporary:
+    all the workers are started by handler and it knows about every worker.
+    In case of worker's crash there is no immediate restart. So it can be
+    necessary to set required values to min_workers in config.
+
 Workers
 =======
 
