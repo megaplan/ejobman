@@ -253,24 +253,53 @@ check_queued_commands(St) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc stops old disengaged workers (?), stops any too old workers.
-%% Returns a new state with quite young workers only
+%% @doc checks for old workers and live workers, adds workers if necessary
 %%
 -spec check_workers(#ejm{}) -> #ejm{}.
 
-check_workers(#ejm{min_workers=Min} = St) ->
+check_workers(St) ->
+    Sto = check_old_workers(St),
+    Stl = check_live_workers(Sto),
+    replenish_worker_pool(Stl)
+.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc stops old disengaged workers (?), stops any too old workers.
+%% Returns a new state with quite young workers only
+%%
+-spec check_old_workers(#ejm{}) -> #ejm{}.
+
+check_old_workers(St) ->
     {Ok, Old} = separate_workers(St),
     mpln_p_debug:pr({?MODULE, 'check_workers', ?LINE, Ok, Old},
         St#ejm.debug, run, 5),
     terminate_old_workers(Old),
-    Delta = Min - length(Ok),
-    New = St#ejm{workers=Ok},
+    St#ejm{workers=Ok}.
+
+%%-----------------------------------------------------------------------------
+-spec replenish_worker_pool(#ejm{}) -> #ejm{}.
+
+replenish_worker_pool(#ejm{min_workers=Min, workers=Workers} = St) ->
+    Delta = Min - length(Workers),
     if  Delta > 0 ->
-            spawn_n_workers(New, Delta);
+            spawn_n_workers(St, Delta);
         true ->
-            New
+            St
     end.
 
+%%-----------------------------------------------------------------------------
+-spec check_live_workers(#ejm{}) -> #ejm{}.
+
+check_live_workers(#ejm{workers=Workers} = St) ->
+    F = fun(X) ->
+        case process_info(X#chi.pid) of
+            undefined -> false;
+            _ -> true
+        end
+    end,
+    New = lists:filter(F, Workers),
+    St#ejm{workers=New}
+.
 %%-----------------------------------------------------------------------------
 %%
 %% @doc for each worker in a list calls supervisor to stop the worker

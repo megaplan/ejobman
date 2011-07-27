@@ -58,9 +58,12 @@
 %%%----------------------------------------------------------------------------
 init(Params) ->
     C = ejobman_conf:get_config_child(Params),
+    New = add_port(C),
+    % to catch exit on port close by external process. Is it really necessary?
+    process_flag(trap_exit, true),
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE, self(), C#child.id},
         C#child.debug, run, 2),
-    {ok, C, ?T}.
+    {ok, New, ?T}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -69,7 +72,16 @@ init(Params) ->
 %%
 -spec handle_call(any(), any(), #ejm{}) -> {stop|reply, any(), any(), any()}.
 
+handle_call({cmd2, Job}, _From, St) ->
+    mpln_p_debug:pr({?MODULE, 'cmd2', ?LINE, Job, St#child.id},
+        St#child.debug, run, 4),
+    Res_cmd = process_cmd2(St, Job),
+    mpln_p_debug:pr({?MODULE, 'cmd2 res', ?LINE, Res_cmd},
+        St#child.debug, run, 4),
+    New = do_smth(St),
+    {reply, ok, New, ?T};
 handle_call(stop, _From, St) ->
+    catch port_close(St#child.port),
     {stop, normal, ok, St};
 handle_call({cmd, Job}, _From, St) ->
     mpln_p_debug:pr({?MODULE, 'cmd', ?LINE, Job, St#child.id},
@@ -96,6 +108,7 @@ handle_call(_N, _From, St) ->
 -spec handle_cast(any(), #ejm{}) -> any().
 
 handle_cast(stop, St) ->
+    catch port_close(St#child.port),
     {stop, normal, St};
 handle_cast(st0p, St) ->
     St;
@@ -106,7 +119,10 @@ handle_cast(_Req, St) ->
     {noreply, New, ?T}.
 
 %%-----------------------------------------------------------------------------
-terminate(_R, State) ->
+terminate(_R, St) ->
+    catch port_close(St#child.port),
+    mpln_p_debug:pr({?MODULE, 'terminate done', ?LINE, _R, St#child.id},
+        St#child.debug, run, 4),
     ok.
 
 %%-----------------------------------------------------------------------------
@@ -118,6 +134,16 @@ terminate(_R, State) ->
 handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, info_timeout, ?LINE, State#child.id},
         State#child.debug, run, 6),
+    New = do_smth(State),
+    {noreply, New, ?T};
+handle_info({P1, {exit_status, Code}}, #child{port=P2} = St) when P1 =:= P2->
+    mpln_p_debug:pr({?MODULE, 'info own port exit', ?LINE, P1, Code},
+        St#child.debug, run, 2),
+    New = do_smth(St#child{port=undefined}),
+    {stop, normal, New};
+handle_info({Port, {exit_status, Code}}, State) ->
+    mpln_p_debug:pr({?MODULE, 'info other port exit', ?LINE, Port, Code},
+        State#child.debug, run, 2),
     New = do_smth(State),
     {noreply, New, ?T};
 handle_info(_Req, State) ->
@@ -143,6 +169,7 @@ start_link(Params) ->
 %%-----------------------------------------------------------------------------
 stop() ->
     gen_server:call(?MODULE, stop).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc transmit the command to a gen_server with the given pid
@@ -184,5 +211,43 @@ real_cmd(#child{method = Method_bin, url = Url, from = From} = St) ->
     gen_server:reply(From, Res),
     mpln_p_debug:pr({?MODULE, 'process_cmd res', ?LINE, St#child.id, Res},
         St#child.debug, run, 4)
+.
+%%-----------------------------------------------------------------------------
+process_cmd2(St, stop) ->
+    mpln_p_debug:pr({?MODULE, 'process_cmd2 close', ?LINE},
+        St#child.debug, run, 0),
+    gen_server:cast(self(), stop),
+    catch port_close(St#child.port)
+;
+process_cmd2(#child{port=P} = St, Data) ->
+    mpln_p_debug:pr({?MODULE, 'process_cmd2 other', ?LINE},
+        St#child.debug, run, 0),
+    port_command(P, Data)
+.
+%%-----------------------------------------------------------------------------
+add_port(C) ->
+    case os:find_executable(C#child.name) of
+        false ->
+            mpln_p_debug:pr({?MODULE, 'executable not found',
+                ?LINE, C#child.name, C#child.id}, C#child.debug, run, 1),
+            C;
+        File ->
+            mpln_p_debug:pr({?MODULE, 'add_port',
+                ?LINE, C#child.name, C#child.id}, C#child.debug, run, 2),
+            Id = cr_port(File),
+            C#child{port=Id}
+    end
+.
+%%-----------------------------------------------------------------------------
+cr_port(File) ->
+    Name = {spawn_executable, File},
+    Settings = [
+        exit_status,
+        use_stdio,
+        hide,
+        %{packet, 2}
+        {line, 80}
+    ],
+    open_port(Name, Settings)
 .
 %%-----------------------------------------------------------------------------

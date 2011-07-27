@@ -58,6 +58,7 @@
 
 get_config_child(List) ->
     #child{
+        name = proplists:get_value(name, List),
         id = proplists:get_value(id, List),
         duration = proplists:get_value(duration, List, 86400000),
         from = proplists:get_value(from, List),

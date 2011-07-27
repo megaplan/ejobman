@@ -24,7 +24,7 @@ real_spawn_one_worker(C) ->
     Id = make_ref(),
     Child_config = make_child_config(C, Id),
     StartFunc = {ejobman_long_worker, start_link, [Child_config]},
-    Child = {Id, StartFunc, permanent, 1000, worker, [ejobman_long_worker]},
+    Child = {Id, StartFunc, temporary, 1000, worker, [ejobman_long_worker]},
     Workers = C#ejm.workers,
     Res = supervisor:start_child(ejobman_long_supervisor, Child),
     mpln_p_debug:pr({?MODULE, 'real_spawn_one_worker res', ?LINE, Res},

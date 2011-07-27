@@ -6,7 +6,10 @@
 -define(LOG, "/var/log/ejobman/ejm").
 -define(CONF, "ejobman.conf").
 
+% state of a worker gen_server
 -record(child, {
+    name,
+    port,
     id,
     duration,
     from,
@@ -21,10 +24,11 @@
     start={0,0,0} % time in now() format
 }).
 
+% state of a handler and a receiver gen_server
 -record(ejm, {
     w_duration = 86400000, % milliseconds
     worker_config,
-    workers,
+    workers :: [#chi{}],
     w_queue,
     min_workers = 5,
     max_workers = 255,
