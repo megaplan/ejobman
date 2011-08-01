@@ -15,11 +15,11 @@ LICENSE=MIT
 
 all: $(EBIN_DIR)
 	$(ERLC) -W $(INCLUDES) -o $(EBIN_DIR) $(SRC_DIR)/*.erl
-	cp $(SRC_DIR)/ejobman.app.src $(EBIN_DIR)/ejobman_app.app
-	
+	cp $(SRC_DIR)/ejobman.app.src $(EBIN_DIR)/ejobman.app
+
 tests: $(EBIN_DIR)
 	@$(ERLC) -W $(INCLUDES) -o $(EBIN_DIR) $(TEST_DIR)/*.erl
-	
+
 clean:
 	@rm -rvf $(EBIN_DIR)/* $(HTML_DOC_DIR)
 

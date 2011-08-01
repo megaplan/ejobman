@@ -1,4 +1,4 @@
-{application, ejobman_app, [
+{application, ejobman, [
     {description, "ejobman"},
     {id, "ejobman"},
     {vsn, "1.0"},

@@ -130,7 +130,7 @@ fill_config(List) ->
 -spec get_config_list(string()) -> list().
 
 get_config_list(Default) ->
-    case application:get_env('ejobman_app', "CONFIG") of
+    case application:get_env('ejobman', "CONFIG") of
         {ok, File} ->
             mpln_misc_conf:read_config(File);
         _ ->
