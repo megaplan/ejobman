@@ -122,47 +122,52 @@ code_change(_Old_vsn, State, _Extra) ->
 %%
 start() ->
     start_link().
-%------------------------------------------------------------------------------
--spec start_link() -> any().
+%%-----------------------------------------------------------------------------
 %%
 %% @doc starts receiver gen_server with pre-defined config
 %% @since 2011-07-15 10:00
 %%
+-spec start_link() -> any().
+
 start_link() ->
     start_link(?CONF).
 
--spec start_link(string()) -> any().
 %%
 %% @doc starts receiver gen_server with given config
 %% @since 2011-07-15 10:00
 %%
+-spec start_link(string()) -> any().
+
 start_link(Config) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
-%------------------------------------------------------------------------------
--spec stop() -> any().
+%%-----------------------------------------------------------------------------
 %%
 %% @doc stops receiver gen_server
 %% @since 2011-07-15 10:00
 %%
+-spec stop() -> any().
+
 stop() ->
     gen_server:call(?MODULE, stop).
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
--spec prepare_all(#ejm{}) -> #ejm{}.
 %%
 %% @doc does all necessary preparations: [re]opens log file.
 %% @since 2011-07-15
 %%
+-spec prepare_all(#ejm{}) -> #ejm{}.
+
 prepare_all(C) ->
     mpln_misc_log:prepare_log(C#ejm.log),
     prepare_q(C).
-%------------------------------------------------------------------------------
--spec prepare_q(#ejm{}) -> #ejm{}.
+%%-----------------------------------------------------------------------------
 %%
 %% @doc Prepare RabbitMQ
 %% @since 2011-07-15
 %%
+-spec prepare_q(#ejm{}) -> #ejm{}.
+
 prepare_q(C) ->
     {ok, Conn} = ejobman_rb:start(C#ejm.rses),
     C#ejm{conn=Conn}.

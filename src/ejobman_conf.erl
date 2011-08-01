@@ -66,6 +66,7 @@ get_config_child(List) ->
         url = proplists:get_value(url, List, <<>>),
         debug = proplists:get_value(debug, List, [])
     }.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc reads config file, fills in ejm record with configured values
@@ -73,8 +74,8 @@ get_config_child(List) ->
 %%
 -spec get_config_hdl(string()) -> #ejm{}.
 
-get_config_hdl(File) ->
-    List = mpln_misc_conf:read_config(File),
+get_config_hdl(Default) ->
+    List = get_config_list(Default),
     Worker_list = proplists:get_value(worker, List, []),
     Hdl_list = proplists:get_value(handler, List, []),
     #ejm{
@@ -89,16 +90,19 @@ get_config_hdl(File) ->
         max_children = proplists:get_value(max_children, Hdl_list, 32767),
         debug = proplists:get_value(debug, Hdl_list, [])
     }.
+
 %%-----------------------------------------------------------------------------
 %%
-%% @doc reads config file, fills in ejm record with configured values
+%% @doc reads config file for receiver, fills in ejm record with configured
+%% values
 %% @since 2011-07-15
 %%
 -spec get_config(string()) -> #ejm{}.
 
-get_config(File) ->
-    List = mpln_misc_conf:read_config(File),
+get_config(Default) ->
+    List = get_config_list(Default),
     fill_config(List).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc gets data from the list of key-value tuples and stores it into
@@ -114,6 +118,24 @@ fill_config(List) ->
         debug = proplists:get_value(debug, List, []),
         log = proplists:get_value(log, List, ?LOG)
     }.
+
+%%%----------------------------------------------------------------------------
+%%% Internal functions
+%%%----------------------------------------------------------------------------
+%%
+%% @doc chooses either file from application config or default file and then
+%% does read_config for that file
+%% @since 2011-08-01 17:01
+%%
+-spec get_config_list(string()) -> list().
+
+get_config_list(Default) ->
+    case application:get_env('ejobman_app', "CONFIG") of
+        {ok, File} ->
+            mpln_misc_conf:read_config(File);
+        _ ->
+            mpln_misc_conf:read_config(Default)
+    end.
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
