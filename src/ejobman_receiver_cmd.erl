@@ -40,6 +40,7 @@
 %%%----------------------------------------------------------------------------
 
 -include("ejobman.hrl").
+-include("job.hrl").
 -include("rabbit_session.hrl").
 
 %%%----------------------------------------------------------------------------
@@ -80,14 +81,38 @@ store_rabbit_cmd(State, Bin) ->
 -spec proceed_cmd_type(#ejm{}, binary(), any()) -> ok.
 
 proceed_cmd_type(State, <<"rest">>, Data) ->
-    Info = ejobman_data:get_job_info(Data),
-    Method = ejobman_data:get_method(Info),
-    Url = ejobman_data:get_url(Info),
+    Job = make_job(Data),
     % timeout on child crash leads to exception
-    Res = (catch ejobman_handler:cmd(Method, Url)),
+    Res = (catch ejobman_handler:cmd(Job)),
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type res', ?LINE, Res},
         State#ejm.debug, run, 5);
 proceed_cmd_type(State, Other, _Data) ->
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Other},
         State#ejm.debug, run, 2).
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fills in #job record
+%%
+-spec make_job(any()) -> #job{}.
+
+make_job(Data) ->
+    Info = ejobman_data:get_job_info(Data),
+    Method = ejobman_data:get_method(Info),
+    Url = ejobman_data:get_url(Info),
+    T_data = ejobman_data:get_time(Info),
+    T = make_time(T_data),
+    #job{
+        method = Method,
+        url = Url,
+        run_time = T
+    }.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fills in #rt record
+%%
+-spec make_time(any()) -> #rt{}.
+
+make_time(Data) ->
+    #rt{}
+.
 %%-----------------------------------------------------------------------------

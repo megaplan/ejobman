@@ -26,7 +26,7 @@
     ]},
     {registered, []},
     {env, [
-        {"CONFIG", "/etc/megaplan/ejobman.conf"}
+        {'CONFIG', "/etc/megaplan/ejobman.conf"}
     ]},
     {mod, {ejobman_app,[]}},
     {applications, [kernel, stdlib]}

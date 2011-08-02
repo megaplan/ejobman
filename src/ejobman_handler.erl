@@ -39,7 +39,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 
--export([cmd/2, remove_child/1]).
+-export([cmd/1, remove_child/1]).
 -export([cmd2/2, cmd2/3]).
 
 %%%----------------------------------------------------------------------------
@@ -51,6 +51,7 @@
 -endif.
 
 -include("ejobman.hrl").
+-include("job.hrl").
 -include("amqp_client.hrl").
 
 %%%----------------------------------------------------------------------------
@@ -84,9 +85,9 @@ handle_call({remove_child, Pid}, _From, St) ->
     {reply, ok, New, ?T};
 
 %% @doc calls disposable child
-handle_call({cmd, Method, Url}, From, St) ->
+handle_call({cmd, Job}, From, St) ->
     St_d = do_smth(St),
-    New = ejobman_handler_cmd:do_command(St_d, From, Method, Url),
+    New = ejobman_handler_cmd:do_command(St_d, From, Job),
     {noreply, New, ?T};
 
 %% @doc calls long-lasting worker
@@ -150,6 +151,7 @@ code_change(_Old_vsn, State, _Extra) ->
 %%
 start() ->
     start_link().
+
 %%-----------------------------------------------------------------------------
 -spec start_link() -> any().
 %%
@@ -166,6 +168,7 @@ start_link() ->
 %%
 start_link(Config) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Config, []).
+
 %%-----------------------------------------------------------------------------
 -spec stop() -> any().
 %%
@@ -174,6 +177,7 @@ start_link(Config) ->
 %%
 stop() ->
     gen_server:call(?MODULE, stop).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc calls any received command to be executed by long-lasting worker
@@ -193,15 +197,17 @@ cmd2(Method, Url) ->
 
 cmd2(Method, Url, Timeout) ->
     gen_server:call(?MODULE, {cmd2, Method, Url}, Timeout).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc calls any received command to be executed by disposable child
 %% @since 2011-07-15 11:00
 %%
--spec cmd(binary(), binary()) -> ok.
+-spec cmd(#job{}) -> ok.
 
-cmd(Method, Url) ->
-    gen_server:call(?MODULE, {cmd, Method, Url}).
+cmd(Job) ->
+    gen_server:call(?MODULE, {cmd, Job}).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc asks ejobman_handler to remove child from the list
@@ -210,6 +216,7 @@ cmd(Method, Url) ->
 
 remove_child(Pid) ->
     gen_server:cast(?MODULE, {remove_child, Pid}).
+
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -348,6 +355,7 @@ check_child(#chi{pid=Pid}) ->
         _ ->
             false
     end.
+
 %%-----------------------------------------------------------------------------
 -spec prepare_workers(#ejm{}) -> #ejm{}.
 %%

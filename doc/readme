@@ -4,6 +4,7 @@ Content
 Depends
 Problems
 Workers
+Json request
 
 Depends
 =======
@@ -45,4 +46,50 @@ The max number of short living processes is also defined in handler section
 of the config (parameter max_children)
 Long living workers are controlled (spawn, assign a job, terminate)
 by ejobman_handler.
+
+Json request
+============
+
+Version 1
+---------
+
+{type: rest},
+{job_info:
+  {method: xxx, url: xxx}
+}
+
+
+Version 2
+---------
+
+{type: rest},
+{job_info:
+  {method: xxx, url: xxx}
+},
+{run_time: # no runtime or any unknown values in it means 'now'
+  now
+  | at: 'yyyy-mm-dd hh:mm:ss'
+  | in: nnnnn # where nnnnn means seconds
+}
+
+
+Version 3, draft
+----------------
+
+{type: rest},
+{job_info: {
+  method: xxx, # get, post, head
+  url: xxx,
+    # url can be:
+    # scheme://user:pass@host:port/path?params - for 'get' method
+    # scheme://user:pass@host:port/path        - for 'post' method
+  body: xxx, # for 'post' method
+  timeout: nnn # milliseconds
+  }
+},
+{run_time: # no runtime or any unknown values in it means 'now'
+  now
+  | at: 'yyyy-mm-dd hh:mm:ss'
+  | in: nnnnn # where nnnnn means seconds
+}
 

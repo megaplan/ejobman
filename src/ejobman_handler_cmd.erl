@@ -34,7 +34,7 @@
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([do_command/4, do_short_commands/1, do_worker_cmd/4]).
+-export([do_command/3, do_short_commands/1, do_worker_cmd/4]).
 -export([do_long_commands/1]).
 
 %%%----------------------------------------------------------------------------
@@ -46,6 +46,7 @@
 -endif.
 
 -include("ejobman.hrl").
+-include("job.hrl").
 
 %%%----------------------------------------------------------------------------
 %%% API
@@ -54,11 +55,12 @@
 %% @doc stores the command into a queue and goes to command processing
 %% @since 2011-07-15 10:00
 %%
--spec do_command(#ejm{}, any(), binary(), binary()) -> #ejm{}.
+-spec do_command(#ejm{}, any(), #job{}) -> #ejm{}.
 
-do_command(St, From, Method, Url) ->
-    St_q = store_in_ch_queue(St, From, Method, Url),
+do_command(St, From, Job) ->
+    St_q = store_in_ch_queue(St, From, Job),
     do_short_commands(St_q).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc repeatedly calls for creating new child until either limit
@@ -84,6 +86,7 @@ do_short_commands(#ejm{ch_queue = Q, ch_data = Ch, max_children = Max} = St) ->
                 ?LINE, Len, Max}, St#ejm.debug, run, 4),
             St
     end.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc checks for reaching the configured maximum number of children.
@@ -96,6 +99,7 @@ do_short_commands(#ejm{ch_queue = Q, ch_data = Ch, max_children = Max} = St) ->
 do_worker_cmd(St, From, Method, Url) ->
     St_q = store_in_w_queue(St, From, Method, Url),
     do_long_commands(St_q).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc calls for creating a new worker and assigning a job to it.
@@ -123,6 +127,7 @@ do_long_commands(#ejm{w_queue=Q, workers=Workers, max_workers=Max} = St) ->
                 ?LINE, Len, Max}, St#ejm.debug, run, 4),
             St
     end.
+
 %%-----------------------------------------------------------------------------
 %% Internal functions
 %%-----------------------------------------------------------------------------
@@ -135,16 +140,18 @@ do_long_commands(#ejm{w_queue=Q, workers=Workers, max_workers=Max} = St) ->
 store_in_w_queue(#ejm{w_queue = Q} = St, From, Method, Url) ->
     New = queue:in({From, Method, Url}, Q),
     St#ejm{w_queue=New}.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc stores the command into a queue for later processing.
 %% @since 2011-07-22 10:00
 %%
--spec store_in_ch_queue(#ejm{}, any(), binary(), binary()) -> #ejm{}.
+-spec store_in_ch_queue(#ejm{}, any(), #job{}) -> #ejm{}.
 
-store_in_ch_queue(#ejm{ch_queue = Q} = St, From, Method, Url) ->
-    New = queue:in({From, Method, Url}, Q),
+store_in_ch_queue(#ejm{ch_queue = Q} = St, From, Job) ->
+    New = queue:in({From, Job}, Q),
     St#ejm{ch_queue=New}.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc checks for a command in the queue, goes to do_one_long_command
@@ -162,6 +169,7 @@ check_one_long_command(#ejm{w_queue = Q} = St) ->
         _ ->
             St
     end.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc calls for spawning a worker, assigns a job to the worker.
@@ -181,6 +189,7 @@ do_one_long_command(St, Item) ->
             ejobman_long_worker:cmd(Pid, Item)
     end,
     Stw.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc given a ref finds a pid for spawned worker
@@ -217,15 +226,16 @@ check_one_command(#ejm{ch_queue = Q} = St) ->
         _ ->
             St
     end.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc do command processing in background then send reply to the client.
 %% Returns a state with a new child if the one is created.
 %% @since 2011-07-15 10:00
 %%
--spec do_one_command(#ejm{}, tuple()) -> #ejm{}.
+-spec do_one_command(#ejm{}, {any(), #job{}}) -> #ejm{}.
 
-do_one_command(St, {From, Method, Url}) ->
+do_one_command(St, {From, #job{method=Method, url=Url}}) ->
     mpln_p_debug:pr({?MODULE, 'do_one_command cmd', ?LINE, From, Method, Url},
         St#ejm.debug, run, 4),
     % parameters for ejobman_child
@@ -244,6 +254,7 @@ do_one_command(St, {From, Method, Url}) ->
         _ ->
             St
     end.
+
 %%-----------------------------------------------------------------------------
 %% @doc adds child's pid to the list for later use
 %% (e.g.: assign a job, kill, rip, etc...)
@@ -372,8 +383,12 @@ make_test_data() ->
 
 do_command_test() ->
     {St, From, Method, Url} = make_test_data(),
-    New = do_command(St, From, Method, Url),
-    Stq = St#ejm{ch_queue = queue:in({From, Method, Url}, queue:new())},
+    New = do_command(St, From, #job{method = Method, url = Url}),
+    Stq = St#ejm{
+        ch_queue = queue:in(
+            {From, #job{method = Method, url = Url}},
+            queue:new())
+            },
     ?assert(Stq =:= New).
 
 do_command2_test() ->
@@ -382,10 +397,10 @@ do_command2_test() ->
     {F3, M3, U3} = make_test_req(3),
     {F4, M4, U4} = make_test_req(4),
     {F5, M5, U5} = make_test_req(5),
-    St2 = store_in_ch_queue(St, F2, M2, U2),
-    St3 = store_in_ch_queue(St2, F3, M3, U3),
-    St4 = store_in_ch_queue(St3, F4, M4, U4),
-    St5 = store_in_ch_queue(St4, F5, M5, U5),
+    St2 = store_in_ch_queue(St , F2, #job{method = M2, url = U2}),
+    St3 = store_in_ch_queue(St2, F3, #job{method = M3, url = U3}),
+    St4 = store_in_ch_queue(St3, F4, #job{method = M4, url = U4}),
+    St5 = store_in_ch_queue(St4, F5, #job{method = M5, url = U5}),
     mpln_p_debug:pr({?MODULE, 'do_command2_test', ?LINE, St5}, [], run, 0),
     Res = do_short_commands(St5),
     mpln_p_debug:pr({?MODULE, 'do_command2_test res', ?LINE, Res}, [], run, 0),

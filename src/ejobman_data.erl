@@ -34,6 +34,7 @@
 %%%----------------------------------------------------------------------------
 
 -export([get_type/1, get_job_info/1, get_method/1, get_url/1]).
+-export([get_time/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Public API
@@ -63,8 +64,8 @@ get_job_info(Data) ->
 %%
 get_method(Data) ->
     get_value(Data, <<"method">>).
-%%-----------------------------------------------------------------------------
 
+%%-----------------------------------------------------------------------------
 -spec get_url(any()) -> any().
 %%
 %% @doc Extracts value for "url" item from job_info json structure
@@ -72,6 +73,16 @@ get_method(Data) ->
 %%
 get_url(Data) ->
     get_value(Data, <<"url">>).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc Extracts value for "run_time" item from job_info json structure
+%% @since 2011-08-02 13:56
+%%
+-spec get_time(any()) -> any().
+
+get_time(Data) ->
+    get_value(Data, <<"run_time">>).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions

@@ -130,8 +130,11 @@ fill_config(List) ->
 -spec get_config_list(string()) -> list().
 
 get_config_list(Default) ->
-    case application:get_env('ejobman', "CONFIG") of
-        {ok, File} ->
+    case application:get_env('ejobman', 'CONFIG') of
+        {ok, File} when is_list(File) ->
+            mpln_misc_conf:read_config(File);
+        {ok, A} when is_atom(A) ->
+            File = atom_to_list(A),
             mpln_misc_conf:read_config(File);
         _ ->
             mpln_misc_conf:read_config(Default)
