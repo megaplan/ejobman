@@ -267,37 +267,64 @@ check_queued_commands(St) ->
 check_workers(St) ->
     Sto = check_old_workers(St),
     Stl = check_live_workers(Sto),
-    replenish_worker_pool(Stl)
+    replenish_worker_pools(Stl)
 .
 %%-----------------------------------------------------------------------------
 %%
-%% @doc stops old disengaged workers (?), stops any too old workers.
+%% @doc stops old workers for all the pools.
 %% Returns a new state with quite young workers only
 %%
 -spec check_old_workers(#ejm{}) -> #ejm{}.
 
-check_old_workers(St) ->
-    {Ok, Old} = separate_workers(St),
+check_old_workers(#ejm{w_pools = Pools} = St) ->
+    New_pools = lists:map(fun(X) -> check_pool_old_workers(St, X) end, Pools),
+    St#ejm{w_pools = New_pools}
+.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc stops old disengaged workers (?), stops any too old workers.
+%% Returns the updated pool with quite young workers only
+%%
+-spec check_pool_old_workers(#ejm{}, #pool{}) -> #pool{}.
+
+check_pool_old_workers(St, Pool) ->
+    {Ok, Old} = separate_workers(Pool),
     mpln_p_debug:pr({?MODULE, 'check_workers', ?LINE, Ok, Old},
         St#ejm.debug, run, 5),
     terminate_old_workers(Old),
-    St#ejm{workers=Ok}.
-
+    Pool#pool{workers=Ok}
+.
 %%-----------------------------------------------------------------------------
--spec replenish_worker_pool(#ejm{}) -> #ejm{}.
+replenish_worker_pools(#ejm{w_pools = Pools} = St) ->
+    New_pools = lists:map(fun(X) -> replenish_one_pool(St, X) end, Pools),
+    St#ejm{w_pools = New_pools}
+.
+%%-----------------------------------------------------------------------------
+-spec replenish_one_pool(#ejm{}, #pool{}) -> #pool{}.
 
-replenish_worker_pool(#ejm{min_workers=Min, workers=Workers} = St) ->
+replenish_one_pool(St, #pool{min_workers=Min, workers=Workers} = Pool) ->
     Delta = Min - length(Workers),
     if  Delta > 0 ->
-            spawn_n_workers(St, Delta);
+            spawn_n_workers(St, Pool, Delta);
         true ->
-            St
+            Pool
     end.
 
 %%-----------------------------------------------------------------------------
--spec check_live_workers(#ejm{}) -> #ejm{}.
+%%
+%% @doc checks for live workers in pools
+%%
+check_live_workers(#ejm{w_pools = Pools} = St) ->
+    New_pools = lists:map(fun check_pool_live_workers/1, Pools),
+    St#ejm{w_pools = New_pools}
+.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks for live workers in a pool.
+%%
+-spec check_pool_live_workers(#pool{}) -> #pool{}.
 
-check_live_workers(#ejm{workers=Workers} = St) ->
+check_pool_live_workers(#pool{workers=Workers} = Pool) ->
     F = fun(X) ->
         case process_info(X#chi.pid) of
             undefined -> false;
@@ -305,7 +332,7 @@ check_live_workers(#ejm{workers=Workers} = St) ->
         end
     end,
     New = lists:filter(F, Workers),
-    St#ejm{workers=New}
+    Pool#pool{workers=New}
 .
 %%-----------------------------------------------------------------------------
 %%
@@ -321,9 +348,9 @@ terminate_old_workers(List) ->
 %% @doc separate workers on their working time. Returns lists of normal
 %% workers and workers that need to be terminated
 %%
--spec separate_workers(#ejm{}) -> {list(), list()}.
+-spec separate_workers(#pool{}) -> {list(), list()}.
 
-separate_workers(#ejm{w_duration=Limit, workers=Workers}) ->
+separate_workers(#pool{w_duration=Limit, workers=Workers}) ->
     Now = now(),
     F = fun(#chi{start = T}) ->
         Delta = timer:now_diff(Now, T),
@@ -359,47 +386,49 @@ check_child(#chi{pid=Pid}) ->
 %%-----------------------------------------------------------------------------
 -spec prepare_workers(#ejm{}) -> #ejm{}.
 %%
-%% @doc spawns the configured minimum of long lasting workers
+%% @doc spawns the configured minimum of long-lasting workers
 %%
-prepare_workers(C) ->
-    spawn_workers(C).
+prepare_workers(#ejm{w_pools = Pools} = C) ->
+    New_pools = lists:map(fun(X) -> spawn_workers(C, X) end, Pools),
+    C#ejm{w_pools = New_pools}.
 
 %%
-%% @doc spawns the configured minimum number of workers
+%% @doc spawns the configured for a pool a minimum number of workers
 %%
--spec spawn_workers(#ejm{}) -> #ejm{}.
+-spec spawn_workers(#ejm{}, #pool{}) -> #pool{}.
 
-spawn_workers(#ejm{min_workers=N} = C) ->
-    spawn_n_workers(C, N).
+spawn_workers(C, #pool{min_workers=N} = P) ->
+    spawn_n_workers(C, P, N).
 
 %%
 %% @doc spawns N workers
 %%
--spec spawn_n_workers(#ejm{}, non_neg_integer()) -> #ejm{}.
+-spec spawn_n_workers(#ejm{}, #pool{}, non_neg_integer()) -> #pool{}.
 
-spawn_n_workers(State, N) ->
-    lists:foldl(fun(_X, Acc) ->
-            {_, New} = ejobman_worker_spawn:spawn_one_worker(Acc),
+spawn_n_workers(State, Pool, N) ->
+    lists:foldl(fun(_X, Pool_in) ->
+            {_, New} = ejobman_worker_spawn:spawn_one_worker(State, Pool_in),
             New
         end,
-        State,
+        Pool,
         lists:duplicate(N, true)
     ).
 
 %%-----------------------------------------------------------------------------
 -spec remove_workers(#ejm{}) -> ok.
 %%
-%% @doc terminates all the workers
+%% @doc terminates all the workers in all the pools
 %%
-remove_workers(C) ->
-    terminate_workers(C).
-
+remove_workers(#ejm{w_pools = Pools} = St) ->
+    New_pools = lists:map(fun terminate_workers/1, Pools),
+    St#ejm{w_pools = New_pools}
+.
 %%-----------------------------------------------------------------------------
--spec terminate_workers(#ejm{}) -> ok.
+-spec terminate_workers(#pool{}) -> ok.
 %%
 %% @doc terminates all the workers
 %%
-terminate_workers(#ejm{workers = Workers}) ->
+terminate_workers(#pool{workers = Workers}) ->
     lists:foreach(fun terminate_one_worker/1, Workers).
 
 %%-----------------------------------------------------------------------------

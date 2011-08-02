@@ -35,7 +35,7 @@
 %%%----------------------------------------------------------------------------
 
 -export([do_command/3, do_short_commands/1, do_worker_cmd/4]).
--export([do_long_commands/1]).
+-export([do_long_commands/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -89,43 +89,53 @@ do_short_commands(#ejm{ch_queue = Q, ch_data = Ch, max_children = Max} = St) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc checks for reaching the configured maximum number of children.
-%% Proceeds to command if there is a space for a new child. Otherwise
-%% stores the command into a queue for later processing.
+%% @doc chooses pool and goes on to proceed the job in the selected pool
 %% @since 2011-07-22 14:54
 %%
 -spec do_worker_cmd(#ejm{}, any(), binary(), binary()) -> #ejm{}.
 
 do_worker_cmd(St, From, Method, Url) ->
-    St_q = store_in_w_queue(St, From, Method, Url),
-    do_long_commands(St_q).
+    Pool = select_pool(St),
+    Upd_pool = do_pool_worker_cmd(St, Pool, From, Method, Url),
+    store_pool(St, Upd_pool).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks for reaching the configured maximum number of children.
+%% Proceeds to command if there is a space for a new child. Otherwise
+%% stores the command into a queue for later processing.
+%% @since 2011-08-02 18:34
+%%
+-spec do_pool_worker_cmd(#ejm{}, #pool{}, any(), binary(), binary()) -> #pool{}.
+
+do_pool_worker_cmd(St, Pool, From, Method, Url) ->
+    Upd_pool = store_in_w_queue(Pool, From, Method, Url),
+    do_long_commands(St, Upd_pool).
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc calls for creating a new worker and assigning a job to it.
-%% Returns updated state.
+%% Returns updated pool.
 %% @since 2011-07-22 18:26
 %%
--spec do_long_commands(#ejm{}) -> #ejm{}.
+-spec do_long_commands(#ejm{}, #pool{}) -> #pool{}.
 
-do_long_commands(#ejm{w_queue=Q, workers=Workers, max_workers=Max} = St) ->
+do_long_commands(St,
+    #pool{w_queue=Q, workers=Workers, max_workers=Max} = Pool) ->
     Len = length(Workers),
     mpln_p_debug:pr({?MODULE, 'do_long_commands', ?LINE, Len, Max},
         St#ejm.debug, run, 4),
     case queue:is_empty(Q) of
         false when Len < Max ->
-            New_st = check_one_long_command(St),
-            % don't spawn all the heavy workers immediately
-            % do_long_commands(New_st);
-            New_st;
+            check_one_long_command(St, Pool);
         false ->
             mpln_p_debug:pr({?MODULE, 'do_long_commands too many workers',
                 ?LINE, Len, Max}, St#ejm.debug, run, 3),
-            assign_one_long_command(St);
+            assign_one_long_command(St, Pool);
         _ ->
             mpln_p_debug:pr({?MODULE, 'do_long_commands empty queue',
                 ?LINE, Len, Max}, St#ejm.debug, run, 4),
-            St
+            Pool
     end.
 
 %%-----------------------------------------------------------------------------
@@ -135,11 +145,11 @@ do_long_commands(#ejm{w_queue=Q, workers=Workers, max_workers=Max} = St) ->
 %% @doc stores the command into a workers queue for later processing.
 %% @since 2011-07-22 18:00
 %%
--spec store_in_w_queue(#ejm{}, any(), binary(), binary()) -> #ejm{}.
+-spec store_in_w_queue(#pool{}, any(), binary(), binary()) -> #pool{}.
 
-store_in_w_queue(#ejm{w_queue = Q} = St, From, Method, Url) ->
+store_in_w_queue(#pool{w_queue = Q} = Pool, From, Method, Url) ->
     New = queue:in({From, Method, Url}, Q),
-    St#ejm{w_queue=New}.
+    Pool#pool{w_queue=New}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -158,16 +168,16 @@ store_in_ch_queue(#ejm{ch_queue = Q} = St, From, Job) ->
 %% to process the command if any.
 %% @since 2011-07-22 15:00
 %%
--spec check_one_long_command(#ejm{}) -> #ejm{}.
+-spec check_one_long_command(#ejm{}, #pool{}) -> #pool{}.
 
-check_one_long_command(#ejm{w_queue = Q} = St) ->
+check_one_long_command(St, #pool{w_queue = Q} = Pool) ->
     mpln_p_debug:pr({?MODULE, 'check_one_long_command', ?LINE},
         St#ejm.debug, run, 4),
     case queue:out(Q) of
         {{value, Item}, Q2} ->
-            do_one_long_command(St#ejm{w_queue=Q2}, Item);
+            do_one_long_command(St, Pool#pool{w_queue=Q2}, Item);
         _ ->
-            St
+            Pool
     end.
 
 %%-----------------------------------------------------------------------------
@@ -175,28 +185,28 @@ check_one_long_command(#ejm{w_queue = Q} = St) ->
 %% @doc calls for spawning a worker, assigns a job to the worker.
 %% @since 2011-07-22 19:56
 %%
--spec do_one_long_command(#ejm{}, tuple()) -> #ejm{}.
+-spec do_one_long_command(#ejm{}, #pool{}, tuple()) -> #pool{}.
 
-do_one_long_command(St, Item) ->
-    {Ref, Stw} = ejobman_worker_spawn:spawn_one_worker(St),
+do_one_long_command(St, Pool, Item) ->
+    {Ref, New_pool} = ejobman_worker_spawn:spawn_one_worker(St, Pool),
     case Ref of
         error ->
             mpln_p_debug:pr({?MODULE, 'do_one_long_command error', ?LINE},
                 St#ejm.debug, run, 2),
             ok;
         _ ->
-            Pid = find_pid(Stw, Ref),
+            Pid = find_pid(New_pool, Ref),
             ejobman_long_worker:cmd(Pid, Item)
     end,
-    Stw.
+    New_pool.
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc given a ref finds a pid for spawned worker
+%% @doc given a ref finds a pid for the spawned worker
 %%
--spec find_pid(#ejm{}, reference()) -> pid() | not_found.
+-spec find_pid(#pool{}, reference()) -> pid() | not_found.
 
-find_pid(#ejm{workers = Workers}, Ref) ->
+find_pid(#pool{workers = Workers}, Ref) ->
     F = fun(#chi{id=Id}) when Id == Ref ->
             true;
         (_) ->
@@ -269,18 +279,20 @@ add_child(#ejm{ch_data=Children} = St, Pid) ->
 %% @doc assigns a job to any (or best fit) worker
 %% @since 2011-07-25 15:40
 %%
-assign_one_long_command(#ejm{w_queue = Q} = St) ->
+-spec assign_one_long_command(#ejm{}, #pool{}) -> #pool{}.
+
+assign_one_long_command(St, #pool{w_queue = Q} = Pool) ->
     mpln_p_debug:pr({?MODULE, 'assign_one_long_command', ?LINE},
         St#ejm.debug, run, 4),
     case queue:out(Q) of
         {{value, Item}, Q2} ->
-            Worker = find_best_pid(St),
+            Worker = find_best_pid(St, Pool),
             mpln_p_debug:pr({?MODULE, 'assign_one_long_command', ?LINE, Worker},
                 St#ejm.debug, run, 3),
             ejobman_long_worker:cmd(Worker, Item),
-            St#ejm{w_queue = Q2};
+            Pool#pool{w_queue = Q2};
         _ ->
-            St
+            Pool
     end
 .
 %%-----------------------------------------------------------------------------
@@ -289,9 +301,9 @@ assign_one_long_command(#ejm{w_queue = Q} = St) ->
 %% process memory usage, message queue length and a random number as
 %% the last resort
 %%
--spec find_best_pid(#ejm{}) -> pid().
+-spec find_best_pid(#ejm{}, #pool{}) -> pid().
 
-find_best_pid(#ejm{workers=Workers} = St) ->
+find_best_pid(St, #pool{workers=Workers}) ->
     {A, B, C} = now(),
     random:seed(A, B, C),
     List = lists:map(fun(#chi{pid=X}) ->
@@ -351,7 +363,43 @@ get_int_value(List, Key) ->
             0
     end.
 
-%%%----------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
+%%
+%% @doc randomly selects pool
+%%
+select_pool(#ejm{w_pools = Pools} = St) ->
+    {A, B, C} = now(),
+    random:seed(A, B, C),
+    case catch length(Pools) of
+        N when is_integer(N) ->
+            R = random:uniform(N),
+            lists:nth(R, Pools);
+        _ ->
+            % FIXME: do something here
+            mpln_p_debug:pr({?MODULE, 'select_pool error',
+                ?LINE, Pools}, St#ejm.debug, run, 0),
+            #pool{}
+    end.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc stores pool in the state
+%%
+-spec store_pool(#ejm{}, #pool{}) -> #ejm{}.
+
+store_pool(#ejm{w_pools = Pools} = St, P) ->
+    Rest = lists:filter(fun(X) -> not_that_pool(X, P#pool.id) end, Pools),
+    St#ejm{w_pools = [P | Rest]}
+.
+%%-----------------------------------------------------------------------------
+not_that_pool(Pool, Id) ->
+    not is_that_pool(Pool, Id).
+
+%%-----------------------------------------------------------------------------
+is_that_pool(#pool{id = X}, Id) when X == Id ->
+    true;
+is_that_pool(_Pool, _Id) ->
+    false.
+%%-----------------------------------------------------------------------------
 %%% EUnit tests
 %%%----------------------------------------------------------------------------
 -ifdef(TEST).

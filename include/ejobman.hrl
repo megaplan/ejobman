@@ -24,14 +24,19 @@
     start={0,0,0} % time in now() format
 }).
 
-% state of a handler and a receiver gen_server
--record(ejm, {
+-record(pool, {
+    id,
     w_duration = 86400000, % milliseconds
     worker_config,
-    workers :: [#chi{}],
+    workers = [] :: [#chi{}],
     w_queue,
     min_workers = 5,
-    max_workers = 255,
+    max_workers = 255
+}).
+
+% state of a handler and a receiver gen_server
+-record(ejm, {
+    w_pools = [],
     ch_data, % spawned children
     ch_queue,
     max_children = 32767,

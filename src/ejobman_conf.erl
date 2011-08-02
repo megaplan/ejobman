@@ -76,15 +76,10 @@ get_config_child(List) ->
 
 get_config_hdl(Default) ->
     List = get_config_list(Default),
-    Worker_list = proplists:get_value(worker, List, []),
     Hdl_list = proplists:get_value(handler, List, []),
+    Pools = fill_pools_config(List),
     #ejm{
-        worker_config = Worker_list,
-        workers = [],
-        w_queue = queue:new(),
-        w_duration = proplists:get_value(worker_duration, Hdl_list, 86400000),
-        min_workers = proplists:get_value(min_workers, Hdl_list, 2),
-        max_workers = proplists:get_value(max_workers, Hdl_list, 255),
+        w_pools = Pools,
         ch_data = [],
         ch_queue = queue:new(),
         max_children = proplists:get_value(max_children, Hdl_list, 32767),
@@ -139,6 +134,23 @@ get_config_list(Default) ->
         _ ->
             mpln_misc_conf:read_config(Default)
     end.
+
+%%-----------------------------------------------------------------------------
+fill_pools_config(List) ->
+    Pools = proplists:get_value(pools, List, []),
+    lists:map(fun fill_one_pool_config/1, Pools)
+.
+%%-----------------------------------------------------------------------------
+fill_one_pool_config(List) ->
+    #pool{
+        id = proplists:get_value(id, List),
+        worker_config = proplists:get_value(worker, List, []),
+        workers = [],
+        w_queue = queue:new(),
+        w_duration = proplists:get_value(worker_duration, List, 86400000),
+        min_workers = proplists:get_value(min_workers, List, 2),
+        max_workers = proplists:get_value(max_workers, List, 255)
+    }.
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
