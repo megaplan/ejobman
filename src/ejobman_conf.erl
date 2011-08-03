@@ -36,6 +36,7 @@
 -export([get_config/1]).
 -export([get_config_hdl/1]).
 -export([get_config_child/1]).
+-export([fill_one_pool_config/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -48,7 +49,7 @@
 -include("ejobman.hrl").
 
 %%%----------------------------------------------------------------------------
-%%% api
+%%% API
 %%%----------------------------------------------------------------------------
 %%
 %% @doc fills in the child config with values from input list.
@@ -114,6 +115,18 @@ fill_config(List) ->
         log = proplists:get_value(log, List, ?LOG)
     }.
 
+%%-----------------------------------------------------------------------------
+fill_one_pool_config(List) ->
+    #pool{
+        id = proplists:get_value(id, List),
+        worker_config = proplists:get_value(worker, List, []),
+        workers = [],
+        w_queue = queue:new(),
+        w_duration = proplists:get_value(worker_duration, List, 86400000),
+        min_workers = proplists:get_value(min_workers, List, 2),
+        max_workers = proplists:get_value(max_workers, List, 255)
+    }.
+
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -140,18 +153,6 @@ fill_pools_config(List) ->
     Pools = proplists:get_value(pools, List, []),
     lists:map(fun fill_one_pool_config/1, Pools)
 .
-%%-----------------------------------------------------------------------------
-fill_one_pool_config(List) ->
-    #pool{
-        id = proplists:get_value(id, List),
-        worker_config = proplists:get_value(worker, List, []),
-        workers = [],
-        w_queue = queue:new(),
-        w_duration = proplists:get_value(worker_duration, List, 86400000),
-        min_workers = proplists:get_value(min_workers, List, 2),
-        max_workers = proplists:get_value(max_workers, List, 255)
-    }.
-
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
 %%%----------------------------------------------------------------------------

@@ -41,6 +41,7 @@
 
 -export([cmd/1, remove_child/1]).
 -export([cmd2/2, cmd2/3]).
+-export([add_pool/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -96,10 +97,10 @@ handle_call({cmd2, Method, Url}, From, St) ->
     New = ejobman_handler_cmd:do_worker_cmd(St_d, From, Method, Url),
     {noreply, New, ?T};
 
-%% @doc calls long-lasting worker
-handle_call({add_pool, Pool}, From, St) ->
+%% @doc adds a new pool
+handle_call({add_pool, Pool}, _From, St) ->
     St_d = do_smth(St),
-    New = ejobman_handler_cmd:add_pool(St_d, From, Pool),
+    New = ejobman_handler_cmd:add_pool(St_d, Pool),
     {reply, ok, New, ?T};
 
 handle_call(stop, _From, St) ->
@@ -222,6 +223,17 @@ cmd(Job) ->
 
 remove_child(Pid) ->
     gen_server:cast(?MODULE, {remove_child, Pid}).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc adds a new pool into the server state. Input is a proplist of
+%% {key, value} tuples.
+%% @since 2011-08-03 15:04
+%%
+-spec add_pool(list()) -> ok.
+
+add_pool(List) ->
+    gen_server:call(?MODULE, {add_pool, List}).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions

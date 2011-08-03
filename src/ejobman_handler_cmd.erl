@@ -35,7 +35,7 @@
 %%%----------------------------------------------------------------------------
 
 -export([do_command/3, do_short_commands/1, do_worker_cmd/4]).
--export([add_pool/3]).
+-export([add_pool/2]).
 -export([all_pools_long_command/1]).
 
 %%%----------------------------------------------------------------------------
@@ -56,11 +56,10 @@
 %% @doc converts proplist into a pool record. Adds the pool into worker pools
 %% @since 2011-08-03 14:32
 %%
--spec add_pool(#ejm{}, any(), list()) -> #ejm{}.
+-spec add_pool(#ejm{}, list()) -> #ejm{}.
 
-add_pool(#ejm{w_pools = Pools} = St, From, List) ->
-    %Pool = create_pool(List),
-    Pool = #pool{},
+add_pool(#ejm{w_pools = Pools} = St, List) ->
+    Pool = ejobman_conf:fill_one_pool_config(List),
     St#ejm{w_pools = [Pool | Pools]}.
 
 %%-----------------------------------------------------------------------------
