@@ -1,3 +1,7 @@
 - check for correct data on receive
 - format functions for edoc to work. That means put an empty line (or a line
   with just one dot, he-he...) after a function body
+- use catch and/or timeout for ejobman_long_worker:cmd call
+  in ejobman_handler_cmd:do_one_long_command. Because we don't want to crash
+  handler on worker timeout.
+- add api add_pool, add_worker(?)

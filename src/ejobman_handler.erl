@@ -96,6 +96,12 @@ handle_call({cmd2, Method, Url}, From, St) ->
     New = ejobman_handler_cmd:do_worker_cmd(St_d, From, Method, Url),
     {noreply, New, ?T};
 
+%% @doc calls long-lasting worker
+handle_call({add_pool, Pool}, From, St) ->
+    St_d = do_smth(St),
+    New = ejobman_handler_cmd:add_pool(St_d, From, Pool),
+    {reply, ok, New, ?T};
+
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
 handle_call(status, _From, St) ->
@@ -249,14 +255,13 @@ do_smth(State) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc calls to process all the queued commands (currently -
-%% disposable children only)
+%% @doc calls to process all the queued commands
 %%
 -spec check_queued_commands(#ejm{}) -> #ejm{}.
 
 check_queued_commands(St) ->
     St_short = ejobman_handler_cmd:do_short_commands(St),
-    ejobman_handler_cmd:do_long_commands(St_short).
+    ejobman_handler_cmd:all_pools_long_command(St_short).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -289,8 +294,8 @@ check_old_workers(#ejm{w_pools = Pools} = St) ->
 
 check_pool_old_workers(St, Pool) ->
     {Ok, Old} = separate_workers(Pool),
-    mpln_p_debug:pr({?MODULE, 'check_workers', ?LINE, Ok, Old},
-        St#ejm.debug, run, 5),
+    mpln_p_debug:pr({?MODULE, 'check_pool_old_workers', ?LINE,
+        Pool#pool.id, Ok, Old}, St#ejm.debug, run, 5),
     terminate_old_workers(Old),
     Pool#pool{workers=Ok}
 .
@@ -419,10 +424,9 @@ spawn_n_workers(State, Pool, N) ->
 %%
 %% @doc terminates all the workers in all the pools
 %%
-remove_workers(#ejm{w_pools = Pools} = St) ->
-    New_pools = lists:map(fun terminate_workers/1, Pools),
-    St#ejm{w_pools = New_pools}
-.
+remove_workers(#ejm{w_pools = Pools}) ->
+    lists:foreach(fun terminate_workers/1, Pools).
+
 %%-----------------------------------------------------------------------------
 -spec terminate_workers(#pool{}) -> ok.
 %%

@@ -38,7 +38,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 
--export([cmd/2]).
+-export([cmd/2, cmd/3]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -179,6 +179,15 @@ stop() ->
 
 cmd(Pid, Job) ->
     gen_server:call(Pid, {cmd, Job}).
+
+%%
+%% @doc transmit the command to a gen_server with the given pid. Uses timeout
+%% @since 2011-08-03 14:03
+%%
+-spec cmd(pid(), tuple(), non_neg_integer()) -> ok.
+
+cmd(Pid, Job, Timeout) ->
+    gen_server:call(Pid, {cmd, Job}, Timeout).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions

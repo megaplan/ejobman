@@ -35,7 +35,8 @@
 %%%----------------------------------------------------------------------------
 
 -export([do_command/3, do_short_commands/1, do_worker_cmd/4]).
--export([do_long_commands/2]).
+-export([add_pool/3]).
+-export([all_pools_long_command/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -51,6 +52,18 @@
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
+%%
+%% @doc converts proplist into a pool record. Adds the pool into worker pools
+%% @since 2011-08-03 14:32
+%%
+-spec add_pool(#ejm{}, any(), list()) -> #ejm{}.
+
+add_pool(#ejm{w_pools = Pools} = St, From, List) ->
+    %Pool = create_pool(List),
+    Pool = #pool{},
+    St#ejm{w_pools = [Pool | Pools]}.
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc stores the command into a queue and goes to command processing
 %% @since 2011-07-15 10:00
@@ -114,6 +127,17 @@ do_pool_worker_cmd(St, Pool, From, Method, Url) ->
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc calls do_long_commands for every pool
+%% @since 2011-08-03 12:19
+%%
+-spec all_pools_long_command(#ejm{}) -> #ejm{}.
+
+all_pools_long_command(#ejm{w_pools = Pools} = St) ->
+    New_pools = lists:map(fun(X) -> do_long_commands(St, X) end, Pools),
+    St#ejm{w_pools = New_pools}.
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc calls for creating a new worker and assigning a job to it.
 %% Returns updated pool.
 %% @since 2011-07-22 18:26
@@ -128,6 +152,8 @@ do_long_commands(St,
     case queue:is_empty(Q) of
         false when Len < Max ->
             check_one_long_command(St, Pool);
+            % no [tail] recursion here because we spawn just one worker
+            % at a time. Mass spawning might be time consuming
         false ->
             mpln_p_debug:pr({?MODULE, 'do_long_commands too many workers',
                 ?LINE, Len, Max}, St#ejm.debug, run, 3),
@@ -196,6 +222,7 @@ do_one_long_command(St, Pool, Item) ->
             ok;
         _ ->
             Pid = find_pid(New_pool, Ref),
+            % TODO: use catch and/or timeout
             ejobman_long_worker:cmd(Pid, Item)
     end,
     New_pool.
@@ -371,14 +398,15 @@ select_pool(#ejm{w_pools = Pools} = St) ->
     {A, B, C} = now(),
     random:seed(A, B, C),
     case catch length(Pools) of
-        N when is_integer(N) ->
+        N when is_integer(N), N > 0 ->
             R = random:uniform(N),
             lists:nth(R, Pools);
         _ ->
             % FIXME: do something here
             mpln_p_debug:pr({?MODULE, 'select_pool error',
                 ?LINE, Pools}, St#ejm.debug, run, 0),
-            #pool{}
+            % TODO: add pool on the fly
+            erlang:error(dont_f__k_with_us_lebovsky)
     end.
 %%-----------------------------------------------------------------------------
 %%
