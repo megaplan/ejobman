@@ -235,21 +235,14 @@ process_cmd2(#child{port=P} = St, Data) ->
 .
 %%-----------------------------------------------------------------------------
 add_port(C) ->
-    case os:find_executable(C#child.name) of
-        false ->
-            mpln_p_debug:pr({?MODULE, 'executable not found',
-                ?LINE, C#child.name, C#child.id}, C#child.debug, run, 1),
-            C;
-        File ->
-            mpln_p_debug:pr({?MODULE, 'add_port',
-                ?LINE, C#child.name, C#child.id}, C#child.debug, run, 2),
-            Id = cr_port(File),
-            C#child{port=Id}
-    end
+    mpln_p_debug:pr({?MODULE, 'add_port',
+        ?LINE, C#child.name, C#child.id}, C#child.debug, run, 2),
+    Id = cr_port(C#child.name),
+    C#child{port=Id}
 .
 %%-----------------------------------------------------------------------------
 cr_port(File) ->
-    Name = {spawn_executable, File},
+    Name = {spawn, File},
     Settings = [
         exit_status,
         use_stdio,
