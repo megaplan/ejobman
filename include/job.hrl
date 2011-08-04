@@ -7,6 +7,7 @@
     type = 'rest',
     method,
     url,
+    params,
     run_time
 }).
 

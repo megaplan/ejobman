@@ -58,6 +58,7 @@ init(Params) ->
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE, self()},
         C#child.debug, run, 1),
     {ok, C, ?TC}. % yes, this is fast and dirty hack (?TC)
+
 %%-----------------------------------------------------------------------------
 %%
 %% Handling call messages
@@ -74,6 +75,7 @@ handle_call(_N, _From, St) ->
         St#child.debug, run, 4),
     New = do_smth(St),
     {reply, {error, unknown_request}, New, ?TC}.
+
 %%-----------------------------------------------------------------------------
 %%
 %% Handling cast messages
@@ -88,6 +90,7 @@ handle_cast(st0p, St) ->
 handle_cast(_, St) ->
     New = do_smth(St),
     {noreply, New, ?TC}.
+
 %%-----------------------------------------------------------------------------
 terminate(_, State) ->
     ejobman_handler:remove_child(self()),
@@ -110,6 +113,7 @@ handle_info(_Req, State) ->
         State#child.debug, run, 3),
     New = do_smth(State),
     {noreply, New, ?TC}.
+
 %%-----------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
@@ -141,7 +145,9 @@ do_smth(State) ->
     %timer:sleep(100), % FIXME: for debug only
     process_cmd(State),
     gen_server:cast(self(), stop),
-    State#child{method = <<>>, url = <<>>, from = 'undefined'}.
+    State#child{method = <<>>, url = <<>>,
+        params = 'undefined', from = 'undefined'}.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc checks the command, then follows real_cmd
@@ -163,18 +169,60 @@ process_cmd(_) ->
 %%-----------------------------------------------------------------------------
 %%
 %% @doc does the command, sends reply to the client.
+%% NOTE: in case of a big number of requests the TCP_WAIT problem can
+%% arise. To handle that use other clients:
+%% https://bitbucket.org/etc/lhttpc/wiki/Home
+%% https://github.com/cmullaparthi/ibrowse
 %% @since 2011-07-18
 %%
-real_cmd(#child{method = Method_bin, url = Url, from = From} = St) ->
-    mpln_p_debug:pr({?MODULE, 'process_cmd params', ?LINE, self(),
-        Method_bin, Url, From}, St#child.debug, run, 3),
+real_cmd(#child{method = Method_bin, url = Url, params = Params,
+        from = From} = St) ->
+    mpln_p_debug:pr({?MODULE, 'real_cmd params', ?LINE, self(),
+        Method_bin, Url, Params, From}, St#child.debug, run, 3),
     Method = ejobman_clean:get_method(Method_bin),
-    Res = http:request(Method, {Url, []},
+    Req = make_req(Method, Url, Params),
+    Res = http:request(Method, Req,
         [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
         []),
     gen_server:reply(From, Res),
-    mpln_p_debug:pr({?MODULE, 'process_cmd res', ?LINE, self(), Res},
+    mpln_p_debug:pr({?MODULE, 'real_cmd res', ?LINE, self(), Res},
         St#child.debug, run, 4).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates a http request
+%% @since 2011-08-04 17:49
+%%
+make_req(head, Url, _Params) ->
+    Hdr = [],
+    {Url, Hdr};
+make_req(get, Url, _Params) ->
+    Hdr = [],
+    {Url, Hdr};
+make_req(post, Url, Params) ->
+    Hdr = [],
+    Ctype = "application/x-www-form-urlencoded",
+    Body = make_body(Params),
+    {Url, Hdr, Ctype, Body}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates the body (kind of...) of a http request
+%% @since 2011-08-04 17:49
+%%
+make_body(Pars) ->
+    Text_pars = lists:map(fun make_pair/1, Pars),
+    string:join(Text_pars, "&").
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc makes the text pair of parameter/value
+%% TODO: quoting / escaping
+%%
+make_pair({Par, Val}) ->
+    Str = io_lib:format("~s=~s", [Par, Val]),
+    lists:flatten(Str).
+
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
 %%%----------------------------------------------------------------------------

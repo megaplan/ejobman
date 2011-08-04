@@ -66,6 +66,7 @@
 %%%----------------------------------------------------------------------------
 init(Config) ->
     application:start(inets),
+    application:start(ssl),
     C = ejobman_conf:get_config_hdl(Config),
     New = prepare_workers(C),
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),

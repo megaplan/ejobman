@@ -265,23 +265,24 @@ check_one_command(#ejm{ch_queue = Q} = St) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc do command processing in background then send reply to the client.
+%% @doc does command processing in background then sends reply to the client.
 %% Returns a state with a new child if the one is created.
 %% @since 2011-07-15 10:00
 %%
 -spec do_one_command(#ejm{}, {any(), #job{}}) -> #ejm{}.
 
-do_one_command(St, {From, #job{method=Method, url=Url}}) ->
+do_one_command(St, {From, #job{method=Method, url=Url, params=Params}}) ->
     mpln_p_debug:pr({?MODULE, 'do_one_command cmd', ?LINE, From, Method, Url},
         St#ejm.debug, run, 4),
     % parameters for ejobman_child
-    Params = [
+    Child_params = [
         {from, From},
         {method, Method},
         {url, Url},
+        {params, Params},
         {debug, St#ejm.debug}
         ],
-    Res = supervisor:start_child(ejobman_child_supervisor, [Params]),
+    Res = supervisor:start_child(ejobman_child_supervisor, [Child_params]),
     mpln_p_debug:pr({?MODULE, 'do_one_command res', ?LINE, Res},
         St#ejm.debug, run, 4),
     case Res of

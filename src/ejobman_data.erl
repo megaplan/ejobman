@@ -33,8 +33,8 @@
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([get_type/1, get_job_info/1, get_method/1, get_url/1]).
--export([get_time/1]).
+-export([get_type/1, get_rest_info/1, get_method/1, get_url/1]).
+-export([get_time/1, get_params/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Public API
@@ -46,20 +46,20 @@
 %%
 get_type(Data) ->
     get_value(Data, <<"type">>).
-%%-----------------------------------------------------------------------------
 
--spec get_job_info(any()) -> any().
+%%-----------------------------------------------------------------------------
+-spec get_rest_info(any()) -> any().
 %%
-%% @doc Extracts value for "job_info" item from deserialized json structure
+%% @doc Extracts value for "rest_info" item from deserialized json structure
 %% @since 2011-07-15
 %%
-get_job_info(Data) ->
-    get_value(Data, <<"job_info">>).
-%%-----------------------------------------------------------------------------
+get_rest_info(Data) ->
+    get_value(Data, <<"rest_info">>).
 
+%%-----------------------------------------------------------------------------
 -spec get_method(any()) -> any().
 %%
-%% @doc Extracts value for "method" item from job_info json structure
+%% @doc Extracts value for "method" item from rest_info json structure
 %% @since 2011-07-15
 %%
 get_method(Data) ->
@@ -68,7 +68,7 @@ get_method(Data) ->
 %%-----------------------------------------------------------------------------
 -spec get_url(any()) -> any().
 %%
-%% @doc Extracts value for "url" item from job_info json structure
+%% @doc Extracts value for "url" item from rest_info json structure
 %% @since 2011-07-15
 %%
 get_url(Data) ->
@@ -76,7 +76,22 @@ get_url(Data) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc Extracts value for "run_time" item from job_info json structure
+%% @doc Extracts value for "params" item from rest_info json structure
+%% @since 2011-08-04 14:09
+%%
+-spec get_params(any()) -> list().
+
+get_params(Data) ->
+    case get_value(Data, <<"params">>) of
+        {struct, List} when is_list(List) ->
+            List;
+        _ ->
+            []
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc Extracts value for "run_time" item from rest_info json structure
 %% @since 2011-08-02 13:56
 %%
 -spec get_time(any()) -> any().
@@ -101,3 +116,5 @@ get_value({struct, List}, Tag) ->
         Type ->
             Type
     end.
+
+%%-----------------------------------------------------------------------------
