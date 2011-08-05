@@ -4,7 +4,7 @@
 
 -module(ejobman_clean).
 
--export([get_method/1]).
+-export([get_method/1, get_url/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -37,6 +37,18 @@ get_method_aux("get")      -> get;
 get_method_aux("head")     -> head;
 get_method_aux("post")     -> post;
 get_method_aux(_)          -> head.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc transforms input data to a string
+%% @since 2011-08-05 19:22
+%%
+get_url(A) when is_atom(A) ->
+    atom_to_list(A);
+get_url(B) when is_binary(B) ->
+    binary_to_list(B);
+get_url(L) ->
+    L.
+
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
 %%%----------------------------------------------------------------------------

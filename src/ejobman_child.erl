@@ -175,12 +175,15 @@ process_cmd(_) ->
 %% https://github.com/cmullaparthi/ibrowse
 %% @since 2011-07-18
 %%
-real_cmd(#child{method = Method_bin, url = Url, params = Params,
+real_cmd(#child{method = Method_bin, url = Url_bin, params = Params,
         from = From, host = Host} = St) ->
     mpln_p_debug:pr({?MODULE, 'real_cmd params', ?LINE, self(), St},
         St#child.debug, run, 3),
     Method = ejobman_clean:get_method(Method_bin),
+    Url = ejobman_clean:get_url(Url_bin),
     Req = make_req(Method, Url, Host, Params),
+    mpln_p_debug:pr({?MODULE, 'real_cmd request', ?LINE, self(), Req},
+        St#child.debug, run, 5),
     Res = http:request(Method, Req,
         [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
         []),
@@ -212,6 +215,12 @@ make_host_header("undefined") ->
     [];
 make_host_header('undefined') ->
     [];
+make_host_header(H) when is_binary(H) ->
+    [{"Host", binary_to_list(H)}];
+make_host_header(H) when is_atom(H) ->
+    [{"Host", atom_to_list(H)}];
+make_host_header(H) when is_tuple(H) ->
+    inet_parse:ntoa(H);
 make_host_header(H) ->
     [{"Host", H}].
 %%-----------------------------------------------------------------------------
