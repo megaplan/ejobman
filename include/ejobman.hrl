@@ -15,6 +15,7 @@
     from,
     method,
     url,
+    host,
     params,
     debug
 }).

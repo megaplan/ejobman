@@ -176,11 +176,11 @@ process_cmd(_) ->
 %% @since 2011-07-18
 %%
 real_cmd(#child{method = Method_bin, url = Url, params = Params,
-        from = From} = St) ->
-    mpln_p_debug:pr({?MODULE, 'real_cmd params', ?LINE, self(),
-        Method_bin, Url, Params, From}, St#child.debug, run, 3),
+        from = From, host = Host} = St) ->
+    mpln_p_debug:pr({?MODULE, 'real_cmd params', ?LINE, self(), St},
+        St#child.debug, run, 3),
     Method = ejobman_clean:get_method(Method_bin),
-    Req = make_req(Method, Url, Params),
+    Req = make_req(Method, Url, Host, Params),
     Res = http:request(Method, Req,
         [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
         []),
@@ -193,26 +193,36 @@ real_cmd(#child{method = Method_bin, url = Url, params = Params,
 %% @doc creates a http request
 %% @since 2011-08-04 17:49
 %%
-make_req(head, Url, _Params) ->
-    Hdr = [],
+make_req(head, Url, Host, _Params) ->
+    Hdr = make_host_header(Host),
     {Url, Hdr};
-make_req(get, Url, _Params) ->
-    Hdr = [],
+make_req(get, Url, Host, _Params) ->
+    Hdr = make_host_header(Host),
     {Url, Hdr};
-make_req(post, Url, Params) ->
-    Hdr = [],
+make_req(post, Url, Host, Params) ->
+    Hdr = make_host_header(Host),
     Ctype = "application/x-www-form-urlencoded",
     Body = make_body(Params),
     {Url, Hdr, Ctype, Body}.
 
+%%-----------------------------------------------------------------------------
+make_host_header([]) ->
+    [];
+make_host_header("undefined") ->
+    [];
+make_host_header('undefined') ->
+    [];
+make_host_header(H) ->
+    [{"Host", H}].
 %%-----------------------------------------------------------------------------
 %%
 %% @doc creates the body (kind of...) of a http request
 %% @since 2011-08-04 17:49
 %%
 make_body(Pars) ->
-    Text_pars = lists:map(fun make_pair/1, Pars),
-    string:join(Text_pars, "&").
+    mochiweb_util:urlencode(Pars).
+    %Text_pars = lists:map(fun make_pair/1, Pars),
+    %string:join(Text_pars, "&").
 
 %%-----------------------------------------------------------------------------
 %%

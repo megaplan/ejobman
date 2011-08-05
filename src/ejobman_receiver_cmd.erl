@@ -99,12 +99,14 @@ make_job(Data) ->
     Info = ejobman_data:get_rest_info(Data),
     Method = ejobman_data:get_method(Info),
     Url = ejobman_data:get_url(Info),
+    Host = ejobman_data:get_host(Info),
     Params = ejobman_data:get_params(Info),
     T_data = ejobman_data:get_time(Info),
     T = make_time(T_data),
     #job{
         method = Method,
         url = Url,
+        host = Host,
         params = Params,
         run_time = T
     }.

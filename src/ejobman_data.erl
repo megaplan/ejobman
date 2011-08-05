@@ -34,7 +34,7 @@
 %%%----------------------------------------------------------------------------
 
 -export([get_type/1, get_rest_info/1, get_method/1, get_url/1]).
--export([get_time/1, get_params/1]).
+-export([get_time/1, get_params/1, get_host/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Public API
@@ -73,6 +73,15 @@ get_method(Data) ->
 %%
 get_url(Data) ->
     get_value(Data, <<"url">>).
+
+%%-----------------------------------------------------------------------------
+-spec get_host(any()) -> any().
+%%
+%% @doc Extracts value for "host" item from rest_info json structure
+%% @since 2011-08-05 16:18
+%%
+get_host(Data) ->
+    get_value(Data, <<"host">>).
 
 %%-----------------------------------------------------------------------------
 %%

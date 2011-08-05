@@ -271,15 +271,16 @@ check_one_command(#ejm{ch_queue = Q} = St) ->
 %%
 -spec do_one_command(#ejm{}, {any(), #job{}}) -> #ejm{}.
 
-do_one_command(St, {From, #job{method=Method, url=Url, params=Params}}) ->
-    mpln_p_debug:pr({?MODULE, 'do_one_command cmd', ?LINE, From, Method, Url},
+do_one_command(St, {From, J}) ->
+    mpln_p_debug:pr({?MODULE, 'do_one_command cmd', ?LINE, From, J},
         St#ejm.debug, run, 4),
     % parameters for ejobman_child
     Child_params = [
         {from, From},
-        {method, Method},
-        {url, Url},
-        {params, Params},
+        {method, J#job.method},
+        {url, J#job.url},
+        {host, J#job.host},
+        {params, J#job.params},
         {debug, St#ejm.debug}
         ],
     Res = supervisor:start_child(ejobman_child_supervisor, [Child_params]),
