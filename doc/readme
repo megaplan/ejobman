@@ -59,24 +59,24 @@ Version 1
 }
 
 
-Version 2
----------
+Version 2 (current)
+-------------------
 
 {type: rest},
 {rest_info:
   {method: xxx,
   url: xxx,
+  host: xxx,
   params: [
     {key1: val1},
     {key2: val2}
     ]
-  },
-  timeout: nnn # milliseconds
+  }
 },
 
 
-Version 3, draft
-----------------
+Future version (draft)
+----------------------
 
 {type: rest},
 {rest_info: {
