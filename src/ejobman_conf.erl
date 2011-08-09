@@ -59,6 +59,7 @@
 
 get_config_child(List) ->
     #child{
+        url_rewrite = proplists:get_value(url_rewrite, List, []),
         name = proplists:get_value(name, List),
         id = proplists:get_value(id, List),
         duration = proplists:get_value(duration, List, 86400000),
@@ -79,15 +80,7 @@ get_config_child(List) ->
 
 get_config_hdl(Default) ->
     List = get_config_list(Default),
-    Hdl_list = proplists:get_value(handler, List, []),
-    Pools = fill_pools_config(List),
-    #ejm{
-        w_pools = Pools,
-        ch_data = [],
-        ch_queue = queue:new(),
-        max_children = proplists:get_value(max_children, Hdl_list, 32767),
-        debug = proplists:get_value(debug, Hdl_list, [])
-    }.
+    fill_ejm_handler_config(List).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -155,6 +148,22 @@ fill_pools_config(List) ->
     Pools = proplists:get_value(pools, List, []),
     lists:map(fun fill_one_pool_config/1, Pools)
 .
+
+%%-----------------------------------------------------------------------------
+-spec fill_ejm_handler_config(list()) -> #ejm{}.
+
+fill_ejm_handler_config(List) ->
+    Hdl_list = proplists:get_value(handler, List, []),
+    Pools = fill_pools_config(List),
+    #ejm{
+        w_pools = Pools,
+        ch_data = [],
+        ch_queue = queue:new(),
+        url_rewrite = proplists:get_value(url_rewrite, Hdl_list, []),
+        max_children = proplists:get_value(max_children, Hdl_list, 32767),
+        debug = proplists:get_value(debug, Hdl_list, [])
+    }.
+
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
 %%%----------------------------------------------------------------------------
@@ -165,4 +174,55 @@ fill_config_test() ->
     fill_config([
         {debug, [{info, 5}, {run, 2}]}
         ]).
+
+get_test_config() ->
+[
+{handler, [
+    {url_rewrite, [
+        [
+            {src_url, "192.168.9.183"},
+            {dst_host, "promo.megaplan.kulikov"}
+        ],
+        [
+            {src_url, "promo.megaplan.kulikov"},
+            {dst_url, "192.168.9.183"},
+            {dst_host, "promo.megaplan.kulikov"}
+        ],
+        [
+            {src_type, regex},
+            {src_url, "127\.0\.0\.\d+"},
+            {dst_url, "127.0.0.1"},
+            {dst_host, "host3.localdomain"}
+        ]
+    ]},
+    {max_children, 7}, % to process short command
+    {debug,
+        [
+            {config, 4},
+            {store, 0},
+            {get, 4},
+            {run, 5},
+            {http, 0},
+            {ets, 3}
+        ]
+    }]},
+{log, "log/e"}
+].
+
+fill_ejm_config_test() ->
+    Config = get_test_config(),
+    C = fill_ejm_handler_config(Config),
+    C2 = [[{src_url,"192.168.9.183"},
+         {dst_host,"promo.megaplan.kulikov"}],
+        [{src_url,"promo.megaplan.kulikov"},
+         {dst_url,"192.168.9.183"},
+         {dst_host,"promo.megaplan.kulikov"}],
+        [{src_type,regex},
+         {src_url,[49,50,55,46,48,46,48,46,127,43]},
+         {dst_url,"127.0.0.1"},
+         {dst_host,"host3.localdomain"}]],
+    ?assert(C#ejm.url_rewrite =:= C2)
+.
+
 -endif.
+%%-----------------------------------------------------------------------------

@@ -5,6 +5,7 @@ Depends
 Problems
 Workers
 Json request
+URL rewriting
 
 Depends
 =======
@@ -99,3 +100,19 @@ Future version (draft)
   | in: nnnnn # where nnnnn means seconds
 }
 
+URL rewriting
+=============
+
+The main config can contain the following sections: handler -> url_rewrite.
+The url_rewrite is a list of tuples for url rewriting.
+Every such a tuple can have the following fields:
+  - src_type - optional. Values: none, regex. Default - none.
+  - src_host_part - mandatory. Values: string, regex (see src_type). The value
+    will be matched to the input (json) url. No default.
+  - dst_host_part - optional. Value: string. The url which is used if
+    src_host_part has matched. In case of undefined dst_host_part the original
+    src_host_part is used. No default.
+  - dst_host_hdr - optional. Value: string. The host which is used in the
+    "Host" header. If dst_host_hdr is empty then the input json host value
+    is used. If there are neither dst_host_hdr nor input host value then
+    the "Host" header is omitted. No default.

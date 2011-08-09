@@ -5,3 +5,4 @@
   in ejobman_handler_cmd:do_one_long_command. Because we don't want to crash
   handler on worker timeout.
 - add api add_pool, add_worker(?)
+- compile and store regexp in ejobman_handler config preparation

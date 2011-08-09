@@ -276,6 +276,7 @@ do_one_command(St, {From, J}) ->
         St#ejm.debug, run, 4),
     % parameters for ejobman_child
     Child_params = [
+        {url_rewrite, St#ejm.url_rewrite},
         {from, From},
         {method, J#job.method},
         {url, J#job.url},

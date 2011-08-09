@@ -142,7 +142,6 @@ stop() ->
 -spec do_smth(#child{}) -> #child{}.
 
 do_smth(State) ->
-    %timer:sleep(100), % FIXME: for debug only
     process_cmd(State),
     gen_server:cast(self(), stop),
     State#child{method = <<>>, url = <<>>,
@@ -176,12 +175,12 @@ process_cmd(_) ->
 %% @since 2011-07-18
 %%
 real_cmd(#child{method = Method_bin, url = Url_bin, params = Params,
-        from = From, host = Host} = St) ->
+        from = From, host = Host, url_rewrite = Rewrite} = St) ->
     mpln_p_debug:pr({?MODULE, 'real_cmd params', ?LINE, self(), St},
         St#child.debug, run, 3),
     Method = ejobman_clean:get_method(Method_bin),
-    Url = ejobman_clean:get_url(Url_bin),
-    Req = make_req(Method, Url, Host, Params),
+    {Url, Hdr} = make_url(Rewrite, Url_bin, Host),
+    Req = make_req(Method, Url, Hdr, Params),
     mpln_p_debug:pr({?MODULE, 'real_cmd request', ?LINE, self(), Req},
         St#child.debug, run, 5),
     Res = http:request(Method, Req,
@@ -193,22 +192,169 @@ real_cmd(#child{method = Method_bin, url = Url_bin, params = Params,
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc converts url to string, rewrites url according to the config
+%% @since 2011-08-08 13:53
+%%
+-spec make_url(list(), list() | binary(), any()) -> {string(), list()}.
+
+make_url(Conf, Bin, Host) ->
+    Url = ejobman_clean:get_url(Bin),
+    case http_uri:parse(Url) of
+        %{https,"l:p","host.localdomain",123,"/goo","?foo=baz"}
+        %{Scheme, Auth, Host, Port, Path, Query}
+        {error, _Reason} ->
+            Hdr = make_host_header(Host),
+            {Url, Hdr};
+        Data ->
+            rewrite(Conf, Url, Data, Host)
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc rewrites host part of an url according to the config, adds
+%% host header if necessary
+%% @since 2011-08-08 13:53
+%%
+-spec rewrite(list(), string(), tuple(), any()) -> {string(), list()}.
+
+rewrite(Conf, Url, {_Scheme, _Auth, Host, _Port, _Path, _Query} = Data,
+        Inp_host) ->
+    case find_matching_host(Conf, Host) of
+        {ok, Pars} ->
+            rewrite_host(Pars, Url, Data, Inp_host);
+        error ->
+            Hdr = make_host_header(Host),
+            {Url, Hdr}
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc finds config section that matches the host. Returns this section
+%% or error if no sections found
+%%
+-spec find_matching_host(list(), string()) -> {ok, list()} | error.
+
+find_matching_host(Conf, Host) ->
+    F = fun(X) ->
+        not match_one_host(X, Host)
+    end,
+    case lists:dropwhile(F, Conf) of
+        [H | _] ->
+            {ok, H};
+        _ ->
+            error
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc matches the host against one section of url_rewrite config
+%%
+-spec match_one_host(list(), string()) -> boolean().
+
+match_one_host(List, Host) ->
+    Src_url = proplists:get_value(src_host_part, List),
+    case proplists:get_value(src_type, List) of
+        regex ->
+            match_one_host_regex(Host, Src_url);
+        _ ->
+            Host == Src_url
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc matches one host with regex from url_rewrite part.
+%% @todo move re:compile to ejobman_handler config preparation
+%%
+match_one_host_regex(_Host, 'undefined') ->
+    false;
+match_one_host_regex(Host, Src_url) ->
+    case re:compile(Src_url) of
+        {ok, Mp} ->
+            re:run(Host, Mp, [{capture, none}]) == match;
+        _ ->
+            false
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc rewrites host in the input url according to the configured
+%% in url_rewrite parameters. Returns either new url or old url
+%% (in case of no dst_host_part defined in Pars)
+%%
+-spec rewrite_host(list(), string(), tuple(), any()) -> {string(), list()}.
+
+rewrite_host(Pars, Url, {Scheme, Auth, _Host, Port, Path, Query}, Inp_host) ->
+    case proplists:get_value(dst_host_part, Pars) of
+        undefined ->
+            New_url = Url;
+        New_host ->
+            New_url =
+                proceed_rewrite_host(Scheme, Auth, New_host, Port, Path, Query)
+    end,
+    Hdr = compose_host_header(Pars, Inp_host),
+    {New_url, Hdr}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc returns either a list with a "Host" header tuple or an empty list
+%%
+-spec compose_host_header(list(), string()) -> list().
+
+compose_host_header(Pars, Host) ->
+    case proplists:get_value(dst_host_hdr, Pars) of
+        undefined ->
+            New_host = Host;
+        New_host ->
+            ok
+    end,
+    make_host_header(New_host).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates an url string based on input values
+%%
+-spec proceed_rewrite_host(atom(), list(), list(), integer(), list(), list())
+    -> string().
+
+proceed_rewrite_host(Scheme, Auth, Host, Port, Path, Query) ->
+    % http_uri:parse("http://l:p@host.localdomain/goo?foo=baz")
+    % {https,"l:p","host.localdomain",123,"/goo","?foo=baz"}
+    if  is_atom(Scheme) ->
+            Scheme_str = atom_to_list(Scheme) ++ "://";
+        true ->
+            Scheme_str = ""
+    end,
+    case Auth of
+        [] ->
+            Auth_str = "";
+        _ ->
+            Auth_str = Auth ++ "@"
+    end,
+    Port_str = integer_to_list(Port),
+    Str = Scheme_str ++ Auth_str ++ Host ++ ":" ++ Port_str ++ Path ++ Query,
+    lists:flatten(Str).
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc creates a http request
 %% @since 2011-08-04 17:49
 %%
-make_req(head, Url, Host, _Params) ->
-    Hdr = make_host_header(Host),
+make_req(head, Url, Hdr, _Params) ->
     {Url, Hdr};
-make_req(get, Url, Host, _Params) ->
-    Hdr = make_host_header(Host),
+make_req(get, Url, Hdr, _Params) ->
     {Url, Hdr};
-make_req(post, Url, Host, Params) ->
-    Hdr = make_host_header(Host),
+make_req(post, Url, Hdr, Params) ->
     Ctype = "application/x-www-form-urlencoded",
     Body = make_body(Params),
     {Url, Hdr, Ctype, Body}.
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc makes either an empty list or a list with a tuple containing the
+%% Host header ready to use in http client
+%%
+-spec make_host_header(any()) -> [] | [{string(), string()}].
+
 make_host_header([]) ->
     [];
 make_host_header("undefined") ->
@@ -220,7 +366,8 @@ make_host_header(H) when is_binary(H) ->
 make_host_header(H) when is_atom(H) ->
     [{"Host", atom_to_list(H)}];
 make_host_header(H) when is_tuple(H) ->
-    inet_parse:ntoa(H);
+    Str = inet_parse:ntoa(H),
+    [{"Host", Str}];
 make_host_header(H) ->
     [{"Host", H}].
 %%-----------------------------------------------------------------------------
@@ -230,17 +377,6 @@ make_host_header(H) ->
 %%
 make_body(Pars) ->
     mochiweb_util:urlencode(Pars).
-    %Text_pars = lists:map(fun make_pair/1, Pars),
-    %string:join(Text_pars, "&").
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc makes the text pair of parameter/value
-%% TODO: quoting / escaping
-%%
-make_pair({Par, Val}) ->
-    Str = io_lib:format("~s=~s", [Par, Val]),
-    lists:flatten(Str).
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
@@ -252,5 +388,84 @@ process_cmd_test() ->
     ok = process_cmd(#child{url = <<>>}),
     ok = process_cmd(#child{url = ""}),
     ok = process_cmd([]).
+
+make_url_rewrite_conf() ->
+    [
+        [
+            {src_host_part, "192.168.9.183"},
+            {dst_host_hdr, "promo.megaplan.kulikov"}
+        ],
+        [
+            {src_host_part, "promo.megaplan.kulikov"},
+            {dst_host_part, "192.168.9.183"},
+            {dst_host_hdr, "promo.megaplan.kulikov"}
+        ],
+        [
+            {src_type, regex},
+            {src_host_part, "127\\.0\\.0\\.\\d+"},
+            {dst_host_part, "127.0.0.1"},
+            {dst_host_hdr, "host1.localdomain"}
+        ]
+    ].
+
+match_one_host_test() ->
+    Conf = make_url_rewrite_conf(),
+    Item = lists:last(Conf),
+    Host = "127.0.0.2",
+    Res = match_one_host(Item, Host),
+    ?assert(Res)
+.
+
+find_matching_host_regex_test() ->
+    Conf = make_url_rewrite_conf(),
+    Host = "127.0.0.2",
+    {ok, Item} = find_matching_host(Conf, Host),
+    Item_orig = [
+        {src_type, regex},
+        {src_host_part, "127\\.0\\.0\\.\\d+"},
+        {dst_host_part, "127.0.0.1"},
+        {dst_host_hdr, "host1.localdomain"}
+    ],
+    ?assert(Item =:= Item_orig)
+.
+
+find_matching_host_test() ->
+    Conf = make_url_rewrite_conf(),
+    Host = "192.168.9.183",
+    {ok, Item} = find_matching_host(Conf, Host),
+    Item_orig = [
+        {src_host_part, "192.168.9.183"},
+        {dst_host_hdr, "promo.megaplan.kulikov"}
+    ],
+    ?assert(Item =:= Item_orig)
+.
+
+make_url_test() ->
+    Conf = make_url_rewrite_conf(),
+    R1 = make_url(Conf, <<"http://192.168.9.183/new/order/send-messages">>, ""),
+    R0 = { "http://192.168.9.183/new/order/send-messages", 
+        [{"Host", "promo.megaplan.kulikov"}]
+        },
+    ?assert(R0 =:= R1),
+    %Res2 = make_url(Conf,
+    %        <<"http://promo.megaplan.kulikov/new/order/send-messages">>),
+    %?assert("http://192.168.9.183/new/order/send-messages" =:= Res2)
+    ok
+.
+
+rewrite_host_test() ->
+    Url = "192.168.9.183",
+    Url2 = "promo.megaplan.kulikov",
+    Pars = [
+        {src_host_part, Url},
+        {dst_host_part, Url2}
+    ],
+    Link = "http://" ++ Url ++ ":80/new/order/send-messages",
+    Data = http_uri:parse(Link),
+    Data2 = rewrite_host(Pars, Url, Data, ""),
+    Data3 = {"http://" ++ Url2 ++ ":80/new/order/send-messages", []},
+    ?assert(Data2 =:= Data3)
+.
+
 -endif.
 %%-----------------------------------------------------------------------------

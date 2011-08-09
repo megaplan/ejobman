@@ -16,6 +16,7 @@
     method,
     url,
     host,
+    url_rewrite,
     params,
     debug
 }).
@@ -42,6 +43,7 @@
     ch_data, % spawned children
     ch_queue,
     max_children = 32767,
+    url_rewrite,
     rses,
     conn,
     log,
