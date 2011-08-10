@@ -11,7 +11,8 @@
   (while it doesn't actually) and rabbit sends messages both to old and new
   consumers. One message at the turn to one consumer. So the new consumer gets
   just a half of the messages. To get an another half one has to restart
-  erlang VM (or completely eraducate old consumer from the rabbit's brain).
+  erlang VM (or completely eradicate old consumer from the rabbit's brain).
   DONE (shutdown timeout + trap exit in receiver)
 - logrotate
-- config reload
+- config reload:
+  - amqp reconnect?

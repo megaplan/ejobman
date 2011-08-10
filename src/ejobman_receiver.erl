@@ -38,6 +38,7 @@
 -export([start/0, start_link/0, stop/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
+-export([logrotate/0]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -78,7 +79,7 @@ handle_call(_N, _From, St) ->
 %%
 handle_cast(stop, St) ->
     {stop, normal, St};
-handle_cast(rotate, St) ->
+handle_cast(logrotate, St) ->
     mpln_misc_log:prepare_log(St#ejm.log),
     {noreply, St, ?T};
 handle_cast(st0p, St) ->
@@ -153,6 +154,17 @@ start_link(Config) ->
 
 stop() ->
     gen_server:call(?MODULE, stop).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc sends message to receiver to rotate logs
+%% @since 2011-08-10 16:00
+%%
+-spec logrotate() -> ok.
+
+logrotate() ->
+    gen_server:cast(?MODULE, logrotate).
+
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
