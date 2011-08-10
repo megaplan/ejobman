@@ -49,11 +49,11 @@
 init(_Args) ->
     Receiver = {
         ejobman_receiver, {ejobman_receiver, start_link, []},
-        permanent, brutal_kill, worker, [ejobman_receiver]
+        permanent, 1000, worker, [ejobman_receiver]
         },
     Handler = {
         ejobman_handler, {ejobman_handler, start_link, []},
-        permanent, brutal_kill, worker, [ejobman_handler]
+        permanent, 1000, worker, [ejobman_handler]
         },
     Sup = {
         ejobman_child_sup, {ejobman_child_sup, start_link, []},

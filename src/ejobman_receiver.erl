@@ -53,6 +53,7 @@ init([Config]) ->
     application:start(inets),
     C = ejobman_conf:get_config(Config),
     New = prepare_all(C),
+    process_flag(trap_exit, true), % to perform amqp teardown
     mpln_p_debug:pr({'init done', ?MODULE, ?LINE}, New#ejm.debug, run, 1),
     {ok, New, ?T}.
 %------------------------------------------------------------------------------
@@ -85,11 +86,14 @@ handle_cast(st0p, St) ->
 handle_cast({test, Payload}, State) ->
     New = ejobman_receiver_cmd:store_rabbit_cmd(State, Payload),
     {noreply, New, ?T};
-handle_cast(_, St) ->
+handle_cast(_Other, St) ->
+    mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
+        St#ejm.debug, run, 2),
     {noreply, St, ?T}.
 %------------------------------------------------------------------------------
-terminate(_, #ejm{conn=Conn} = _State) ->
+terminate(_, #ejm{conn=Conn} = State) ->
     ejobman_rb:teardown(Conn),
+    mpln_p_debug:pr({?MODULE, terminate, ?LINE}, State#ejm.debug, run, 1),
     ok.
 %------------------------------------------------------------------------------
 -spec handle_info(any(), #ejm{}) -> any().

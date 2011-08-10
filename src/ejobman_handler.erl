@@ -69,6 +69,8 @@ init(Config) ->
     application:start(ssl),
     C = ejobman_conf:get_config_hdl(Config),
     New = prepare_workers(C),
+    % trap_exit is unnecessary. Children are ripped by supervisor
+    %process_flag(trap_exit, true),
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),
     {ok, New, ?T}.
 %%-----------------------------------------------------------------------------
@@ -129,6 +131,7 @@ handle_cast(_, St) ->
 %%-----------------------------------------------------------------------------
 terminate(_, State) ->
     remove_workers(State),
+    mpln_p_debug:pr({?MODULE, 'terminate', ?LINE}, State#ejm.debug, run, 1),
     ok.
 %%-----------------------------------------------------------------------------
 %%

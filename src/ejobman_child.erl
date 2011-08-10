@@ -179,7 +179,7 @@ real_cmd(#child{method = Method_bin, url = Url_bin, params = Params,
     mpln_p_debug:pr({?MODULE, 'real_cmd params', ?LINE, self(), St},
         St#child.debug, run, 3),
     Method = ejobman_clean:get_method(Method_bin),
-    {Url, Hdr} = make_url(Rewrite, Url_bin, Host),
+    {Url, Hdr} = make_url(St, Rewrite, Url_bin, Host),
     Req = make_req(Method, Url, Hdr, Params),
     mpln_p_debug:pr({?MODULE, 'real_cmd request', ?LINE, self(), Req},
         St#child.debug, run, 5),
@@ -195,9 +195,10 @@ real_cmd(#child{method = Method_bin, url = Url_bin, params = Params,
 %% @doc converts url to string, rewrites url according to the config
 %% @since 2011-08-08 13:53
 %%
--spec make_url(list(), list() | binary(), any()) -> {string(), list()}.
+-spec make_url(#child{}, list(), list() | binary(), any()) ->
+    {string(), list()}.
 
-make_url(Conf, Bin, Host) ->
+make_url(St, Conf, Bin, Host) ->
     Url = ejobman_clean:get_url(Bin),
     case http_uri:parse(Url) of
         %{https,"l:p","host.localdomain",123,"/goo","?foo=baz"}
@@ -206,7 +207,7 @@ make_url(Conf, Bin, Host) ->
             Hdr = make_host_header(Host),
             {Url, Hdr};
         Data ->
-            rewrite(Conf, Url, Data, Host)
+            rewrite(St, Conf, Url, Data, Host)
     end.
 
 %%-----------------------------------------------------------------------------
@@ -215,13 +216,14 @@ make_url(Conf, Bin, Host) ->
 %% host header if necessary
 %% @since 2011-08-08 13:53
 %%
--spec rewrite(list(), string(), tuple(), any()) -> {string(), list()}.
+-spec rewrite(#child{}, list(), string(), tuple(), any()) ->
+    {string(), list()}.
 
-rewrite(Conf, Url, {_Scheme, _Auth, Host, _Port, _Path, _Query} = Data,
+rewrite(St, Conf, Url, {_Scheme, _Auth, Host, _Port, _Path, _Query} = Data,
         Inp_host) ->
     case find_matching_host(Conf, Host) of
         {ok, Pars} ->
-            rewrite_host(Pars, Url, Data, Inp_host);
+            rewrite_host(St, Pars, Url, Data, Inp_host);
         error ->
             Hdr = make_host_header(Host),
             {Url, Hdr}
@@ -281,42 +283,58 @@ match_one_host_regex(Host, Src_url) ->
 %% in url_rewrite parameters. Returns either new url or old url
 %% (in case of no dst_host_part defined in Pars)
 %%
--spec rewrite_host(list(), string(), tuple(), any()) -> {string(), list()}.
+-spec rewrite_host(#child{}, list(), string(), tuple(), any()) ->
+    {string(), list()}.
 
-rewrite_host(Pars, Url, {Scheme, Auth, _Host, Port, Path, Query}, Inp_host) ->
+rewrite_host(St, Pars, Url, {Scheme, Auth, Host, Port, Path, Query},
+        Inp_host) ->
+    mpln_p_debug:pr({?MODULE, 'rewrite_host pars', ?LINE, self(),
+        Pars, Host, Url}, St#child.debug, run, 4),
     case proplists:get_value(dst_host_part, Pars) of
         undefined ->
             New_url = Url;
         New_host ->
-            New_url =
-                proceed_rewrite_host(Scheme, Auth, New_host, Port, Path, Query)
+            New_url = proceed_rewrite_host(St, Scheme, Auth, New_host,
+                Port, Path, Query)
     end,
-    Hdr = compose_host_header(Pars, Inp_host),
+    Hdr = compose_host_header(Pars, Inp_host, Host),
     {New_url, Hdr}.
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc returns either a list with a "Host" header tuple or an empty list
+%% @doc returns either a list with a "Host" header tuple or an empty list.
+%% "Host" header is filled in the following order: host from config,
+%% host from request, host from source url
 %%
--spec compose_host_header(list(), string()) -> list().
+-spec compose_host_header(list(), string(), string()) -> list().
 
-compose_host_header(Pars, Host) ->
+compose_host_header(Pars, Req_host, Url_host) ->
     case proplists:get_value(dst_host_hdr, Pars) of
         undefined ->
-            New_host = Host;
+            New_host = select_host_field(Req_host, Url_host);
         New_host ->
             ok
     end,
     make_host_header(New_host).
 
 %%-----------------------------------------------------------------------------
+select_host_field(<<>>, Url_host) ->
+    Url_host;
+select_host_field([], Url_host) ->
+    Url_host;
+select_host_field('undefined', Url_host) ->
+    Url_host;
+select_host_field(Req_host, _Url_host) ->
+    Req_host.
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc creates an url string based on input values
 %%
--spec proceed_rewrite_host(atom(), list(), list(), integer(), list(), list())
-    -> string().
+-spec proceed_rewrite_host(#child{}, atom(), list(), list(), integer(),
+    list(), list()) -> string().
 
-proceed_rewrite_host(Scheme, Auth, Host, Port, Path, Query) ->
+proceed_rewrite_host(St, Scheme, Auth, Host, Port, Path, Query) ->
     % http_uri:parse("http://l:p@host.localdomain/goo?foo=baz")
     % {https,"l:p","host.localdomain",123,"/goo","?foo=baz"}
     if  is_atom(Scheme) ->
@@ -332,7 +350,11 @@ proceed_rewrite_host(Scheme, Auth, Host, Port, Path, Query) ->
     end,
     Port_str = integer_to_list(Port),
     Str = Scheme_str ++ Auth_str ++ Host ++ ":" ++ Port_str ++ Path ++ Query,
-    lists:flatten(Str).
+    Res_str = lists:flatten(Str),
+    mpln_p_debug:pr({?MODULE, 'proceed_rewrite_host res', ?LINE, self(),
+        Scheme, Auth, Host, Port, Path, Query, Res_str},
+        St#child.debug, run, 5),
+    Res_str.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -442,7 +464,8 @@ find_matching_host_test() ->
 
 make_url_test() ->
     Conf = make_url_rewrite_conf(),
-    R1 = make_url(Conf, <<"http://192.168.9.183/new/order/send-messages">>, ""),
+    R1 = make_url(#child{}, Conf,
+        <<"http://192.168.9.183/new/order/send-messages">>, ""),
     R0 = { "http://192.168.9.183/new/order/send-messages", 
         [{"Host", "promo.megaplan.kulikov"}]
         },
@@ -462,7 +485,7 @@ rewrite_host_test() ->
     ],
     Link = "http://" ++ Url ++ ":80/new/order/send-messages",
     Data = http_uri:parse(Link),
-    Data2 = rewrite_host(Pars, Url, Data, ""),
+    Data2 = rewrite_host(#child{}, Pars, Url, Data, ""),
     Data3 = {"http://" ++ Url2 ++ ":80/new/order/send-messages", []},
     ?assert(Data2 =:= Data3)
 .
