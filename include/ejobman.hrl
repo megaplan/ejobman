@@ -16,6 +16,7 @@
     method,
     url,
     host,
+    auth,
     url_rewrite,
     params,
     debug

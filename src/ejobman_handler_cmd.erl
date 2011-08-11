@@ -282,6 +282,7 @@ do_one_command(St, {From, J}) ->
         {url, J#job.url},
         {host, J#job.host},
         {params, J#job.params},
+        {auth, J#job.auth},
         {debug, St#ejm.debug}
         ],
     Res = supervisor:start_child(ejobman_child_supervisor, [Child_params]),

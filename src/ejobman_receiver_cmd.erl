@@ -97,19 +97,32 @@ proceed_cmd_type(State, Other, _Data) ->
 
 make_job(Data) ->
     Info = ejobman_data:get_rest_info(Data),
+    A = make_job_auth(Info),
     Method = ejobman_data:get_method(Info),
     Url = ejobman_data:get_url(Info),
     Host = ejobman_data:get_host(Info),
     Params = ejobman_data:get_params(Info),
     T_data = ejobman_data:get_time(Info),
     T = make_time(T_data),
-    #job{
+    A#job{
         method = Method,
         url = Url,
         host = Host,
         params = Params,
         run_time = T
     }.
+
+%%-----------------------------------------------------------------------------
+-spec make_job_auth(any()) -> #job{}.
+
+make_job_auth(Info) ->
+    Auth = ejobman_data:get_auth_info(Info),
+    User = ejobman_data:get_auth_user(Auth),
+    Pass = ejobman_data:get_auth_password(Auth),
+    #job{
+        auth = #auth{user = User, password = Pass}
+    }.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc fills in #rt record

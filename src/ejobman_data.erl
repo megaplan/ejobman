@@ -35,10 +35,26 @@
 
 -export([get_type/1, get_rest_info/1, get_method/1, get_url/1]).
 -export([get_time/1, get_params/1, get_host/1]).
+-export([get_auth_info/1, get_auth_user/1, get_auth_password/1]).
+-export([make_string/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Public API
 %%%----------------------------------------------------------------------------
+%%
+%% @doc gets binary or list and makes it a string
+%% @since 2011-08-11 12:56
+%%
+-spec make_string(any()) -> string().
+
+make_string(B) when is_binary(B) ->
+    binary_to_list(B);
+make_string(A) when is_atom(A) ->
+    atom_to_list(A);
+make_string(D) ->
+    D.
+
+%%-----------------------------------------------------------------------------
 -spec get_type(any()) -> any().
 %%
 %% @doc Extracts value for "type" item from deserialized json structure
@@ -108,6 +124,38 @@ get_params(Data) ->
 get_time(Data) ->
     get_value(Data, <<"run_time">>).
 
+%%-----------------------------------------------------------------------------
+%%
+%% @doc Extracts value for "auth_info" item from deserialized json structure
+%% @since 2011-07-15
+%%
+-spec get_auth_info(any()) -> any().
+
+get_auth_info(Data) ->
+    get_value(Data, <<"auth_info">>).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc Extracts value for "user" item from deserialized auth_info
+%% json structure
+%% @since 2011-08-10 18:19
+%%
+-spec get_auth_user(any()) -> any().
+
+get_auth_user(Data) ->
+    get_value(Data, <<"user">>).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc Extracts value for "password" item from deserialized auth_info
+%% json structure
+%% @since 2011-08-10 18:19
+%%
+-spec get_auth_password(any()) -> any().
+
+get_auth_password(Data) ->
+    get_value(Data, <<"password">>).
+
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -124,6 +172,8 @@ get_value({struct, List}, Tag) ->
             undefined;
         Type ->
             Type
-    end.
+    end;
+get_value(_Data, _Tag) ->
+    undefined.
 
 %%-----------------------------------------------------------------------------

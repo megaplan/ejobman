@@ -68,6 +68,11 @@ Version 2 (current)
   {method: xxx,
   url: xxx,
   host: xxx,
+  auth_info: {
+    type: basic,
+    user: xxx,
+    password: xxx
+  },
   params: [
     {key1: val1},
     {key2: val2}

@@ -8,8 +8,15 @@
     method,
     url,
     host,
+    auth,
     params,
     run_time
+}).
+
+-record(auth, {
+    type = 'basic',
+    user,
+    password
 }).
 
 -record(rt, {
