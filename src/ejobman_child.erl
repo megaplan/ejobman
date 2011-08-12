@@ -233,8 +233,7 @@ rewrite(#child{url_rewrite=Rew_conf} = St, Url,
 compose_headers(St, Config, Url_host) ->
     A = compose_auth_header(St#child.auth),
     H = compose_host_header(Config, St#child.host, Url_host),
-    A ++ H % FIXME: do it right
-.
+    lists:flatten([A, H]).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -312,9 +311,17 @@ rewrite_host(St, Config, Url, {Scheme, Auth, Host, Port, Path, Query}) ->
 %%
 -spec compose_auth_header(#auth{}) -> list().
 
-compose_auth_header(#auth{} = Auth) ->
+compose_auth_header(#auth{type=basic} = Auth) ->
     Str = make_hdr_auth_str(Auth),
     make_auth_header(Str);
+compose_auth_header(#auth{type=megaplan, data=Data}) ->
+    F = fun({Key, Val}) ->
+            {
+                ejobman_data:make_string(Key),
+                ejobman_data:make_string(Val)
+            }
+    end,
+    lists:map(F, Data);
 compose_auth_header(_) ->
     [].
 

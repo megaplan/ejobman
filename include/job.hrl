@@ -14,9 +14,10 @@
 }).
 
 -record(auth, {
-    type = 'basic',
+    type = 'basic' :: 'basic' | 'megaplan',
     user,
-    password
+    password,
+    data % headers ([{key, val}]) supplied by user
 }).
 
 -record(rt, {

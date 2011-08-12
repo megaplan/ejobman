@@ -50,7 +50,7 @@
 -define(HTTP_TIMEOUT, 15000).
 
 %%%----------------------------------------------------------------------------
-%%% api
+%%% API
 %%%----------------------------------------------------------------------------
 %%
 %% @doc sends received command to a command handler. Returns nothing actually.
@@ -72,6 +72,7 @@ store_rabbit_cmd(State, Bin) ->
             proceed_cmd_type(State, Type, Data)
     end,
     State.
+
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -89,9 +90,10 @@ proceed_cmd_type(State, <<"rest">>, Data) ->
 proceed_cmd_type(State, Other, _Data) ->
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Other},
         State#ejm.debug, run, 2).
+
 %%-----------------------------------------------------------------------------
 %%
-%% @doc fills in #job record
+%% @doc fills in a #job record
 %%
 -spec make_job(any()) -> #job{}.
 
@@ -113,15 +115,38 @@ make_job(Data) ->
     }.
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc creates a #job record with auth data filled in
+%%
 -spec make_job_auth(any()) -> #job{}.
 
 make_job_auth(Info) ->
     Auth = ejobman_data:get_auth_info(Info),
+    Type = ejobman_data:get_auth_type(Auth),
+    Str = ejobman_data:make_string(Type),
+    #job{
+        auth = fill_auth_data(Str, Auth)
+    }.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates a filled #auth record
+%%
+-spec fill_auth_data(any(), any()) -> #auth{}.
+
+fill_auth_data("megaplan", Auth) ->
+    F = fun ({<<"type">>, _}) -> false;
+            ({"type", _})     -> false;
+            ({_, _})          -> true;
+            (_)               -> false
+    end,
+    List = ejobman_data:get_auth_data_list(Auth),
+    Data = lists:filter(F, List),
+    #auth{type='megaplan', data = Data};
+fill_auth_data(_, Auth) ->
     User = ejobman_data:get_auth_user(Auth),
     Pass = ejobman_data:get_auth_password(Auth),
-    #job{
-        auth = #auth{user = User, password = Pass}
-    }.
+    #auth{user = User, password = Pass}.
 
 %%-----------------------------------------------------------------------------
 %%

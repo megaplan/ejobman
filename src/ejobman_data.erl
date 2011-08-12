@@ -36,7 +36,7 @@
 -export([get_type/1, get_rest_info/1, get_method/1, get_url/1]).
 -export([get_time/1, get_params/1, get_host/1]).
 -export([get_auth_info/1, get_auth_user/1, get_auth_password/1]).
--export([make_string/1]).
+-export([make_string/1, get_auth_type/1, get_auth_data_list/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Public API
@@ -136,6 +136,17 @@ get_auth_info(Data) ->
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc Extracts value for "type" item from deserialized auth_info
+%% json structure
+%% @since 2011-08-10 18:19
+%%
+-spec get_auth_type(any()) -> any().
+
+get_auth_type(Data) ->
+    get_value(Data, <<"type">>).
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc Extracts value for "user" item from deserialized auth_info
 %% json structure
 %% @since 2011-08-10 18:19
@@ -144,6 +155,19 @@ get_auth_info(Data) ->
 
 get_auth_user(Data) ->
     get_value(Data, <<"user">>).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc Extracts value for "struct" list from deserialized auth_info
+%% json structure
+%% @since 2011-08-10 18:19
+%%
+-spec get_auth_data_list(any()) -> any().
+
+get_auth_data_list({struct, Data}) when is_list(Data) ->
+    Data;
+get_auth_data_list(_) ->
+    [].
 
 %%-----------------------------------------------------------------------------
 %%
