@@ -217,9 +217,9 @@ make_url(#child{url=Bin} = St) ->
 %%
 -spec rewrite(#child{}, string(), tuple()) -> {string(), list()}.
 
-rewrite(#child{url_rewrite=Conf} = St, Url,
+rewrite(#child{url_rewrite=Rew_conf} = St, Url,
         {_Scheme, _Auth, Host, _Port, _Path, _Query} = Data) ->
-    case find_matching_host(Conf, Host) of
+    case find_matching_host(Rew_conf, Host) of
         {ok, Config} ->
             rewrite_host(St, Config, Url, Data);
         error ->
@@ -239,7 +239,7 @@ compose_headers(St, Config, Url_host) ->
 %%-----------------------------------------------------------------------------
 %%
 %% @doc finds config section that matches the host. Returns this section
-%% or error if no sections found
+%% or error if no section found
 %%
 -spec find_matching_host(list(), string()) -> {ok, list()} | error.
 
@@ -347,7 +347,7 @@ select_host_field(Req_host, _Url_host) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc creates an url string based on input values
+%% @doc creates an url string based on parsed parts of the original url
 %%
 -spec proceed_rewrite_host(#child{}, atom(), list(), list(), integer(),
     list(), list()) -> string().
@@ -385,13 +385,21 @@ make_hdr_auth_str(Auth) ->
 .
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc gets the original auth string from url and creates a list of strings
+%% ready for use in url
+%%
 make_url_auth_str("") ->
     "";
 make_url_auth_str(Str) ->
-    [make_auth_str(Str, []), "@"]
-.
+    [make_auth_str(Str, []), "@"].
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc gets the original auth string from url and auth data from request.
+%% returns list of strings that ready for use in either url or further header
+%% creating
+%%
 make_auth_str([], #auth{type=basic, user=User, password=Pass}) ->
     U = ejobman_data:make_string(User),
     P = ejobman_data:make_string(Pass),
