@@ -37,10 +37,12 @@ real_spawn_one_worker(C, Pool) ->
         C#ejm.debug, run, 3),
     case Res of
         {ok, Pid} ->
-            Ch = #chi{pid=Pid, id=Id, start=now()},
+            Mref = erlang:monitor(process, Pid),
+            Ch = #chi{pid=Pid, id=Id, start=now(), mon=Mref},
             {Id, Pool#pool{workers = [Ch | Workers]}};
         {ok, Pid, _Info} ->
-            Ch = #chi{pid=Pid, id=Id, start=now()},
+            Mref = erlang:monitor(process, Pid),
+            Ch = #chi{pid=Pid, id=Id, start=now(), mon=Mref},
             {Id, Pool#pool{workers = [Ch | Workers]}};
         {error, _Reason} ->
             {error, Pool}

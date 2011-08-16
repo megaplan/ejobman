@@ -119,6 +119,8 @@ fill_one_pool_config(List) ->
         workers = [],
         w_queue = queue:new(),
         w_duration = proplists:get_value(worker_duration, List, 86400000),
+        restart_policy = proplists:get_value(restart_policy, List),
+        restart_delay = proplists:get_value(restart_delay, List, 10000),
         min_workers = proplists:get_value(min_workers, List, 2),
         max_workers = proplists:get_value(max_workers, List, 255)
     }.

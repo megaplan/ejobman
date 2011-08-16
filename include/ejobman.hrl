@@ -25,6 +25,7 @@
 -record(chi, {
     pid,
     id,
+    mon,
     start={0,0,0} % time in now() format
 }).
 
@@ -33,6 +34,9 @@
     w_duration = 86400000, % milliseconds
     worker_config,
     workers = [] :: [#chi{}],
+    waiting = [], % waiting for restart
+    restart_delay,
+    restart_policy,
     w_queue,
     min_workers = 5,
     max_workers = 255

@@ -409,7 +409,7 @@ select_pool(#ejm{w_pools = Pools} = St) ->
             mpln_p_debug:pr({?MODULE, 'select_pool error',
                 ?LINE, Pools}, St#ejm.debug, run, 0),
             % TODO: add pool on the fly
-            erlang:error(dont_f__k_with_us_lebovsky)
+            erlang:error(dont_f__k_with_us)
     end.
 %%-----------------------------------------------------------------------------
 %%
