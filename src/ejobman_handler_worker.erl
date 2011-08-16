@@ -45,13 +45,13 @@
 -endif.
 
 -include("ejobman.hrl").
-%-include("job.hrl").
 
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
 %%
 %% @doc checks for old workers and live workers, adds workers if necessary
+%% @since 2011-08-16 16:51
 %%
 -spec check_workers(#ejm{}) -> #ejm{}.
 
@@ -60,6 +60,51 @@ check_workers(St) ->
     Sto = check_old_workers(Stw),
     Stl = check_live_workers(Sto),
     replenish_worker_pools(Stl).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc spawns the configured minimum of long-lasting workers
+%% @since 2011-08-16 16:51
+%%
+-spec prepare_workers(#ejm{}) -> #ejm{}.
+
+prepare_workers(#ejm{w_pools = Pools} = C) ->
+    New_pools = lists:map(fun(X) -> spawn_workers(C, X) end, Pools),
+    C#ejm{w_pools = New_pools}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc calls throw_worker_one_pool for every pool
+%% @since 2011-08-16 16:51
+%%
+-spec throw_worker_pools(#ejm{}, any()) -> #ejm{}.
+
+throw_worker_pools(#ejm{w_pools = Pools} = St, Id) ->
+    New_pools = lists:map(fun(X) -> throw_worker_one_pool(St, X, Id) end,
+        Pools),
+    St#ejm{w_pools = New_pools}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc terminates all the workers in all the pools
+%% @since 2011-08-16 16:51
+%%
+-spec remove_workers(#ejm{}) -> ok.
+
+remove_workers(#ejm{w_pools = Pools}) ->
+    lists:foreach(fun terminate_workers/1, Pools).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc calls handle_crashed_pid for every pool
+%% @since 2011-08-16 16:51
+%%
+-spec handle_crashed(#ejm{}, reference(), any()) -> #ejm{}.
+
+handle_crashed(#ejm{w_pools=Pools} = State, Mref, Obj) ->
+    New_pools = lists:map(fun(X) -> handle_crashed_pid(State, X, Mref, Obj) end,
+        Pools),
+    State#ejm{w_pools = New_pools}.
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions
@@ -144,13 +189,6 @@ replenish_one_pool(St, #pool{min_workers=Min, workers=Workers, waiting=Waiting}
     end.
 
 %%-----------------------------------------------------------------------------
-throw_worker_pools(#ejm{w_pools = Pools} = St, Id) ->
-    New_pools = lists:map(fun(X) -> throw_worker_one_pool(St, X, Id) end,
-        Pools),
-    St#ejm{w_pools = New_pools}
-.
-
-%%-----------------------------------------------------------------------------
 %%
 %% @doc adds a worker for the appropriate pool if there is space for it
 %%
@@ -190,14 +228,6 @@ check_pool_live_workers(#pool{workers=Workers} = Pool) ->
     Pool#pool{workers=New}
 .
 %%-----------------------------------------------------------------------------
--spec prepare_workers(#ejm{}) -> #ejm{}.
-%%
-%% @doc spawns the configured minimum of long-lasting workers
-%%
-prepare_workers(#ejm{w_pools = Pools} = C) ->
-    New_pools = lists:map(fun(X) -> spawn_workers(C, X) end, Pools),
-    C#ejm{w_pools = New_pools}.
-
 %%
 %% @doc spawns the configured for a pool a minimum number of workers
 %%
@@ -221,26 +251,20 @@ spawn_n_workers(State, Pool, N) ->
     ).
 
 %%-----------------------------------------------------------------------------
--spec remove_workers(#ejm{}) -> ok.
-%%
-%% @doc terminates all the workers in all the pools
-%%
-remove_workers(#ejm{w_pools = Pools}) ->
-    lists:foreach(fun terminate_workers/1, Pools).
-
-%%-----------------------------------------------------------------------------
--spec terminate_workers(#pool{}) -> ok.
 %%
 %% @doc terminates all the workers
 %%
+-spec terminate_workers(#pool{}) -> ok.
+
 terminate_workers(#pool{workers = Workers}) ->
     lists:foreach(fun terminate_one_worker/1, Workers).
 
 %%-----------------------------------------------------------------------------
--spec terminate_one_worker(#chi{}) -> any().
 %%
 %% @doc terminates one worker
 %%
+-spec terminate_one_worker(#chi{}) -> any().
+
 terminate_one_worker(#chi{id=Id, mon=Mref}) ->
     % we don't need to monitor workers we stop manually
     erlang:demonitor(Mref),
@@ -273,17 +297,6 @@ separate_workers(#pool{w_duration=Limit, workers=Workers}) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc calls handle_crashed_pid for every pool
-%%
--spec handle_crashed(#ejm{}, reference(), any()) -> #ejm{}.
-
-handle_crashed(#ejm{w_pools=Pools} = State, Mref, Obj) ->
-    New_pools = lists:map(fun(X) -> handle_crashed_pid(State, X, Mref, Obj) end,
-        Pools),
-    State#ejm{w_pools = New_pools}.
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc performs pool restart policy based action for the crashed pid
 %%
 -spec handle_crashed_pid(#ejm{}, #pool{}, reference(), any()) -> #pool{}.
@@ -300,7 +313,7 @@ handle_crashed_pid(St, #pool{waiting=Waiting, workers=Workers} =
         crashed_pid_action(Pool, Obj, Acc)
     end,
     Wait_add = lists:foldl(F2, [], Found),
-    mpln_p_debug:pr({?MODULE, handle_crashed_pid, ?LINE,
+    mpln_p_debug:pr({?MODULE, handle_crashed_pid, ?LINE, Pool#pool.id,
         Found, Not_found, Wait_add}, St#ejm.debug, run, 5),
     Pool#pool{waiting = Wait_add ++ Waiting, workers=Not_found}.
 
@@ -324,6 +337,9 @@ crashed_pid_action(Pool, Obj, Acc) ->
     end.
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc yes, Virginia. It checks pool restart policy
+%%
 check_pool_restart_policy(#pool{restart_policy='delay'}) ->
     'delay';
 check_pool_restart_policy(#pool{restart_policy='restart'}) ->
@@ -331,3 +347,4 @@ check_pool_restart_policy(#pool{restart_policy='restart'}) ->
 check_pool_restart_policy(_) ->
     'none'.
 
+%%-----------------------------------------------------------------------------
