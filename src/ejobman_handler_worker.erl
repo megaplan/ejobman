@@ -34,7 +34,7 @@
 %%%----------------------------------------------------------------------------
 
 -export([check_workers/1, prepare_workers/1, throw_worker_pools/2]).
--export([remove_workers/1, handle_crashed/3]).
+-export([remove_workers/1, handle_crashed/3, get_process_info/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -49,6 +49,16 @@
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
+%%
+%% @doc gets pools and processes info
+%% @since 2011-08-16 16:51
+%%
+-spec get_process_info(#ejm{}) -> any().
+
+get_process_info(#ejm{w_pools = Pools}) ->
+    lists:map(fun get_process_one_pool/1, Pools).
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc checks for old workers and live workers, adds workers if necessary
 %% @since 2011-08-16 16:51
@@ -346,5 +356,46 @@ check_pool_restart_policy(#pool{restart_policy='restart'}) ->
     'restart';
 check_pool_restart_policy(_) ->
     'none'.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc gets process info for one pool
+%%
+-spec get_process_one_pool(#pool{}) -> any().
+
+get_process_one_pool(#pool{} = P) ->
+    [
+        {pool_id, P#pool.id},
+        {work_duration, P#pool.w_duration},
+        {worker_config, expand_worker_config(P#pool.worker_config)},
+        {workers, expand_workers(P#pool.workers)},
+        {waiting, P#pool.waiting},
+        {restart_delay, P#pool.restart_delay},
+        {restart_policy, P#pool.restart_policy},
+        {queue_len, queue:len(P#pool.w_queue)},
+        {min_workers, P#pool.min_workers},
+        {max_workers, P#pool.max_workers}
+    ]
+.
+%%-----------------------------------------------------------------------------
+expand_worker_config(List) ->
+    proplists:get_value(name, List).
+
+%%-----------------------------------------------------------------------------
+-spec expand_workers([#chi{}]) -> any().
+
+expand_workers(List) ->
+    lists:map(fun expand_one_worker/1, List).
+
+%%-----------------------------------------------------------------------------
+-spec expand_one_worker(#chi{}) -> any().
+
+expand_one_worker(W) ->
+    {
+        W#chi.pid,
+        %W#chi.id,
+        %W#chi.mon,
+        mpln_misc_time:get_time_str(W#chi.start)
+    }.
 
 %%-----------------------------------------------------------------------------

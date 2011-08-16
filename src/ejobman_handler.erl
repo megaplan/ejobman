@@ -56,12 +56,6 @@
 -include("amqp_client.hrl").
 
 %%%----------------------------------------------------------------------------
-%%% Defines
-%%%----------------------------------------------------------------------------
-
-%-define(GRP, ejobman_handler_workers).
-
-%%%----------------------------------------------------------------------------
 %%% gen_server callbacks
 %%%----------------------------------------------------------------------------
 init(Config) ->
@@ -108,6 +102,10 @@ handle_call({add_pool, Pool}, _From, St) ->
 
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
+handle_call(status2, _From, St) ->
+    Res = get_status(St),
+    New = do_smth(St),
+    {reply, Res, New, ?T};
 handle_call(status, _From, St) ->
     {reply, St, St, ?T};
 handle_call(_N, _From, St) ->
@@ -325,6 +323,10 @@ check_child(#chi{pid=Pid}) ->
         _ ->
             false
     end.
+
+%%-----------------------------------------------------------------------------
+get_status(St) ->
+    ejobman_handler_worker:get_process_info(St).
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests

@@ -36,6 +36,7 @@
 -export([get_ts/0]).
 -export([uuid/0]).
 -export([get_time_str_us/0, get_time_str_us/1]).
+-export([get_time_str/0, get_time_str/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -72,7 +73,7 @@
 -type t_datetime_f()   :: {t_date(),t_time_f()}.
 
 %%%----------------------------------------------------------------------------
-%%% api
+%%% API
 %%%----------------------------------------------------------------------------
 %%
 %% @doc returns time string in gregorian seconds for current time
@@ -84,6 +85,7 @@ get_ts() ->
     Str = calendar:datetime_to_gregorian_seconds(calendar:local_time()),
     integer_to_list(Str).
 
+%%-----------------------------------------------------------------------------
 %%
 %% @doc returns time string (y-m-d h:m:s.us) for current time
 %% @since 2011-07-15
@@ -93,8 +95,9 @@ get_ts() ->
 get_time_str_us() ->
     get_time_str_us(now()).
 
+%%-----------------------------------------------------------------------------
 %%
-%% @doc returns time string (y-m-d h:m:s.us) for current time
+%% @doc returns time string (y-m-d h:m:s.us) for defined time
 %% @since 2011-07-15
 %%
 -spec get_time_str_us(t_now()) -> string().
@@ -103,6 +106,28 @@ get_time_str_us({_, _, Us} = Now) ->
     {Date, {H, M, S}} = calendar:now_to_local_time(Now),
     make_str_float({Date, {H, M, S + Us/1000000.0}}).
 
+%%-----------------------------------------------------------------------------
+%%
+%% @doc returns time string (y-m-d h:m:s) for current time
+%% @since 2011-08-16 19:05
+%%
+-spec get_time_str() -> string().
+
+get_time_str() ->
+    get_time_str(now()).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc returns time string (y-m-d h:m:s) for defined time
+%% @since 2011-08-16 19:05
+%%
+-spec get_time_str(t_now()) -> string().
+
+get_time_str(Now) ->
+    DT = calendar:now_to_local_time(Now),
+    make_str_int(DT).
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc returns binary filled by current time to be used as uuid
 %% @since 2011-07-15
@@ -128,12 +153,11 @@ make_str_float(DateTime) ->
 %%
 %% @doc returns time string (y-m-d h:m:s) for given time
 %% @since 2011-07-15
-%% @clear
-% NOTE: function is commented out to shut dialyzer up.
-%-spec make_str_int(t_datetime()) -> string().
-%
-%make_str_int(DateTime) ->
-%    make_str("~4.10.0B-~2.10.0B-~2.10.0B ~2.10.0B:~2.10.0B:~2.10.0B", DateTime).
+%%
+-spec make_str_int(t_datetime()) -> string().
+
+make_str_int(DateTime) ->
+    make_str("~4.10.0B-~2.10.0B-~2.10.0B ~2.10.0B:~2.10.0B:~2.10.0B", DateTime).
 
 %%
 %% @doc returns time string (y-m-d h:m:s) according to the given format and
