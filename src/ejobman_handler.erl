@@ -312,6 +312,10 @@ handle_crashed_pid(St, #pool{waiting=Waiting, workers=Workers} =
     Pool#pool{waiting = Wait_add ++ Waiting, workers=Not_found}.
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc does either of the restart actions: none, cast to immediate restart,
+%% store time for later check and delayed restart
+%%
 -spec crashed_pid_action(#pool{}, any(), list()) -> list().
 
 crashed_pid_action(Pool, Obj, Acc) ->
