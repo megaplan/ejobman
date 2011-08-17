@@ -112,6 +112,9 @@ fill_config(List) ->
     }.
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc fills config for one pool
+%%
 fill_one_pool_config(List) ->
     #pool{
         id = proplists:get_value(id, List),
@@ -147,24 +150,40 @@ get_config_list(Default) ->
     end.
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc fills configs for the pools defined
+%%
 fill_pools_config(List) ->
     Pools = proplists:get_value(pools, List, []),
     lists:map(fun fill_one_pool_config/1, Pools)
 .
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc creates a handler config
+%%
 -spec fill_ejm_handler_config(list()) -> #ejm{}.
 
 fill_ejm_handler_config(List) ->
     Hdl_list = proplists:get_value(handler, List, []),
     Pools = fill_pools_config(List),
-    #ejm{
+    Web = fill_web_config(List),
+    Web#ejm{
         w_pools = Pools,
         ch_data = [],
         ch_queue = queue:new(),
         url_rewrite = proplists:get_value(url_rewrite, Hdl_list, []),
         max_children = proplists:get_value(max_children, Hdl_list, 32767),
         debug = proplists:get_value(debug, Hdl_list, [])
+    }.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc gets web server parameters and stores them in the config record
+%%
+fill_web_config(List) ->
+    #ejm{
+        web_server_opts = proplists:get_value(web_server_opts, List, [])
     }.
 
 %%%----------------------------------------------------------------------------

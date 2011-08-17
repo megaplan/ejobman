@@ -42,6 +42,7 @@
 -export([cmd/1, remove_child/1]).
 -export([cmd2/2, cmd2/3]).
 -export([add_pool/1, add_worker/1]).
+-export([get_status2/0]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -62,10 +63,11 @@ init(Config) ->
     application:start(inets),
     application:start(ssl),
     C = ejobman_conf:get_config_hdl(Config),
-    New = ejobman_handler_worker:prepare_workers(C),
+    Conf_w = ejobman_handler_web:prepare_web(C),
+    New = ejobman_handler_worker:prepare_workers(Conf_w),
     % trap_exit is unnecessary. Children are ripped by supervisor
     %process_flag(trap_exit, true),
-    mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),
+    mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, New#ejm.debug, run, 1),
     {ok, New, ?T}.
 %%-----------------------------------------------------------------------------
 %%
@@ -134,7 +136,11 @@ handle_cast(_N, St) ->
     New = do_smth(St),
     {noreply, New, ?T}.
 %%-----------------------------------------------------------------------------
+%%
+%% @doc Note: it won't be called unless trap_exit is set
+%%
 terminate(_, State) ->
+    mochiweb_http:stop(State#ejm.web_server_pid),
     ejobman_handler_worker:remove_workers(State),
     mpln_p_debug:pr({?MODULE, 'terminate', ?LINE}, State#ejm.debug, run, 1),
     ok.
@@ -251,13 +257,23 @@ add_pool(List) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc cast to add a new worker to the pool
+%% @doc casts to add a new worker to the pool
 %% @since 2011-08-16 13:19
 %%
 -spec add_worker(any()) -> ok.
 
 add_worker(Pool_id) ->
     gen_server:cast(?MODULE, {add_worker, Pool_id}).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc gets status info from the server
+%% @since 2011-08-17 14:33
+%%
+-spec get_status2() -> any().
+
+get_status2() ->
+    gen_server:call(?MODULE, status2).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions

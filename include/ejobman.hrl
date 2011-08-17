@@ -49,6 +49,8 @@
     ch_queue,
     max_children = 32767,
     url_rewrite,
+    web_server_pid,
+    web_server_opts,
     rses,
     conn,
     log,
