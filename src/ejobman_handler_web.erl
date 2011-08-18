@@ -72,7 +72,8 @@ dispatch(Req, C) ->
     mpln_p_debug:pr({?MODULE, dispatch, ?LINE, Req}, C#ejm.debug, http, 5),
     case Req:get(method) of
         'GET' ->
-            get_resource(C, Req);
+            Path = Req:get(path),
+            get_resource(C, Req, Path);
         _ ->
             Headers = [{"Allow", "GET"}],
             Req:respond({405, Headers, "405 Method Not Allowed\r\n"})
@@ -85,17 +86,13 @@ dispatch(Req, C) ->
 %% @doc gets status2 from ejobman_handler and sends it as plain text response
 %% to the client of the web server
 %%
-get_resource(C, Req) ->
-    Path = Req:get(path),
-    case Path of
-        "/status2" ->
-            Res = ejobman_handler:get_status2(),
-            Str = io_lib:format("~p", [Res]),
-            mpln_p_debug:pr({?MODULE, dispatch, ?LINE, Res},
-                C#ejm.debug, http, 4),
-            Req:ok({"text/plain", Str});
-        _ ->
-            Req:respond({404, [], "404 Not Found\r\n"})
-    end.
+get_resource(C, Req, "/status2") ->
+    Res = ejobman_handler:get_status2(),
+    Str = io_lib:format("~p", [Res]),
+    mpln_p_debug:pr({?MODULE, dispatch, ?LINE, Res},
+        C#ejm.debug, http, 4),
+    Req:ok({"text/plain", Str});
+get_resource(_C, Req, _Path) ->
+    Req:respond({404, [], "404 Not Found\r\n"}).
 
 %%-----------------------------------------------------------------------------
