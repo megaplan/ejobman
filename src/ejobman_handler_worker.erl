@@ -69,7 +69,8 @@ check_workers(St) ->
     Stw = clear_waiting_workers(St),
     Sto = check_old_workers(Stw),
     Stl = check_live_workers(Sto),
-    replenish_worker_pools(Stl).
+    Str = replenish_worker_pools(Stl),
+    fetch_worker_os_pids(Str).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -179,6 +180,8 @@ check_pool_old_workers(St, Pool) ->
 %%
 %% @doc spawns the necessary amount of workers for every pool
 %%
+-spec replenish_worker_pools(#ejm{}) -> #ejm{}.
+
 replenish_worker_pools(#ejm{w_pools = Pools} = St) ->
     New_pools = lists:map(fun(X) -> replenish_one_pool(St, X) end, Pools),
     St#ejm{w_pools = New_pools}
@@ -217,6 +220,8 @@ throw_worker_one_pool(_St, Pool, _) ->
 %%
 %% @doc checks for live workers in pools
 %%
+-spec check_live_workers(#ejm{}) -> #ejm{}.
+
 check_live_workers(#ejm{w_pools = Pools} = St) ->
     New_pools = lists:map(fun check_pool_live_workers/1, Pools),
     St#ejm{w_pools = New_pools}
@@ -393,9 +398,34 @@ expand_workers(List) ->
 expand_one_worker(W) ->
     {
         W#chi.pid,
+        W#chi.os_pid,
         %W#chi.id,
         %W#chi.mon,
         mpln_misc_time:get_time_str(W#chi.start)
     }.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fetch os_pids for all the pools
+%%
+-spec fetch_worker_os_pids(#ejm{}) -> #ejm{}.
+
+fetch_worker_os_pids(#ejm{w_pools = Pools} = St) ->
+    New_pools = lists:map(fun fetch_pool_os_pids/1, Pools),
+    St#ejm{w_pools = New_pools}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fetch os_pids for all the workers in the pool
+%%
+fetch_pool_os_pids(#pool{workers=Workers} = Pool) ->
+    F = fun (#chi{pid=Pid, os_pid=undefined} = C) ->
+                Os_pid = ejobman_long_worker:get_os_pid(Pid),
+                C#chi{os_pid=Os_pid};
+            (C) ->
+                C
+    end,
+    New_workers = lists:map(F, Workers),
+    Pool#pool{workers = New_workers}.
 
 %%-----------------------------------------------------------------------------

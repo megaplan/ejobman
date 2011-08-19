@@ -4,6 +4,9 @@ tr_sub(){
 }
 export LANG=C
 trap tr_sub INT QUIT HUP
+
+echo "cur_pid=$$"
+
 #while(read vvv)
 while(/bin/true)
 do
@@ -22,4 +25,4 @@ do
     echo "read var3: $vvv on `date`"
     sleep 1
 done
-logger -t "test.sh" "exit"
+logger -t "test.sh" "exit, pid=$$"

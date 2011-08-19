@@ -11,6 +11,7 @@
     name,
     port,
     id,
+    os_pid,
     duration,
     from,
     method,
@@ -26,6 +27,7 @@
     pid,
     id,
     mon,
+    os_pid,
     start={0,0,0} % time in now() format
 }).
 

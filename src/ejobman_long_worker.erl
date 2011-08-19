@@ -38,7 +38,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 
--export([cmd/2, cmd/3]).
+-export([cmd/2, cmd/3, get_os_pid/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -70,8 +70,13 @@ init(Params) ->
 %% Handling call messages
 %% @since 2011-07-21 18:09
 %%
--spec handle_call(any(), any(), #ejm{}) -> {stop|reply, any(), any(), any()}.
+-spec handle_call(any(), any(), #child{}) -> {stop|reply, any(), any(), any()}.
 
+handle_call(get_os_pid, _From, St) ->
+    mpln_p_debug:pr({?MODULE, 'get_os_pid', ?LINE, St#child.id},
+        St#child.debug, run, 4),
+    New = do_smth(St),
+    {reply, New#child.os_pid, New, ?T};
 handle_call({cmd2, Job}, _From, St) ->
     mpln_p_debug:pr({?MODULE, 'cmd2', ?LINE, Job, St#child.id},
         St#child.debug, run, 4),
@@ -105,7 +110,7 @@ handle_call(_N, _From, St) ->
 %% Handling cast messages
 %% @since 2011-07-21 18:09
 %%
--spec handle_cast(any(), #ejm{}) -> any().
+-spec handle_cast(any(), #child{}) -> any().
 
 handle_cast(stop, St) ->
     catch port_close(St#child.port),
@@ -135,6 +140,12 @@ handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, info_timeout, ?LINE, State#child.id},
         State#child.debug, run, 6),
     New = do_smth(State),
+    {noreply, New, ?T};
+handle_info({P1, {data, Data}}, #child{port=P2} = St) when P1 =:= P2->
+    mpln_p_debug:pr({?MODULE, 'info own port data', ?LINE, P1, Data},
+        St#child.debug, run, 2),
+    Std = process_port_data(St, Data),
+    New = do_smth(Std#child{port=undefined}),
     {noreply, New, ?T};
 handle_info({P1, {exit_status, Code}}, #child{port=P2} = St) when P1 =:= P2->
     mpln_p_debug:pr({?MODULE, 'info own port exit', ?LINE, P1, Code},
@@ -188,6 +199,14 @@ cmd(Pid, Job) ->
 
 cmd(Pid, Job, Timeout) ->
     gen_server:call(Pid, {cmd, Job}, Timeout).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc gets os pid from the workers
+%% @since 2011-08-19 14:09
+%%
+get_os_pid(Pid) ->
+    gen_server:call(Pid, get_os_pid).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions
@@ -250,6 +269,19 @@ cr_port(File) ->
         %{packet, 2}
         {line, 80}
     ],
-    open_port(Name, Settings)
-.
+    open_port(Name, Settings).
+
+%%-----------------------------------------------------------------------------
+process_port_data(#child{} = St, {noeol, _Line}) ->
+    St;
+process_port_data(St, {eol, Line}) ->
+    % Line: "cur_pid=15682"
+    case string:tokens(Line, "=") of
+        [_, Str | _] ->
+            N = list_to_integer(Str),
+            St#child{os_pid=N};
+        _ ->
+            St
+    end.
+
 %%-----------------------------------------------------------------------------
