@@ -52,6 +52,8 @@
 %% @doc prepare web server which is used to serve handler monitoring page only
 %% @since 2011-08-17 13:40
 %%
+-spec prepare_web(#ejm{}) -> #ejm{}.
+
 prepare_web(C) ->
     case C#ejm.web_server_opts of
         [_|_] ->
@@ -68,12 +70,17 @@ prepare_web(C) ->
 %% @doc dispatcher for web requests
 %% @since 2011-08-17 13:40
 %%
+-spec dispatch(any(), #ejm{}) -> any().
+
 dispatch(Req, C) ->
     mpln_p_debug:pr({?MODULE, dispatch, ?LINE, Req}, C#ejm.debug, http, 5),
     case Req:get(method) of
         'GET' ->
             Path = Req:get(path),
-            get_resource(C, Req, Path);
+            Type = get_query_type(Req),
+            mpln_p_debug:pr({?MODULE, dispatch, ?LINE, Path, Type},
+                C#ejm.debug, http, 5),
+            get_resource(C, Req, Path, Type);
         _ ->
             Headers = [{"Allow", "GET"}],
             Req:respond({405, Headers, "405 Method Not Allowed\r\n"})
@@ -86,13 +93,27 @@ dispatch(Req, C) ->
 %% @doc gets status2 from ejobman_handler and sends it as plain text response
 %% to the client of the web server
 %%
-get_resource(C, Req, "/status2") ->
+-spec get_resource(#ejm{}, any(), any(), any()) -> any().
+
+get_resource(C, Req, "/status2", "full") ->
     Res = ejobman_handler:get_status2(),
-    Str = io_lib:format("~p", [Res]),
-    mpln_p_debug:pr({?MODULE, dispatch, ?LINE, Res},
-        C#ejm.debug, http, 4),
-    Req:ok({"text/plain", Str});
-get_resource(_C, Req, _Path) ->
+    mpln_p_debug:pr({?MODULE, dispatch, ?LINE, Res}, C#ejm.debug, http, 4),
+    Response = ejobman_handler_web_page:create_plain_status(Res),
+    Req:ok(Response);
+get_resource(C, Req, "/status2", _Type) ->
+    Res = ejobman_handler:get_status2(),
+    mpln_p_debug:pr({?MODULE, dispatch, ?LINE, Res}, C#ejm.debug, http, 4),
+    Response = ejobman_handler_web_page:create_html_status(Res),
+    Req:ok(Response);
+get_resource(_C, Req, _Path, _Type) ->
     Req:respond({404, [], "404 Not Found\r\n"}).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc extracts query type from the request
+%%
+get_query_type(Req) ->
+    Q = Req:parse_qs(),
+    proplists:get_value("type", Q).
 
 %%-----------------------------------------------------------------------------
