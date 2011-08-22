@@ -188,7 +188,8 @@ replenish_worker_pools(#ejm{w_pools = Pools} = St) ->
 .
 %%-----------------------------------------------------------------------------
 %%
-%% @doc spawns the necessary amount of workers for the pool
+%% @doc spawns the necessary (up to the minimum level) amount of workers for
+%% the pool
 %%
 -spec replenish_one_pool(#ejm{}, #pool{}) -> #pool{}.
 
@@ -205,9 +206,9 @@ replenish_one_pool(St, #pool{min_workers=Min, workers=Workers, waiting=Waiting}
 %%
 %% @doc adds a worker for the appropriate pool if there is space for it
 %%
-throw_worker_one_pool(St, #pool{id=X, min_workers=Min, workers=Workers,
+throw_worker_one_pool(St, #pool{id=X, max_workers=Max, workers=Workers,
         waiting=Waiting} = Pool, Id) when X =:= Id ->
-    Delta = Min - length(Workers) - length(Waiting),
+    Delta = Max - length(Workers) - length(Waiting),
     if  Delta > 0 ->
             spawn_n_workers(St, Pool, 1);
         true ->
