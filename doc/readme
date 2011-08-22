@@ -37,6 +37,13 @@ Problems
     In case of worker's crash there is no immediate restart. So it can be
     necessary to set required values to min_workers in config.
 
+- how to keep workers? Whether the min_workers should be updated on add_worker
+  call or not?
+  Which workers should be restarted (if necessary) after the worker_duration
+  time? Currently workers are kept at the minimum level.
+  E.g. min=1, then add_worker adds second. After the worker_duration time
+  both workers are terminated and only one (because min=1) is restarted.
+
 Workers
 =======
 
