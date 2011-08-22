@@ -12,7 +12,7 @@ Depends
 
 Erlang/OTP R13B3
 rabbitmq-erlang-client 2.3.1+hg20110303.1-0ubuntu2
-mochiweb 2.0.0 (mochijson2.erl)
+mochiweb 2.0.0 (for json parser and web interface)
 
 Problems
 ========
@@ -129,7 +129,7 @@ URL rewriting
 
 The main config can contain the following sections: handler -> url_rewrite.
 The url_rewrite is a list of tuples for url rewriting.
-Every such a tuple can have the following fields:
+Every such tuple can have the following fields:
   - src_type - optional. Values: none, regex. Default - none.
   - src_host_part - mandatory. Values: string, regex (see src_type). The value
     will be matched to the input (json) url. No default.

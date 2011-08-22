@@ -235,13 +235,11 @@ check_live_workers(#ejm{w_pools = Pools} = St) ->
 
 check_pool_live_workers(#pool{workers=Workers} = Pool) ->
     F = fun(X) ->
-        case process_info(X#chi.pid) of
-            undefined -> false;
-            _ -> true
-        end
+        process_info(X#chi.pid) == undefined
     end,
-    New = lists:filter(F, Workers),
-    Pool#pool{workers=New}
+    {Dead, Live} = lists:partition(F, Workers),
+    terminate_old_workers(Dead),
+    Pool#pool{workers = Live}
 .
 %%-----------------------------------------------------------------------------
 %%
@@ -417,7 +415,8 @@ fetch_worker_os_pids(#ejm{w_pools = Pools} = St) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc fetch os_pids for all the workers in the pool
+%% @doc fetch os_pids (if it has not been done yet) for all the workers
+%% in the pool
 %%
 fetch_pool_os_pids(#pool{workers=Workers} = Pool) ->
     F = fun (#chi{pid=Pid, os_pid=undefined} = C) ->

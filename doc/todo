@@ -1,11 +1,19 @@
-- check for correct data on receive
-- format functions for edoc to work. That means put an empty line (or a line
-  with just one dot, he-he...) after a function body
+TODO:
+
 - use catch and/or timeout for ejobman_long_worker:cmd call
   in ejobman_handler_cmd:do_one_long_command. Because we don't want to crash
   handler on worker timeout.
-- add api add_pool, add_worker(?) DONE (add_pool)
 - compile and store regexp in ejobman_handler config preparation
+- logrotate
+- config reload:
+  - amqp reconnect?
+
+DONE:
+
+- check for correct data on receive
+- add api add_pool, add_worker
+- format functions for edoc to work. That means put an empty line (or a line
+  with just one dot, he-he...) after a function body
 - after application:stop() + application:start() there is something wrong with
   amqp messages consuming. It looks like the old consumer still exists
   (while it doesn't actually) and rabbit sends messages both to old and new
@@ -13,6 +21,3 @@
   just a half of the messages. To get an another half one has to restart
   erlang VM (or completely eradicate old consumer from the rabbit's brain).
   DONE (shutdown timeout + trap exit in receiver)
-- logrotate
-- config reload:
-  - amqp reconnect?
