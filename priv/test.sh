@@ -7,10 +7,8 @@ trap tr_sub INT QUIT HUP
 
 echo "cur_pid=$$"
 
-#while(read vvv)
 while(/bin/true)
 do
-    #vvv=`od -v -t x1`
     read vvv
     res=$?
     if [ $res = 0 ] ; then

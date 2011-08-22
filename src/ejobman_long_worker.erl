@@ -141,20 +141,21 @@ handle_info(timeout, State) ->
         State#child.debug, run, 6),
     New = do_smth(State),
     {noreply, New, ?T};
-handle_info({P1, {data, Data}}, #child{port=P2} = St) when P1 =:= P2->
-    mpln_p_debug:pr({?MODULE, 'info own port data', ?LINE, P1, Data},
-        St#child.debug, run, 2),
+handle_info({P1, {data, Data}}, #child{port=P2, os_pid=undefined} = St)
+        when P1 =:= P2->
+    mpln_p_debug:pr({?MODULE, 'info own port data', ?LINE, P1, Data,
+        St#child.id}, St#child.debug, run, 2),
     Std = process_port_data(St, Data),
-    New = do_smth(Std#child{port=undefined}),
+    New = do_smth(Std),
     {noreply, New, ?T};
 handle_info({P1, {exit_status, Code}}, #child{port=P2} = St) when P1 =:= P2->
-    mpln_p_debug:pr({?MODULE, 'info own port exit', ?LINE, P1, Code},
-        St#child.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, 'info own port exit', ?LINE, P1, Code,
+        St#child.id}, St#child.debug, run, 2),
     New = do_smth(St#child{port=undefined}),
     {stop, normal, New};
 handle_info({Port, {exit_status, Code}}, State) ->
-    mpln_p_debug:pr({?MODULE, 'info other port exit', ?LINE, Port, Code},
-        State#child.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, 'info other port exit', ?LINE, Port, Code,
+        State#child.id}, State#child.debug, run, 2),
     New = do_smth(State),
     {noreply, New, ?T};
 handle_info(_Req, State) ->
@@ -274,7 +275,7 @@ cr_port(File) ->
 %%-----------------------------------------------------------------------------
 process_port_data(#child{} = St, {noeol, _Line}) ->
     St;
-process_port_data(St, {eol, Line}) ->
+process_port_data(St, {eol, [$c, $u, $r, $_, $p, $i, $d, $= | _] = Line}) ->
     % Line: "cur_pid=15682"
     case string:tokens(Line, "=") of
         [_, Str | _] ->
@@ -282,6 +283,8 @@ process_port_data(St, {eol, Line}) ->
             St#child{os_pid=N};
         _ ->
             St
-    end.
+    end;
+process_port_data(St, _) ->
+    St.
 
 %%-----------------------------------------------------------------------------
