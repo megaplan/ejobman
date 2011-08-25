@@ -62,7 +62,6 @@ get_config_child(List) ->
         url_rewrite = proplists:get_value(url_rewrite, List, []),
         name = proplists:get_value(name, List),
         id = proplists:get_value(id, List),
-        duration = proplists:get_value(duration, List, 86400000),
         from = proplists:get_value(from, List),
         method = proplists:get_value(method, List, <<>>),
         url = proplists:get_value(url, List, <<>>),
@@ -121,9 +120,9 @@ fill_one_pool_config(List) ->
         worker_config = proplists:get_value(worker, List, []),
         workers = [],
         w_queue = queue:new(),
-        w_duration = proplists:get_value(worker_duration, List, 86400000),
+        w_duration = get_worker_duration(List),
         restart_policy = proplists:get_value(restart_policy, List),
-        restart_delay = proplists:get_value(restart_delay, List, 10000),
+        restart_delay = proplists:get_value(restart_delay, List, 10),
         min_workers = proplists:get_value(min_workers, List, 2),
         max_workers = proplists:get_value(max_workers, List, 255)
     }.
@@ -131,6 +130,19 @@ fill_one_pool_config(List) ->
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
+%%
+%% @doc gets worker duration from the list
+%% @since 2011-08-25 17:50
+%%
+get_worker_duration(List) ->
+    case proplists:get_value(worker_duration, List, 86400) of
+        Val when is_integer(Val) and Val > 0 ->
+            Val;
+        _ ->
+            0
+    end.
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc chooses either file from application config or default file and then
 %% does read_config for that file

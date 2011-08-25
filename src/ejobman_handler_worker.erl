@@ -142,7 +142,7 @@ clear_pool_waiting_workers(St, #pool{restart_delay=Limit, waiting=Waiting} =
     Now = now(),
     F = fun ({_Obj, Time}) ->
                 Delta = timer:now_diff(Now, Time),
-                Delta =< Limit * 1000
+                Delta =< Limit * 1000000
     end,
     {Found, Not_found} = lists:partition(F, Waiting),
     lists:foreach(fun(_) -> ejobman_handler:add_worker(Pool#pool.id) end,
@@ -301,11 +301,14 @@ terminate_old_workers(List) ->
 %%
 -spec separate_workers(#pool{}) -> {list(), list()}.
 
+separate_workers(#pool{w_duration=0, workers=Workers}) ->
+    % 0 means infinity. Dialectics...
+    {Workers, []};
 separate_workers(#pool{w_duration=Limit, workers=Workers}) ->
     Now = now(),
     F = fun(#chi{start = T}) ->
         Delta = timer:now_diff(Now, T),
-        Delta < Limit * 1000
+        Delta < Limit * 1000000
     end,
     lists:partition(F, Workers).
 
