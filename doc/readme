@@ -71,7 +71,7 @@ Version 2 (current)
 -------------------
 
 {type: rest},
-{rest_info:
+{info:
   {method: xxx,
   url: xxx,
   host: xxx,
@@ -104,7 +104,7 @@ Future version (draft)
 ----------------------
 
 {type: rest},
-{rest_info: {
+{info: {
   method: xxx, # get, post, head
   url: xxx,
     # url can be:

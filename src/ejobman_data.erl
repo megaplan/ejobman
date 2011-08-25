@@ -66,16 +66,16 @@ get_type(Data) ->
 %%-----------------------------------------------------------------------------
 -spec get_rest_info(any()) -> any().
 %%
-%% @doc Extracts value for "rest_info" item from deserialized json structure
+%% @doc Extracts value for "info" item from deserialized json structure
 %% @since 2011-07-15
 %%
 get_rest_info(Data) ->
-    get_value(Data, <<"rest_info">>).
+    get_value(Data, <<"info">>).
 
 %%-----------------------------------------------------------------------------
 -spec get_method(any()) -> any().
 %%
-%% @doc Extracts value for "method" item from rest_info json structure
+%% @doc Extracts value for "method" item from info json structure
 %% @since 2011-07-15
 %%
 get_method(Data) ->
@@ -84,7 +84,7 @@ get_method(Data) ->
 %%-----------------------------------------------------------------------------
 -spec get_url(any()) -> any().
 %%
-%% @doc Extracts value for "url" item from rest_info json structure
+%% @doc Extracts value for "url" item from info json structure
 %% @since 2011-07-15
 %%
 get_url(Data) ->
@@ -93,7 +93,7 @@ get_url(Data) ->
 %%-----------------------------------------------------------------------------
 -spec get_host(any()) -> any().
 %%
-%% @doc Extracts value for "host" item from rest_info json structure
+%% @doc Extracts value for "host" item from info json structure
 %% @since 2011-08-05 16:18
 %%
 get_host(Data) ->
@@ -101,7 +101,7 @@ get_host(Data) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc Extracts value for "params" item from rest_info json structure
+%% @doc Extracts value for "params" item from info json structure
 %% @since 2011-08-04 14:09
 %%
 -spec get_params(any()) -> list().
@@ -116,7 +116,7 @@ get_params(Data) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc Extracts value for "run_time" item from rest_info json structure
+%% @doc Extracts value for "run_time" item from info json structure
 %% @since 2011-08-02 13:56
 %%
 -spec get_time(any()) -> any().
