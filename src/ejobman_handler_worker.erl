@@ -68,9 +68,7 @@ get_process_info(#ejm{w_pools = Pools}) ->
 check_workers(St) ->
     Stw = clear_waiting_workers(St),
     Sto = check_old_workers(Stw),
-    Stl = check_live_workers(Sto),
-    Str = replenish_worker_pools(Stl),
-    fetch_worker_os_pids(Str).
+    fetch_worker_os_pids(Sto).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -164,83 +162,24 @@ check_old_workers(#ejm{w_pools = Pools} = St) ->
 .
 %%-----------------------------------------------------------------------------
 %%
-%% @doc stops old disengaged workers (?), stops any too old workers.
-%% Returns the updated pool with quite young workers only
+%% @doc restarts too old workers. Returns the updated pool with new workers
 %%
 -spec check_pool_old_workers(#ejm{}, #pool{}) -> #pool{}.
 
 check_pool_old_workers(St, Pool) ->
-    {Ok, Old} = separate_workers(Pool),
-    mpln_p_debug:pr({?MODULE, 'check_pool_old_workers', ?LINE,
-        Pool#pool.id, Ok, Old}, St#ejm.debug, run, 5),
-    terminate_old_workers(Old),
-    Pool#pool{workers=Ok}
-.
-%%-----------------------------------------------------------------------------
-%%
-%% @doc spawns the necessary amount of workers for every pool
-%%
--spec replenish_worker_pools(#ejm{}) -> #ejm{}.
-
-replenish_worker_pools(#ejm{w_pools = Pools} = St) ->
-    New_pools = lists:map(fun(X) -> replenish_one_pool(St, X) end, Pools),
-    St#ejm{w_pools = New_pools}
-.
-%%-----------------------------------------------------------------------------
-%%
-%% @doc spawns the necessary (up to the minimum level) amount of workers for
-%% the pool
-%%
--spec replenish_one_pool(#ejm{}, #pool{}) -> #pool{}.
-
-replenish_one_pool(St, #pool{min_workers=Min, workers=Workers, waiting=Waiting}
-        = Pool) ->
-    Delta = Min - length(Workers) - length(Waiting),
-    if  Delta > 0 ->
-            spawn_n_workers(St, Pool, Delta);
-        true ->
-            Pool
-    end.
+    F = fun(X) -> check_restart_old_worker(St, Pool#pool.w_duration, X) end,
+    New = lists:map(F, Pool#pool.workers),
+    Pool#pool{workers=New}.
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc adds a worker for the appropriate pool if there is space for it
 %%
-throw_worker_one_pool(St, #pool{id=X, max_workers=Max, workers=Workers,
-        waiting=Waiting} = Pool, Id) when X =:= Id ->
-    Delta = Max - length(Workers) - length(Waiting),
-    if  Delta > 0 ->
-            spawn_n_workers(St, Pool, 1);
-        true ->
-            Pool
-    end;
+throw_worker_one_pool(St, #pool{id=X} = Pool, Id) when X =:= Id ->
+    spawn_n_workers(St, Pool, 1);
 throw_worker_one_pool(_St, Pool, _) ->
     Pool.
 
-%%-----------------------------------------------------------------------------
-%%
-%% @doc checks for live workers in pools
-%%
--spec check_live_workers(#ejm{}) -> #ejm{}.
-
-check_live_workers(#ejm{w_pools = Pools} = St) ->
-    New_pools = lists:map(fun check_pool_live_workers/1, Pools),
-    St#ejm{w_pools = New_pools}
-.
-%%-----------------------------------------------------------------------------
-%%
-%% @doc checks for live workers in a pool.
-%%
--spec check_pool_live_workers(#pool{}) -> #pool{}.
-
-check_pool_live_workers(#pool{workers=Workers} = Pool) ->
-    F = fun(X) ->
-        process_info(X#chi.pid) == undefined
-    end,
-    {Dead, Live} = lists:partition(F, Workers),
-    terminate_old_workers(Dead),
-    Pool#pool{workers = Live}
-.
 %%-----------------------------------------------------------------------------
 %%
 %% @doc spawns the configured for a pool a minimum number of workers
@@ -284,33 +223,6 @@ terminate_one_worker(#chi{id=Id, mon=Mref}) ->
     erlang:demonitor(Mref),
     supervisor:terminate_child(ejobman_long_supervisor, Id),
     supervisor:delete_child(ejobman_long_supervisor, Id).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc for each worker in a list calls supervisor to stop the worker
-%%
--spec terminate_old_workers([#chi{}]) -> any().
-
-terminate_old_workers(List) ->
-    lists:foreach(fun terminate_one_worker/1, List)
-.
-%%-----------------------------------------------------------------------------
-%%
-%% @doc separate workers on their working time. Returns lists of normal
-%% workers and workers that need to be terminated
-%%
--spec separate_workers(#pool{}) -> {list(), list()}.
-
-separate_workers(#pool{w_duration=0, workers=Workers}) ->
-    % 0 means infinity. Dialectics...
-    {Workers, []};
-separate_workers(#pool{w_duration=Limit, workers=Workers}) ->
-    Now = now(),
-    F = fun(#chi{start = T}) ->
-        Delta = timer:now_diff(Now, T),
-        Delta < Limit * 1000000
-    end,
-    lists:partition(F, Workers).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -380,8 +292,7 @@ get_process_one_pool(#pool{} = P) ->
         {restart_delay, P#pool.restart_delay},
         {restart_policy, P#pool.restart_policy},
         {queue_len, queue:len(P#pool.w_queue)},
-        {min_workers, P#pool.min_workers},
-        {max_workers, P#pool.max_workers}
+        {min_workers, P#pool.min_workers}
     ]
 .
 %%-----------------------------------------------------------------------------
@@ -430,5 +341,45 @@ fetch_pool_os_pids(#pool{workers=Workers} = Pool) ->
     end,
     New_workers = lists:map(F, Workers),
     Pool#pool{workers = New_workers}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc restarts one worker
+%%
+-spec restart_one_worker(#ejm{}, #chi{}) -> any().
+
+restart_one_worker(St, #chi{id=Id, mon=Mref} = Orig) ->
+    erlang:demonitor(Mref),
+    Res_t = supervisor:terminate_child(ejobman_long_supervisor, Id),
+    Res = supervisor:restart_child(ejobman_long_supervisor, Id),
+    mpln_p_debug:pr({?MODULE, 'restart_one_worker', ?LINE, Orig, Res_t, Res},
+        St#ejm.debug, run, 3),
+    case Res of
+        {ok, Pid} ->
+            New_mref = erlang:monitor(process, Pid),
+            #chi{pid=Pid, id=Id, start=now(), mon=New_mref};
+        {ok, Pid, _Info} ->
+            New_mref = erlang:monitor(process, Pid),
+            #chi{pid=Pid, id=Id, start=now(), mon=New_mref};
+        {error, Reason} ->
+            mpln_p_debug:pr({?MODULE, 'restart_one_worker error', ?LINE,
+                Orig, Res_t, Reason}, St#ejm.debug, run, 0),
+            Orig
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc restarts the worker if it is too old
+%%
+-spec check_restart_old_worker(#ejm{}, non_neg_integer(), #chi{}) -> #chi{}.
+
+check_restart_old_worker(St, Dur, #chi{start=Start} = Worker) ->
+    Now = now(),
+    Delta = timer:now_diff(Now, Start),
+    if  Delta > Dur * 1000000 ->
+            restart_one_worker(St, Worker);
+        true ->
+            Worker
+    end.
 
 %%-----------------------------------------------------------------------------

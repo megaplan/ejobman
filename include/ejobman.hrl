@@ -33,15 +33,14 @@
 
 -record(pool, {
     id,
-    w_duration = 86400000, % milliseconds
+    w_duration = 86400, % seconds
     worker_config,
     workers = [] :: [#chi{}],
     waiting = [], % waiting for restart
     restart_delay,
-    restart_policy,
+    restart_policy, % restart, none, delay
     w_queue,
-    min_workers = 5,
-    max_workers = 255
+    min_workers = 5
 }).
 
 % state of a handler and a receiver gen_server

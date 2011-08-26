@@ -29,29 +29,18 @@
 -module(ejobman_worker_spawn).
 -export([spawn_one_worker/2]).
 -include("ejobman.hrl").
-%%-----------------------------------------------------------------------------
-%%
-%% @doc checks for max number of workers. Spawns a new worker if possible.
-%%
--spec spawn_one_worker(#ejm{}, #pool{}) -> {reference() | error, #pool{}}.
 
-spawn_one_worker(St, #pool{max_workers = Max, workers = Workers} = Pool) ->
-    Len = length(Workers),
-    if  Len < Max ->
-            real_spawn_one_worker(St, Pool);
-        true ->
-            {error, Pool}
-    end.
-
-%%-----------------------------------------------------------------------------
+%%%----------------------------------------------------------------------------
+%%% API
+%%%----------------------------------------------------------------------------
 %%
 %% @doc Spawns a new worker, stores its pid (and a ref) in a list,
 %% returns the modified pool.
 %% @since 2011-07-21 18:00
 %%
--spec real_spawn_one_worker(#ejm{}, #pool{}) -> {reference() | error, #pool{}}.
+-spec spawn_one_worker(#ejm{}, #pool{}) -> {reference() | error, #pool{}}.
 
-real_spawn_one_worker(C, Pool) ->
+spawn_one_worker(C, Pool) ->
     Id = make_ref(),
     Child_config = make_child_config(Pool, Id),
     StartFunc = {ejobman_long_worker, start_link, [Child_config]},
@@ -76,7 +65,9 @@ real_spawn_one_worker(C, Pool) ->
             {error, Pool}
     end.
 
-%%-----------------------------------------------------------------------------
+%%%----------------------------------------------------------------------------
+%%% Internal functions
+%%%----------------------------------------------------------------------------
 %%
 %% @doc creates config (proplist actually) for a child
 %% @since 2011-07-21 18:00

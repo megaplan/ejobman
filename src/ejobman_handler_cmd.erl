@@ -143,23 +143,17 @@ all_pools_long_command(#ejm{w_pools = Pools} = St) ->
 %%
 -spec do_long_commands(#ejm{}, #pool{}) -> #pool{}.
 
-do_long_commands(St,
-    #pool{w_queue=Q, workers=Workers, max_workers=Max} = Pool) ->
-    Len = length(Workers),
-    mpln_p_debug:pr({?MODULE, 'do_long_commands', ?LINE, Len, Max},
+do_long_commands(St, #pool{w_queue=Q} = Pool) ->
+    mpln_p_debug:pr({?MODULE, 'do_long_commands', ?LINE},
         St#ejm.debug, run, 4),
     case queue:is_empty(Q) of
-        false when Len < Max ->
+        false ->
             check_one_long_command(St, Pool);
             % no [tail] recursion here because we spawn just one worker
             % at a time. Mass spawning might be time consuming
-        false ->
-            mpln_p_debug:pr({?MODULE, 'do_long_commands too many workers',
-                ?LINE, Len, Max}, St#ejm.debug, run, 3),
-            assign_one_long_command(St, Pool);
         _ ->
             mpln_p_debug:pr({?MODULE, 'do_long_commands empty queue',
-                ?LINE, Len, Max}, St#ejm.debug, run, 4),
+                ?LINE}, St#ejm.debug, run, 4),
             Pool
     end.
 
@@ -304,95 +298,6 @@ add_child(#ejm{ch_data=Children} = St, Pid) ->
     Ch = #chi{pid = Pid, start = now()},
     St#ejm{ch_data = [Ch | Children]}
 .
-%%-----------------------------------------------------------------------------
-%%
-%% @doc assigns a job to any (or best fit) worker
-%% @since 2011-07-25 15:40
-%%
--spec assign_one_long_command(#ejm{}, #pool{}) -> #pool{}.
-
-assign_one_long_command(St, #pool{w_queue = Q} = Pool) ->
-    mpln_p_debug:pr({?MODULE, 'assign_one_long_command', ?LINE},
-        St#ejm.debug, run, 4),
-    case queue:out(Q) of
-        {{value, Item}, Q2} ->
-            Worker = find_best_pid(St, Pool),
-            mpln_p_debug:pr({?MODULE, 'assign_one_long_command', ?LINE, Worker},
-                St#ejm.debug, run, 3),
-            ejobman_long_worker:cmd(Worker, Item),
-            Pool#pool{w_queue = Q2};
-        _ ->
-            Pool
-    end
-.
-%%-----------------------------------------------------------------------------
-%%
-%% @doc finds a worker that fits best to do some work. Search is based on
-%% process memory usage, message queue length and a random number as
-%% the last resort
-%%
--spec find_best_pid(#ejm{}, #pool{}) -> pid().
-
-find_best_pid(St, #pool{workers=Workers}) ->
-    {A, B, C} = now(),
-    random:seed(A, B, C),
-    List = lists:map(fun(#chi{pid=X}) ->
-            R = random:uniform(100),
-            {X, process_info(X, [memory, message_queue_len]), R}
-        end, Workers),
-    mpln_p_debug:pr({?MODULE, 'find_best_pid list', ?LINE, List},
-        St#ejm.debug, run, 5),
-    Sorted = lists:sort(fun compare_workers/2, List),
-    {Pid, _, _} = hd(Sorted),
-    %Short = lists:sublist(Sorted, 4),
-    %Idx = crypto:rand_uniform(1, length(Short)+1),
-    %{Pid, _, _} = lists:nth(Idx, Short),
-    Pid
-.
-%%-----------------------------------------------------------------------------
-%%
-%% @doc compares two workers on smoothed memory usage, message_queue_len
-%% and random value. Random value is only used if the others are equal
-%%
--spec compare_workers({pid(), list(), integer()},
-    {pid(), list(), integer()}) -> boolean().
-
-compare_workers({_A, La, Ra}, {_B, Lb, Rb}) ->
-    Qa = get_int_value(La, message_queue_len),
-    Qb = get_int_value(Lb, message_queue_len),
-    Msa = get_int_value(La, memory),
-    Msb = get_int_value(Lb, memory),
-    Ma = round(Msa / 32768), % kind of smoothing to eliminate small differences
-    Mb = round(Msb / 32768),
-    if  Qa < Qb ->
-            true;
-        Qa == Qb ->
-            if  Ma < Mb ->
-                    true;
-                Ma == Mb ->
-                    Ra =< Rb;
-                Ma > Mb ->
-                    false
-            end;
-        Qa > Qb ->
-            false
-    end
-.
-
-%%
-%% @doc extracts a value from a proper list. Sometimes process_info
-%% returns 'undefined' instead of an integer, so it must be handled
-%%
--spec get_int_value(list(), atom()) -> non_neg_integer().
-
-get_int_value(List, Key) ->
-    case proplists:get_value(Key, List) of
-        N when is_integer(N) ->
-            N;
-        _ ->
-            0
-    end.
-
 %%-----------------------------------------------------------------------------
 %%
 %% @doc randomly selects pool

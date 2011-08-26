@@ -123,8 +123,7 @@ fill_one_pool_config(List) ->
         w_duration = get_worker_duration(List),
         restart_policy = proplists:get_value(restart_policy, List),
         restart_delay = proplists:get_value(restart_delay, List, 10),
-        min_workers = proplists:get_value(min_workers, List, 2),
-        max_workers = proplists:get_value(max_workers, List, 255)
+        min_workers = proplists:get_value(min_workers, List, 2)
     }.
 
 %%%----------------------------------------------------------------------------
@@ -136,7 +135,7 @@ fill_one_pool_config(List) ->
 %%
 get_worker_duration(List) ->
     case proplists:get_value(worker_duration, List, 86400) of
-        Val when is_integer(Val) and Val > 0 ->
+        Val when is_integer(Val), Val > 0 ->
             Val;
         _ ->
             0
@@ -209,6 +208,7 @@ fill_config_test() ->
         {debug, [{info, 5}, {run, 2}]}
         ]).
 
+%%-----------------------------------------------------------------------------
 get_test_config() ->
 [
 {handler, [
@@ -243,6 +243,7 @@ get_test_config() ->
 {log, "log/e"}
 ].
 
+%%-----------------------------------------------------------------------------
 fill_ejm_config_test() ->
     Config = get_test_config(),
     C = fill_ejm_handler_config(Config),
@@ -257,6 +258,144 @@ fill_ejm_config_test() ->
          {dst_host,"host3.localdomain"}]],
     ?assert(C#ejm.url_rewrite =:= C2)
 .
+
+%%-----------------------------------------------------------------------------
+get_test_config_2() ->
+[
+
+{pools, [
+    [
+        {id, p4},
+        {min_workers, 1}, % long lasting workers
+        {restart_policy, delay},
+        {restart_delay, 10}, % sec. Delay before restarting the crashed worker
+        {worker_duration, 601}, % seconds. Time before terminate
+        {worker, [
+            {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
+            {debug,
+                [
+                    {run, 6},
+                    {http, 1}
+                ]
+            }]}
+    ],
+    [
+        {id, p1},
+        {min_workers, 1}, % long lasting workers
+        {restart_policy, delay},
+        {restart_delay, 10}, % sec. Delay before restarting the crashed worker
+        {worker_duration, 0}, % seconds. Time before terminate
+        {worker, [
+            {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
+            {debug,
+                [
+                    {run, 6},
+                    {http, 1}
+                ]
+            }]}
+    ],
+    [
+        {id, p3},
+        {min_workers, 1}, % long lasting workers
+        {restart_policy, delay},
+        {restart_delay, 10}, % sec. Delay before restarting the crashed worker
+        {worker, [
+            {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
+            {debug,
+                [
+                    {run, 6},
+                    {http, 1}
+                ]
+            }]}
+    ],
+    [
+        {id, p2},
+        {min_workers, 2}, % long lasting workers
+        {worker_duration, -1}, % seconds. Time before terminate
+        {worker, [
+            {name, "/etc/erpher/workers/test.sh"},
+            {debug,
+                [
+                    {run, 6},
+                    {http, 1}
+                ]
+            }]}
+    ]
+]}
+
+].
+
+%%-----------------------------------------------------------------------------
+fill_ejm_handler_config_test() ->
+    Config = get_test_config_2(),
+    C = fill_ejm_handler_config(Config),
+    C2 = #ejm{
+        w_pools = [
+            #pool{
+                w_queue = queue:new(),
+                id=p4,
+                min_workers=1,
+                restart_policy=delay,
+                restart_delay=10,
+                w_duration=601,
+                worker_config= [
+                    {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
+                    {debug,
+                        [
+                            {run, 6},
+                            {http, 1}
+                        ]
+                    }]
+            },
+            #pool{
+                w_queue = queue:new(),
+                id=p1,
+                min_workers=1,
+                restart_policy=delay,
+                restart_delay=10,
+                w_duration=0,
+                worker_config=[
+                    {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
+                    {debug,
+                        [
+                            {run, 6},
+                            {http, 1}
+                        ]
+                    }]
+            },
+            #pool{
+                w_queue = queue:new(),
+                id=p3,
+                min_workers=1,
+                restart_policy=delay,
+                restart_delay=10,
+                worker_config=[
+                    {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
+                    {debug,
+                        [
+                            {run, 6},
+                            {http, 1}
+                        ]
+                    }]
+            },
+            #pool{
+                w_queue = queue:new(),
+                id=p2,
+                min_workers=2,
+                w_duration=0,
+                restart_delay=10,
+                worker_config=[
+                    {name, "/etc/erpher/workers/test.sh"},
+                    {debug,
+                        [
+                            {run, 6},
+                            {http, 1}
+                        ]
+                    }]
+            }
+        ]
+    },
+    ?assert(C#ejm.w_pools =:= C2#ejm.w_pools).
 
 -endif.
 %%-----------------------------------------------------------------------------
