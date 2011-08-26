@@ -3,7 +3,7 @@
 
 -define(T, 1000).
 -define(TC, 0).
--define(LOG, "/var/log/ejobman/ejm").
+-define(LOG, "/var/log/erpher/ejm").
 -define(CONF, "ejobman.conf").
 
 % state of a worker gen_server

@@ -42,7 +42,7 @@
 -include("rabbit_session.hrl").
 
 %%%----------------------------------------------------------------------------
-%%% api
+%%% API
 %%%----------------------------------------------------------------------------
 %%
 %% @doc fills in an rses record with rabbit connection parameters.
@@ -61,9 +61,7 @@ stuff_rabbit_with(List) ->
         'exchange' = proplists:get_value(exchange, R, <<"test_exch">>),
         'exchange_type' = proplists:get_value(exchange_type, R, <<"topic">>),
         'queue' = proplists:get_value(queue, R, <<"test_queue">>),
-        'routing_key' = proplists:get_value(routing_key, R, <<"test_rt_key">>),
-        'timeout' = proplists:get_value(timeout, R, 15),
-        'step_timeout' = proplists:get_value(step_timeout, R, 0.1)
+        'routing_key' = proplists:get_value(routing_key, R, <<"test_rt_key">>)
     }
 .
 %%-----------------------------------------------------------------------------
