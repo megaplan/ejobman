@@ -51,6 +51,10 @@ init(_Args) ->
         ejobman_receiver, {ejobman_receiver, start_link, []},
         permanent, 1000, worker, [ejobman_receiver]
         },
+    Worker = {
+        ejobman_worker, {ejobman_worker, start_link, []},
+        permanent, 1000, worker, [ejobman_worker]
+        },
     Handler = {
         ejobman_handler, {ejobman_handler, start_link, []},
         permanent, 1000, worker, [ejobman_handler]
@@ -64,7 +68,8 @@ init(_Args) ->
         transient, infinity, supervisor, [ejobman_long_sup]
         },
     {ok, {{one_for_one, ?RESTARTS, ?SECONDS},
-        [LSup, Sup, Receiver, Handler]}}. % LSup must be started before Handler
+        % LSup must be started before Handler
+        [LSup, Sup, Receiver, Handler, Worker]}}.
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------

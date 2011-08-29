@@ -35,6 +35,7 @@
 
 -export([get_config/1]).
 -export([get_config_hdl/1]).
+-export([get_config_worker/1]).
 -export([get_config_child/1]).
 -export([fill_one_pool_config/1]).
 
@@ -70,6 +71,17 @@ get_config_child(List) ->
         params = proplists:get_value(params, List, []),
         debug = proplists:get_value(debug, List, [])
     }.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc reads config file, fills in ejm record with configured values
+%% @since 2011-08-29 14:09
+%%
+-spec get_config_worker(string()) -> #ejm{}.
+
+get_config_worker(Default) ->
+    List = get_config_list(Default),
+    fill_ejm_worker_config(List).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -171,16 +183,29 @@ fill_pools_config(List) ->
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc creates a worker config
+%% @since 2011-08-29 14:15
+%%
+-spec fill_ejm_worker_config(list()) -> #ejm{}.
+
+fill_ejm_worker_config(List) ->
+    Hdl_list = proplists:get_value(ll_worker, List, []),
+    Pools = fill_pools_config(Hdl_list),
+    Web = fill_web_config(Hdl_list),
+    Web#ejm{
+        w_pools = Pools,
+        debug = proplists:get_value(debug, Hdl_list, [])
+    }.
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc creates a handler config
 %%
 -spec fill_ejm_handler_config(list()) -> #ejm{}.
 
 fill_ejm_handler_config(List) ->
     Hdl_list = proplists:get_value(handler, List, []),
-    Pools = fill_pools_config(List),
-    Web = fill_web_config(List),
-    Web#ejm{
-        w_pools = Pools,
+    #ejm{
         ch_data = [],
         ch_queue = queue:new(),
         url_rewrite = proplists:get_value(url_rewrite, Hdl_list, []),

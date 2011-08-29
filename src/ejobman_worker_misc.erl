@@ -1,5 +1,5 @@
 %%%
-%%% ejobman_handler_worker: miscellaneous functions for worker pools
+%%% ejobman_worker_misc: miscellaneous functions for worker pools
 %%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
@@ -27,7 +27,7 @@
 %%% @doc miscellaneous functions for worker pools
 %%%
 
--module(ejobman_handler_worker).
+-module(ejobman_worker_misc).
 
 %%%----------------------------------------------------------------------------
 %%% Exports
@@ -143,7 +143,7 @@ clear_pool_waiting_workers(St, #pool{restart_delay=Limit, waiting=Waiting} =
                 Delta =< Limit * 1000000
     end,
     {Found, Not_found} = lists:partition(F, Waiting),
-    lists:foreach(fun(_) -> ejobman_handler:add_worker(Pool#pool.id) end,
+    lists:foreach(fun(_) -> ejobman_worker:add_worker(Pool#pool.id) end,
         Not_found),
     mpln_p_debug:pr({?MODULE, 'clear_pool_waiting_workers', ?LINE,
         Pool#pool.id, Found, Not_found}, St#ejm.debug, run, 5),
@@ -259,7 +259,7 @@ crashed_pid_action(Pool, Obj, Acc) ->
             Now = now(),
             [{Obj, Now} | Acc];
         restart ->
-            ejobman_handler:add_worker(Pool#pool.id),
+            ejobman_worker:add_worker(Pool#pool.id),
             Acc;
         _ ->
             Acc

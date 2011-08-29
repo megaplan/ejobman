@@ -1,5 +1,5 @@
 %%%
-%%% ejobman_handler_web_page: create web page
+%%% ejobman_worker_web_page: create web page
 %%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
@@ -27,7 +27,7 @@
 %%% @doc create web page
 %%%
 
--module(ejobman_handler_web_page).
+-module(ejobman_worker_web_page).
 
 %%%----------------------------------------------------------------------------
 %%% Exports

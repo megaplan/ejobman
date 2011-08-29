@@ -1,5 +1,5 @@
 %%%
-%%% ejobman_handler_web: start web server
+%%% ejobman_worker_web: start web server
 %%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
@@ -27,7 +27,7 @@
 %%% @doc start web server that serves the monitoring page
 %%%
 
--module(ejobman_handler_web).
+-module(ejobman_worker_web).
 
 %%%----------------------------------------------------------------------------
 %%% Exports
@@ -49,7 +49,7 @@
 %%% API
 %%%----------------------------------------------------------------------------
 %%
-%% @doc prepare web server which is used to serve handler monitoring page only
+%% @doc prepare web server which is used to serve worker monitoring page only
 %% @since 2011-08-17 13:40
 %%
 -spec prepare_web(#ejm{}) -> #ejm{}.
@@ -90,20 +90,20 @@ dispatch(Req, C) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------------
 %%
-%% @doc gets status2 from ejobman_handler and sends it as plain text response
+%% @doc gets status2 from ejobman_worker and sends it as plain text response
 %% to the client of the web server
 %%
 -spec get_resource(#ejm{}, any(), any(), any()) -> any().
 
 get_resource(C, Req, "/status2", "full") ->
-    Res = ejobman_handler:get_status2(),
+    Res = ejobman_worker:get_status2(),
     mpln_p_debug:pr({?MODULE, dispatch, ?LINE, Res}, C#ejm.debug, http, 4),
-    Response = ejobman_handler_web_page:create_plain_status(Res),
+    Response = ejobman_worker_web_page:create_plain_status(Res),
     Req:ok(Response);
 get_resource(C, Req, "/status2", _Type) ->
-    Res = ejobman_handler:get_status2(),
+    Res = ejobman_worker:get_status2(),
     mpln_p_debug:pr({?MODULE, dispatch, ?LINE, Res}, C#ejm.debug, http, 4),
-    Response = ejobman_handler_web_page:create_html_status(Res),
+    Response = ejobman_worker_web_page:create_html_status(Res),
     Req:ok(Response);
 get_resource(_C, Req, _Path, _Type) ->
     Req:respond({404, [], "404 Not Found\r\n"}).
