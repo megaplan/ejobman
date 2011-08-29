@@ -1,9 +1,9 @@
-The path to the config is defined in 'CONFIG' atom in ejobman.app file.
-The default value is string "/etc/erpher/ejobman.conf". One can use
-the config file at the release start to change the default path.
-Every item in a list is a {key, value} tuple, where value can be a list again.
+The path to the config is defined in the 'CONFIG' atom in ejobman.app file.
+The default value is the string "/etc/erpher/ejobman.conf". To change
+the default path one can use the '-config' parameter at the release start.
+The config is a list of {key, value} tuples (the value can be a list itself).
 
-The main config is a list containing the following sections:
+The list can contain the following sections:
 
 - rabbit
 - web_server_opts
@@ -14,58 +14,70 @@ The main config is a list containing the following sections:
 
 rabbit
 ======
-Section 'rabbit' is used by ejobman_receiver to connect to an AMQP broker.
-port - broker's port. Integer. Default: 5672
-host - broker's host. Atom. Default: '127.0.0.1'
-user - username to use in rabbit-mq connection. Binary. Default: <<"guest">>
-password - password to use in rabbit-mq connection. Binary. Default: <<"guest">>
-vhost - virtual host to use in rabbit-mq connection. Binary. Default: <<"/">>
-exchange - exchange to use in rabbit-mq connection. Binary. Default: <<"test_exch">>
-exchange_type - exchange type to use in rabbit-mq connection. Binary. Default: <<"topic">>
-queue - queue to use in rabbit-mq connection. Binary. Default: <<"test_queue">>
-routing_key - routing key to use in rabbit-mq connection. Binary. Default: <<"test_rt_key">>
+The 'rabbit' section contains AMQP connection parameters.
+The parameters:
+  port - broker's port. Integer. Default: 5672
+  host - broker's host. Atom. Default: '127.0.0.1'
+  user - username to use in rabbit-mq connection. Binary. Default: <<"guest">>
+  password - password to use in rabbit-mq connection. Binary. Default:
+  <<"guest">>
+  vhost - virtual host to use in rabbit-mq connection. Binary. Default: <<"/">>
+  exchange - exchange to use in rabbit-mq connection. Binary. Default:
+  <<"test_exch">>
+  exchange_type - exchange type to use in rabbit-mq connection. Binary.
+  Default: <<"topic">>
+  queue - queue to use in rabbit-mq connection. Binary. Default:
+  <<"test_queue">>
+  routing_key - routing key to use in rabbit-mq connection. Binary. Default:
+  <<"test_rt_key">>
 
 web_server_opts
 ===============
-Section 'web_server_opts' is used by ejobman_handler as a list of parameters
-for mochiweb. If the whole section is missing then mochiweb is not started.
-port - port to bind. Integer. No default
-name - name of a registered process. Atom. No default
-ssl - ssl flag. Boolean. No default
-ssl_opts - list of ssl options. No default
-certfile - path to ssl certificate. Must be part of ssl_opts. String. No default
-keyfile  - path to ssl key file. Must be part of ssl_opts. String. No default
+The 'web_server_opts' section contains parameters for mochiweb that
+is started by ejobman_handler. If the whole section is missing then no mochiweb
+is started.
+The parameters:
+  port - port to bind. Integer. No default
+  name - name of a registered process. Atom. No default
+  ssl - ssl flag. Boolean. No default
+  ssl_opts - list of ssl options (every option is a {key, value} typle).
+  No default.
+  The options:
+    certfile - path to ssl certificate. Must be part of ssl_opts. String.
+    No default
+    keyfile  - path to ssl key file. Must be part of ssl_opts. String. No
+	default
 
 debug
 =====
-Section 'debug' is used by ejobman_receiver. The section is a list of
-{key, value} tuples, where key is an atom and value is an integer. The bigger
-value is, the more verbose debug logs (and the slower the erlang VM works).
-You are warned.
+The 'debug' section keeps parameters for ejobman_receiver. The section
+is a list of {key, value} tuples, where the key is an atom and the value
+is an integer. The bigger value is, the more verbose debug logs (and
+the slower the erlang VM works). You are warned.
 The possible keys:
-config - config related information
-run - runtime information
+  config - config related information
+  run - runtime information
 
 handler
 =======
-Section 'handler' is used by ejobman_handler. The section contains
-the following items:
+The 'handler' section keeps parameters for ejobman_handler. The section
+contains the following items:
 
 url_rewrite - list of rewrite items. Every rewrite item can contain
 the following:
   src_type - type of src_host_part. Optional. Possible values: regex, none.
   Default: none
   src_host_part - string or regex the input host (host only!) is matched
-  against. String. Mandatory. No default
+  against. String. No default
   dst_host_part - replacement for the source host (host only!). String.
   The source host is used if dst_host_part is undefined. No default
   dst_host_hdr - string to be used as "Host" header. String. No default
 
 max_children - the max number of disposable children. Integer. Default: 32767
 
-debug - a list of {key, value} tuples, where key is an atom and value is
-an integer. The bigger value is, the more verbose debug logs (and the slower
-the erlang VM works). You are warned.
+debug - a list of {key, value} tuples, where the key is an atom and the value
+is an integer. The bigger value is, the more verbose debug logs (and the slower
+the erlang VM works, thanks to error_logger). You are warned.
 The possible keys:
   config - config related information
   run - runtime information
@@ -75,7 +87,7 @@ pools
 =====
 Section 'pools' is used by ejobman_handler to create pools of workers. The
 section is a list of pool items. Each pool item is a list of {key, value}
-tuples. The pool item can contain the following item:
+tuples. The pool item can contain the following items:
   id - pool id. Atom. No default
   min_workers - amount of workers to start in the beginning
   restart_delay - delay in seconds before restarting crashed worker. Integer.
@@ -83,15 +95,18 @@ tuples. The pool item can contain the following item:
   restart_policy - policy for restarting crashed worker. Atom. Possible values:
     restart (immediate restart), none (ignore), delay (restart after delay).
     Default: none
-  worker_duration - time in seconds for worker to operate. Integer.
+  worker_duration - time in seconds for worker to operate. After that time
+    ejobman_handler restarts the worker. Integer.
     Default: 86400
   worker - list of parameters for worker. Possible keys:
     name - string to be used for spawning. String. No default.
-    debug - list of debug items. Possible keys:
+    debug - list of debug items ({key, value} tuples as usual). Possible keys:
       run - runtime information
 
 log
 ===
-Section 'log' is used by ejobman_receiver to setup external logfile.
-The value is a directory name and the beginning part of a filename. String.
-Default: "/var/log/erpher/ejm"
+The 'log' section contains parameters that are used by ejobman_receiver
+to setup external logfile.
+The parameters:
+  log - the value is a directory name and the beginning part of a filename.
+  String. Default: "/var/log/erpher/ejm"
