@@ -1,7 +1,7 @@
 {application, ejobman, [
     {description, "ejobman"},
     {id, "ejobman"},
-    {vsn, "1.0"},
+    {vsn, "1.1"},
     {modules, [
         ejobman_app,
         ejobman_child,
@@ -12,21 +12,10 @@
         ejobman_data,
         ejobman_handler_cmd,
         ejobman_handler,
-        ejobman_long_sup,
-        ejobman_long_worker,
         ejobman_rb,
         ejobman_receiver_cmd,
         ejobman_receiver,
-        ejobman_sup,
-        ejobman_worker,
-        ejobman_worker_misc,
-        ejobman_worker_spawn,
-        ejobman_worker_web,
-        ejobman_worker_web_page,
-        mpln_misc_conf,
-        mpln_misc_log,
-        mpln_misc_time,
-        mpln_p_debug
+        ejobman_sup
     ]},
     {registered, []},
     {env, [
