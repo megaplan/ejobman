@@ -50,9 +50,8 @@
 %%%----------------------------------------------------------------------------
 %%% gen_server callbacks
 %%%----------------------------------------------------------------------------
-init([Config]) ->
-    application:start(inets),
-    C = ejobman_conf:get_config(Config),
+init(_) ->
+    C = ejobman_conf:get_config(),
     New = prepare_all(C),
     process_flag(trap_exit, true), % to perform amqp teardown
     mpln_p_debug:pr({'init done', ?MODULE, ?LINE}, New#ejm.debug, run, 1),
@@ -175,8 +174,9 @@ logrotate() ->
 -spec prepare_all(#ejm{}) -> #ejm{}.
 
 prepare_all(C) ->
-    mpln_misc_log:prepare_log(C#ejm.log),
+    prepare_log(C),
     prepare_q(C).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc Prepare RabbitMQ
@@ -187,4 +187,17 @@ prepare_all(C) ->
 prepare_q(C) ->
     {ok, Conn} = ejobman_rb:start(C#ejm.rses),
     C#ejm{conn=Conn}.
-%------------------------------------------------------------------------------
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc prepare log if it is defined
+%% @since 2011-09-01 17:14
+%%
+-spec prepare_log(#ejm{}) -> ok.
+
+prepare_log(#ejm{log=undefined}) ->
+    ok;
+prepare_log(#ejm{log=Log}) ->
+    mpln_misc_log:prepare_log(Log).
+
+%%-----------------------------------------------------------------------------

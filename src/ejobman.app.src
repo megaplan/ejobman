@@ -17,11 +17,12 @@
         ejobman_receiver,
         ejobman_sup
     ]},
-    {registered, []},
-    {env, [
-        {'CONFIG', "/etc/erpher/ejobman.conf"}
-    ]},
+    {registered, [
+        ejobman_receiver.erl,
+        ejobman_handler,
+        ejobman_child_supervisor
+	]},
     {mod, {ejobman_app,[]}},
-    {applications, [kernel, stdlib]}
+    {applications, [kernel, stdlib, inets, ssl]}
 ]}.
 

@@ -56,10 +56,8 @@
 %%%----------------------------------------------------------------------------
 %%% gen_server callbacks
 %%%----------------------------------------------------------------------------
-init(Config) ->
-    application:start(inets),
-    application:start(ssl),
-    C = ejobman_conf:get_config_hdl(Config),
+init(_) ->
+    C = ejobman_conf:get_config_hdl(),
     % trap_exit is unnecessary. Children are ripped by supervisor
     %process_flag(trap_exit, true),
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),
@@ -102,8 +100,6 @@ handle_call(_N, _From, St) ->
 
 handle_cast(stop, St) ->
     {stop, normal, St};
-handle_cast(st0p, St) ->
-    St;
 handle_cast(_N, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _N}, St#ejm.debug, run, 3),
     New = do_smth(St),

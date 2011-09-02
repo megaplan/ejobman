@@ -33,9 +33,8 @@
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([get_config/1]).
--export([get_config_hdl/1]).
--export([get_config_worker/1]).
+-export([get_config/0]).
+-export([get_config_hdl/0]).
 -export([get_config_child/1]).
 -export([fill_one_pool_config/1]).
 
@@ -75,23 +74,12 @@ get_config_child(List) ->
 %%-----------------------------------------------------------------------------
 %%
 %% @doc reads config file, fills in ejm record with configured values
-%% @since 2011-08-29 14:09
-%%
--spec get_config_worker(string()) -> #ejm{}.
-
-get_config_worker(Default) ->
-    List = get_config_list(Default),
-    fill_ejm_worker_config(List).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc reads config file, fills in ejm record with configured values
 %% @since 2011-07-15
 %%
--spec get_config_hdl(string()) -> #ejm{}.
+-spec get_config_hdl() -> #ejm{}.
 
-get_config_hdl(Default) ->
-    List = get_config_list(Default),
+get_config_hdl() ->
+    List = get_config_list(),
     fill_ejm_handler_config(List).
 
 %%-----------------------------------------------------------------------------
@@ -100,10 +88,10 @@ get_config_hdl(Default) ->
 %% values
 %% @since 2011-07-15
 %%
--spec get_config(string()) -> #ejm{}.
+-spec get_config() -> #ejm{}.
 
-get_config(Default) ->
-    List = get_config_list(Default),
+get_config() ->
+    List = get_config_list(),
     fill_config(List).
 
 %%-----------------------------------------------------------------------------
@@ -119,7 +107,7 @@ fill_config(List) ->
     #ejm{
         rses = Rses,
         debug = proplists:get_value(debug, List, []),
-        log = proplists:get_value(log, List, ?LOG)
+        log = proplists:get_value(log, List)
     }.
 
 %%-----------------------------------------------------------------------------
@@ -155,47 +143,13 @@ get_worker_duration(List) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc chooses either file from application config or default file and then
-%% does read_config for that file
+%% @doc fetches the configuration from environment
 %% @since 2011-08-01 17:01
 %%
--spec get_config_list(string()) -> list().
+-spec get_config_list() -> list().
 
-get_config_list(Default) ->
-    case application:get_env('ejobman', 'CONFIG') of
-        {ok, File} when is_list(File) ->
-            mpln_misc_conf:read_config(File);
-        {ok, A} when is_atom(A) ->
-            File = atom_to_list(A),
-            mpln_misc_conf:read_config(File);
-        _ ->
-            mpln_misc_conf:read_config(Default)
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc fills configs for the pools defined
-%%
-fill_pools_config(List) ->
-    Pools = proplists:get_value(pools, List, []),
-    lists:map(fun fill_one_pool_config/1, Pools)
-.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates a worker config
-%% @since 2011-08-29 14:15
-%%
--spec fill_ejm_worker_config(list()) -> #ejm{}.
-
-fill_ejm_worker_config(List) ->
-    Hdl_list = proplists:get_value(ll_worker, List, []),
-    Pools = fill_pools_config(Hdl_list),
-    Web = fill_web_config(Hdl_list),
-    Web#ejm{
-        w_pools = Pools,
-        debug = proplists:get_value(debug, Hdl_list, [])
-    }.
+get_config_list() ->
+    application:get_all_env('ejobman').
 
 %%-----------------------------------------------------------------------------
 %%
@@ -211,15 +165,6 @@ fill_ejm_handler_config(List) ->
         url_rewrite = proplists:get_value(url_rewrite, Hdl_list, []),
         max_children = proplists:get_value(max_children, Hdl_list, 32767),
         debug = proplists:get_value(debug, Hdl_list, [])
-    }.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc gets web server parameters and stores them in the config record
-%%
-fill_web_config(List) ->
-    #ejm{
-        web_server_opts = proplists:get_value(web_server_opts, List, [])
     }.
 
 %%%----------------------------------------------------------------------------
