@@ -62,6 +62,7 @@
 
 start(Rses) ->
     Host = Rses#rses.host,
+    Port = Rses#rses.port,
     User = Rses#rses.user,
     Password = Rses#rses.password,
     Vhost = Rses#rses.vhost,
@@ -69,6 +70,7 @@ start(Rses) ->
         username = User,
         password = Password,
         host = Host,
+        port = Port,
         virtual_host = Vhost
         }),
     {ok, Channel} = amqp_connection:open_channel(Connection),
