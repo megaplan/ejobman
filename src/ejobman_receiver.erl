@@ -56,6 +56,7 @@ init(_) ->
     process_flag(trap_exit, true), % to perform amqp teardown
     mpln_p_debug:pr({'init done', ?MODULE, ?LINE}, New#ejm.debug, run, 1),
     {ok, New, ?T}.
+
 %------------------------------------------------------------------------------
 -spec handle_call(any(), any(), #ejm{}) -> {stop|reply, any(), any(), any()}.
 %%
@@ -70,6 +71,7 @@ handle_call(_N, _From, St) ->
     mpln_p_debug:p("~p::~p other:~n~p~n",
         [?MODULE, ?LINE, _N], St#ejm.debug, run, 4),
     {reply, {error, unknown_request}, St, ?T}.
+
 %------------------------------------------------------------------------------
 -spec handle_cast(any(), #ejm{}) -> any().
 %%
@@ -90,11 +92,13 @@ handle_cast(_Other, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
         St#ejm.debug, run, 2),
     {noreply, St, ?T}.
+
 %------------------------------------------------------------------------------
 terminate(_, #ejm{conn=Conn} = State) ->
     ejobman_rb:teardown(Conn),
     mpln_p_debug:pr({?MODULE, terminate, ?LINE}, State#ejm.debug, run, 1),
     ok.
+
 %------------------------------------------------------------------------------
 -spec handle_info(any(), #ejm{}) -> any().
 %%
@@ -113,9 +117,11 @@ handle_info({#'basic.deliver'{delivery_tag = _Tag}, Content} = _Req, State) ->
 handle_info(_Req, State) ->
     mpln_p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#ejm.debug, run, 3),
     {noreply, State, ?T}.
+
 %------------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
+
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
@@ -126,6 +132,7 @@ code_change(_Old_vsn, State, _Extra) ->
 %%
 start() ->
     start_link().
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc starts receiver gen_server with pre-defined config
@@ -144,6 +151,7 @@ start_link() ->
 
 start_link(Config) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc stops receiver gen_server
@@ -179,7 +187,7 @@ prepare_all(C) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc Prepare RabbitMQ
+%% @doc Prepare RabbitMQ exchange, queue, consumer
 %% @since 2011-07-15
 %%
 -spec prepare_q(#ejm{}) -> #ejm{}.

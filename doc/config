@@ -1,19 +1,59 @@
-The path to the config is defined in the 'CONFIG' atom in ejobman.app file.
-The default value is the string "/etc/erpher/ejobman.conf". To change
-the default path one can use the '-config' parameter at the release start.
 The config is a list of {key, value} tuples (the value can be a list itself).
+To change the default values one can use the '-config' parameter at
+the release start.
 
 The list can contain the following sections:
 
 - rabbit
-- web_server_opts
-- debug
-- handler
-- pools
-- log
+- mnesia
+- kernel
+- sasl
+- ejobman
+  * rabbit
+  * debug
+  * handler
+  * log
+- eworkman
+  * web_server_opts
+  * pools
+  * log
+  * debug
+
+
+Rabbit
+======
+
+This section may contain any parameters mentioned in rabbit.app. See rabbit.app
+for the reference.
+
+
+Mnesia
+======
+
+This section contains the parameters for mnesia db. See mnesia documentation
+for the reference.
+
+
+Kernel
+======
+
+This section contains the parameters for kernel app. See kernel app
+documentation for the reference.
+
+
+Sasl
+====
+
+This section contains the parameters for sasl app. See sasl app documentation
+for the reference.
+
+
+Ejobman
+=======
 
 rabbit
-======
+------
+
 The 'rabbit' section contains AMQP connection parameters.
 The parameters:
   port - broker's port. Integer. Default: 5672
@@ -23,34 +63,18 @@ The parameters:
   <<"guest">>
   vhost - virtual host to use in rabbit-mq connection. Binary. Default: <<"/">>
   exchange - exchange to use in rabbit-mq connection. Binary. Default:
-  <<"test_exch">>
+  <<"ejobman">>
   exchange_type - exchange type to use in rabbit-mq connection. Binary.
   Default: <<"topic">>
   queue - queue to use in rabbit-mq connection. Binary. Default:
   <<"test_queue">>
   routing_key - routing key to use in rabbit-mq connection. Binary. Default:
-  <<"test_rt_key">>
-
-web_server_opts
-===============
-The 'web_server_opts' section contains parameters for mochiweb that
-is started by ejobman_handler. If the whole section is missing then no mochiweb
-is started.
-The parameters:
-  port - port to bind. Integer. No default
-  name - name of a registered process. Atom. No default
-  ssl - ssl flag. Boolean. No default
-  ssl_opts - list of ssl options (every option is a {key, value} typle).
-  No default.
-  The options:
-    certfile - path to ssl certificate. Must be part of ssl_opts. String.
-    No default
-    keyfile  - path to ssl key file. Must be part of ssl_opts. String. No
-	default
+  <<"new">>
 
 debug
-=====
-The 'debug' section keeps parameters for ejobman_receiver. The section
+-----
+
+The 'debug' section keeps parameters for ejobman. The section
 is a list of {key, value} tuples, where the key is an atom and the value
 is an integer. The bigger value is, the more verbose debug logs (and
 the slower the erlang VM works). You are warned.
@@ -59,7 +83,8 @@ The possible keys:
   run - runtime information
 
 handler
-=======
+-------
+
 The 'handler' section keeps parameters for ejobman_handler. The section
 contains the following items:
 
@@ -83,9 +108,42 @@ The possible keys:
   run - runtime information
   http - web related information
 
+log
+---
+The 'log' section contains parameters that are used by ejobman_receiver
+to setup external logfile. If there is no log parameter then no attempt
+to setup the logfile is done. It's better to setup only one of
+ejobman and eworkman log parameters.
+The parameters:
+  log - the value is a directory name and the beginning part of a filename.
+  String. Default: "/var/log/erpher/ejm"
+
+
+Eworkman
+========
+
+web_server_opts
+---------------
+
+The 'web_server_opts' section contains parameters for mochiweb that
+is started by eworkman_handler. If the whole section is missing then no
+mochiweb is started.
+The parameters:
+  port - port to bind. Integer. No default
+  name - name of a registered process. Atom. No default
+  ssl - ssl flag. Boolean. No default
+  ssl_opts - list of ssl options (every option is a {key, value} typle).
+  No default.
+  The options:
+    certfile - path to ssl certificate. Must be part of ssl_opts. String.
+    No default
+    keyfile  - path to ssl key file. Must be part of ssl_opts. String. No
+	default
+
 pools
-=====
-Section 'pools' is used by ejobman_handler to create pools of workers. The
+-----
+
+Section 'pools' is used by eworkman_handler to create pools of workers. The
 section is a list of pool items. Each pool item is a list of {key, value}
 tuples. The pool item can contain the following items:
   id - pool id. Atom. No default
@@ -96,17 +154,31 @@ tuples. The pool item can contain the following items:
     restart (immediate restart), none (ignore), delay (restart after delay).
     Default: none
   worker_duration - time in seconds for worker to operate. After that time
-    ejobman_handler restarts the worker. Integer.
+    eworkman_handler restarts the worker. Integer.
     Default: 86400
-  worker - list of parameters for worker. Possible keys:
+  worker - list of parameters for a worker. Possible keys:
     name - string to be used for spawning. String. No default.
     debug - list of debug items ({key, value} tuples as usual). Possible keys:
       run - runtime information
 
 log
-===
-The 'log' section contains parameters that are used by ejobman_receiver
-to setup external logfile.
+---
+The 'log' section contains parameters that are used by eworkman_receiver
+to setup external logfile. If there is no log parameter then no attempt
+to setup the logfile is done. It's better to setup only one of
+ejobman and eworkman log parameters.
 The parameters:
   log - the value is a directory name and the beginning part of a filename.
-  String. Default: "/var/log/erpher/ejm"
+  String. Default: "/var/log/erpher/ewm"
+
+debug
+-----
+
+The 'debug' section keeps parameters for eworkman_receiver. The section
+is a list of {key, value} tuples, where the key is an atom and the value
+is an integer. The bigger value is, the more verbose debug logs (and
+the slower the erlang VM works). You are warned.
+The possible keys:
+  config - config related information
+  run - runtime information
+
