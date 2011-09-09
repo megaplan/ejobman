@@ -71,18 +71,18 @@ do_command(St, From, Job) ->
 do_short_commands(#ejm{ch_queue = Q, ch_data = Ch, max_children = Max} = St) ->
     Len = length(Ch),
     mpln_p_debug:pr({?MODULE, 'do_short_commands', ?LINE, Len, Max},
-        St#ejm.debug, run, 4),
+        St#ejm.debug, handler_run, 4),
     case queue:is_empty(Q) of
         false when Len < Max ->
             New_st = check_one_command(St),
             do_short_commands(New_st); % repeat to do commands
         false ->
             mpln_p_debug:pr({?MODULE, 'do_short_commands too many children',
-                ?LINE, Len, Max}, St#ejm.debug, run, 3),
+                ?LINE, Len, Max}, St#ejm.debug, handler_run, 2),
             St;
         _ ->
             mpln_p_debug:pr({?MODULE, 'do_short_commands no new child',
-                ?LINE, Len, Max}, St#ejm.debug, run, 4),
+                ?LINE, Len, Max}, St#ejm.debug, handler_run, 4),
             St
     end.
 
@@ -109,7 +109,7 @@ store_in_ch_queue(#ejm{ch_queue = Q} = St, From, Job) ->
 
 check_one_command(#ejm{ch_queue = Q} = St) ->
     mpln_p_debug:pr({?MODULE, 'check_one_command', ?LINE},
-        St#ejm.debug, run, 4),
+        St#ejm.debug, handler_run, 4),
     case queue:out(Q) of
         {{value, Item}, Q2} ->
             do_one_command(St#ejm{ch_queue=Q2}, Item);
@@ -127,7 +127,7 @@ check_one_command(#ejm{ch_queue = Q} = St) ->
 
 do_one_command(St, {From, J}) ->
     mpln_p_debug:pr({?MODULE, 'do_one_command cmd', ?LINE, From, J},
-        St#ejm.debug, run, 4),
+        St#ejm.debug, handler_child, 3),
     % parameters for ejobman_child
     Child_params = [
         {url_rewrite, St#ejm.url_rewrite},
@@ -141,7 +141,7 @@ do_one_command(St, {From, J}) ->
         ],
     Res = supervisor:start_child(ejobman_child_supervisor, [Child_params]),
     mpln_p_debug:pr({?MODULE, 'do_one_command res', ?LINE, Res},
-        St#ejm.debug, run, 4),
+        St#ejm.debug, handler_child, 4),
     case Res of
         {ok, Pid} ->
             add_child(St, Pid);

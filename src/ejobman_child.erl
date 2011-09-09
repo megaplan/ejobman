@@ -57,7 +57,7 @@
 init(Params) ->
     C = ejobman_conf:get_config_child(Params),
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE, self()},
-        C#child.debug, run, 1),
+        C#child.debug, run, 2),
     {ok, C, ?TC}. % yes, this is fast and dirty hack (?TC)
 
 %%-----------------------------------------------------------------------------
@@ -73,7 +73,7 @@ handle_call(status, _From, St) ->
     {reply, St, St, ?TC};
 handle_call(_N, _From, St) ->
     mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N, self()},
-        St#child.debug, run, 4),
+        St#child.debug, run, 2),
     New = do_smth(St),
     {reply, {error, unknown_request}, New, ?TC}.
 
@@ -111,7 +111,7 @@ handle_info(timeout, State) ->
     {noreply, New, ?TC};
 handle_info(_Req, State) ->
     mpln_p_debug:pr({?MODULE, other, ?LINE, _Req, self()},
-        State#child.debug, run, 3),
+        State#child.debug, run, 2),
     New = do_smth(State),
     {noreply, New, ?TC}.
 
@@ -177,12 +177,12 @@ process_cmd(_) ->
 %%
 real_cmd(#child{method = Method_bin, params = Params, from = From} = St) ->
     mpln_p_debug:pr({?MODULE, 'real_cmd params', ?LINE, self(), St},
-        St#child.debug, run, 3),
+        St#child.debug, run, 4),
     Method = ejobman_clean:get_method(Method_bin),
     {Url, Hdr} = make_url(St),
     Req = make_req(Method, Url, Hdr, Params),
     mpln_p_debug:pr({?MODULE, 'real_cmd request', ?LINE, self(), Req},
-        St#child.debug, run, 5),
+        St#child.debug, http, 4),
     Res = http:request(Method, Req,
         [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
         []),
@@ -293,7 +293,7 @@ match_one_host_regex(Host, Src_url) ->
 
 rewrite_host(St, Config, Url, {Scheme, Auth, Host, Port, Path, Query}) ->
     mpln_p_debug:pr({?MODULE, 'rewrite_host pars', ?LINE, self(),
-        Config, Host, Url}, St#child.debug, run, 4),
+        Config, Host, Url}, St#child.debug, rewrite, 4),
     case proplists:get_value(dst_host_part, Config) of
         undefined ->
             New_url = Url;
@@ -373,7 +373,7 @@ proceed_rewrite_host(St, Scheme, Auth, Host, Port, Path, Query) ->
     Res_str = lists:flatten(Str),
     mpln_p_debug:pr({?MODULE, 'proceed_rewrite_host res', ?LINE, self(),
         Scheme, Auth, Host, Port, Path, Query, Res_str},
-        St#child.debug, run, 5),
+        St#child.debug, rewrite, 5),
     Res_str.
 
 %%-----------------------------------------------------------------------------

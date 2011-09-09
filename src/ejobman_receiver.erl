@@ -69,7 +69,7 @@ handle_call(status, _From, St) ->
     {reply, St, St, ?T};
 handle_call(_N, _From, St) ->
     mpln_p_debug:p("~p::~p other:~n~p~n",
-        [?MODULE, ?LINE, _N], St#ejm.debug, run, 4),
+        [?MODULE, ?LINE, _N], St#ejm.debug, run, 2),
     {reply, {error, unknown_request}, St, ?T}.
 
 %------------------------------------------------------------------------------
@@ -109,13 +109,13 @@ handle_info(timeout, State) ->
     {noreply, State, ?T};
 handle_info({#'basic.deliver'{delivery_tag = _Tag}, Content} = _Req, State) ->
     mpln_p_debug:p("~p::~p basic.deliver:~n~p~n",
-        [?MODULE, ?LINE, _Req], State#ejm.debug, run, 5),
+        [?MODULE, ?LINE, _Req], State#ejm.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
     ejobman_rb:send_ack(State#ejm.conn, _Tag),
     New = ejobman_receiver_cmd:store_rabbit_cmd(State, Payload),
     {noreply, New, ?T};
 handle_info(_Req, State) ->
-    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#ejm.debug, run, 3),
+    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#ejm.debug, run, 2),
     {noreply, State, ?T}.
 
 %------------------------------------------------------------------------------
