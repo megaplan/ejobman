@@ -81,10 +81,8 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 handle_cast(logrotate, St) ->
-    mpln_misc_log:prepare_log(St#ejm.log),
+    prepare_log(St),
     {noreply, St, ?T};
-handle_cast(st0p, St) ->
-    St;
 handle_cast({test, Payload}, State) ->
     New = ejobman_receiver_cmd:store_rabbit_cmd(State, Payload),
     {noreply, New, ?T};

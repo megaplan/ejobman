@@ -17,6 +17,8 @@
     type = 'basic' :: 'basic' | 'megaplan',
     user,
     password,
+    auth_key, % for megaplan auth
+    secret_key, % for megaplan auth
     data % headers ([{key, val}]) supplied by user
 }).
 

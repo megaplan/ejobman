@@ -30,6 +30,7 @@
 -module(ejobman_clean).
 
 -export([get_method/1, get_url/1]).
+-export([get_method_str/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -62,6 +63,15 @@ get_method_aux("get")      -> get;
 get_method_aux("head")     -> head;
 get_method_aux("post")     -> post;
 get_method_aux(_)          -> head.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc transforms input atom to upper case string
+%% @since 2011-09-14 16:14
+%%
+get_method_str(A) ->
+    string:to_upper(atom_to_list(A)).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc transforms input data to a string

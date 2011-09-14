@@ -95,8 +95,8 @@ Supported kinds of auth_info:
 - megaplan:
   {
     type: megaplan,
-    xxx: xxx
-    ...
+    authKey: xxx
+    secretKey: xxx
   }
 
 

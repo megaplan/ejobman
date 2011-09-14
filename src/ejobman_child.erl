@@ -48,8 +48,10 @@
 -include("ejobman.hrl").
 -include("job.hrl").
 -include("amqp_client.hrl").
+-include("sign_req.hrl").
 
 -define(HTTP_TIMEOUT, 15000).
+-define(CTYPE, "application/x-www-form-urlencoded").
 
 %%%----------------------------------------------------------------------------
 %%% gen_server callbacks
@@ -179,7 +181,8 @@ real_cmd(#child{method = Method_bin, params = Params, from = From} = St) ->
     mpln_p_debug:pr({?MODULE, 'real_cmd params', ?LINE, self(), St},
         St#child.debug, run, 4),
     Method = ejobman_clean:get_method(Method_bin),
-    {Url, Hdr} = make_url(St),
+    Method_str = ejobman_clean:get_method_str(Method),
+    {Url, Hdr} = make_url(St, Method_str),
     Req = make_req(Method, Url, Hdr, Params),
     mpln_p_debug:pr({?MODULE, 'real_cmd request', ?LINE, self(), Req},
         St#child.debug, http, 4),
@@ -195,18 +198,18 @@ real_cmd(#child{method = Method_bin, params = Params, from = From} = St) ->
 %% @doc converts url to string, rewrites url according to the config
 %% @since 2011-08-08 13:53
 %%
--spec make_url(#child{}) -> {string(), list()}.
+-spec make_url(#child{}, string()) -> {string(), list()}.
 
-make_url(#child{url=Bin} = St) ->
+make_url(#child{url=Bin} = St, Method) ->
     Url = ejobman_clean:get_url(Bin),
     case http_uri:parse(Url) of
         %{https,"l:p","host.localdomain",123,"/goo","?foo=baz"}
         %{Scheme, Auth, Host, Port, Path, Query}
         {error, _Reason} ->
-            H = compose_headers(St, [], ""),
+            H = compose_headers(St, [], "", "", "", ""),
             {Url, H};
         Data ->
-            rewrite(St, Url, Data)
+            rewrite(St, Method, Url, Data)
     end.
 
 %%-----------------------------------------------------------------------------
@@ -215,23 +218,24 @@ make_url(#child{url=Bin} = St) ->
 %% host header if necessary
 %% @since 2011-08-08 13:53
 %%
--spec rewrite(#child{}, string(), tuple()) -> {string(), list()}.
+-spec rewrite(#child{}, string(), string(), tuple()) -> {string(), list()}.
 
-rewrite(#child{url_rewrite=Rew_conf} = St, Url,
-        {_Scheme, _Auth, Host, _Port, _Path, _Query} = Data) ->
+rewrite(#child{url_rewrite=Rew_conf} = St, Method, Url,
+        {_Scheme, _Auth, Host, _Port, Path, Query} = Data) ->
     case find_matching_host(Rew_conf, Host) of
         {ok, Config} ->
-            rewrite_host(St, Config, Url, Data);
+            rewrite_host(St, Config, Method, Url, Data);
         error ->
-            H = compose_headers(St, [], Host),
+            H = compose_headers(St, [], Method, Host, Path, Query),
             {Url, H}
     end.
 
 %%-----------------------------------------------------------------------------
--spec compose_headers(#child{}, list(), any()) -> list().
+-spec compose_headers(#child{}, list(), string(), any(), string(), string()) ->
+    list().
 
-compose_headers(St, Config, Url_host) ->
-    A = compose_auth_header(St#child.auth),
+compose_headers(St, Config, Method, Url_host, Path, Query) ->
+    A = compose_auth_header(St#child.auth, Method, Url_host, Path, Query),
     H = compose_host_header(Config, St#child.host, Url_host),
     lists:flatten([A, H]).
 
@@ -289,9 +293,11 @@ match_one_host_regex(Host, Src_url) ->
 %% in url_rewrite parameters. Returns either new url or old url
 %% (in case of no dst_host_part defined in Pars)
 %%
--spec rewrite_host(#child{}, list(), string(), tuple()) -> {string(), list()}.
+-spec rewrite_host(#child{}, list(), string(), string(), tuple()) ->
+    {string(), list()}.
 
-rewrite_host(St, Config, Url, {Scheme, Auth, Host, Port, Path, Query}) ->
+rewrite_host(St, Config, Method, Url,
+        {Scheme, Auth, Host, Port, Path, Query}) ->
     mpln_p_debug:pr({?MODULE, 'rewrite_host pars', ?LINE, self(),
         Config, Host, Url}, St#child.debug, rewrite, 4),
     case proplists:get_value(dst_host_part, Config) of
@@ -301,7 +307,7 @@ rewrite_host(St, Config, Url, {Scheme, Auth, Host, Port, Path, Query}) ->
             New_url = proceed_rewrite_host(St, Scheme, Auth, New_host,
                 Port, Path, Query)
     end,
-    H = compose_headers(St, Config, Host),
+    H = compose_headers(St, Config, Method, Host, Path, Query),
     {New_url, H}.
 
 %%-----------------------------------------------------------------------------
@@ -309,21 +315,44 @@ rewrite_host(St, Config, Url, {Scheme, Auth, Host, Port, Path, Query}) ->
 %% @doc returns either a list with an "Authorization" header tuple or
 %% an empty list.
 %%
--spec compose_auth_header(#auth{}) -> list().
+-spec compose_auth_header(#auth{}, string(), string(), string(), string()) ->
+    list().
 
-compose_auth_header(#auth{type=basic} = Auth) ->
+compose_auth_header(#auth{type=basic} = Auth, _, _, _, _) ->
     Str = make_hdr_auth_str(Auth),
     make_auth_header(Str);
-compose_auth_header(#auth{type=megaplan, data=Data}) ->
-    F = fun({Key, Val}) ->
-            {
-                ejobman_data:make_string(Key),
-                ejobman_data:make_string(Val)
-            }
-    end,
-    lists:map(F, Data);
-compose_auth_header(_) ->
+compose_auth_header(#auth{type=megaplan, auth_key=undefined}, _, _, _, _) ->
+    [];
+compose_auth_header(#auth{type=megaplan, secret_key=undefined}, _, _, _, _) ->
+    [];
+compose_auth_header(#auth{type=megaplan, auth_key=Akey, secret_key=Skey},
+        Method, Host, Path, Query) ->
+    Req = #req{
+        method = Method,
+        content_md5 = "", % FIXME: fin^W temporary solution
+        ctype = ?CTYPE,
+        host = Host,
+        uri = make_auth_req_uri(Path, Query)
+    },
+    A_str = ejobman_data:make_string(Akey),
+    S_str = ejobman_data:make_string(Skey),
+    {Sign, Time} = ejobman_req_sign:make_sign(Req, A_str, S_str),
+    [
+        {"type", "megaplan"},
+        {"X-Authorization", Sign},
+        {"Date", Time}
+    ];
+compose_auth_header(_, _, _, _, _) ->
     [].
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc joins path and query using "?"
+%%
+make_auth_req_uri(Path, "") ->
+    Path;
+make_auth_req_uri(Path, Query) ->
+    Path ++ "?" ++ Query.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -432,7 +461,7 @@ make_req(head, Url, Hdr, _Params) ->
 make_req(get, Url, Hdr, _Params) ->
     {Url, Hdr};
 make_req(post, Url, Hdr, Params) ->
-    Ctype = "application/x-www-form-urlencoded",
+    Ctype = ?CTYPE,
     Body = make_body(Params),
     {Url, Hdr, Ctype, Body}.
 
@@ -542,7 +571,7 @@ find_matching_host_test() ->
 make_url1_test() ->
     Conf = make_url_rewrite_conf(),
     Bin = <<"http://192.168.9.183/new/order/send-messages">>,
-    R1 = make_url(#child{url=Bin, url_rewrite=Conf, debug=[]}),
+    R1 = make_url(#child{url=Bin, url_rewrite=Conf, debug=[]}, post),
     R0 = { "http://192.168.9.183/new/order/send-messages", 
         [{"Host", "promo.megaplan.kulikov"}]},
     ?assert(R0 =:= R1),
@@ -553,7 +582,7 @@ make_url2_test() ->
     Conf = make_url_rewrite_conf(),
     Bin = <<"http://192.168.9.183/new/order/send-messages">>,
     R1 = make_url(#child{url=Bin, url_rewrite=Conf, debug=[],
-        auth=#auth{user="usr1", password="psw2"}}),
+        auth=#auth{user="usr1", password="psw2"}}, post),
     R0 = { "http://192.168.9.183/new/order/send-messages", 
         [{"Authorization","Basic dXNyMTpwc3cy"},
             {"Host", "promo.megaplan.kulikov"}]},
@@ -571,7 +600,7 @@ rewrite_host_test() ->
     ],
     Link = "http://" ++ Url ++ ":80/new/order/send-messages",
     Data = http_uri:parse(Link),
-    Data2 = rewrite_host(#child{debug=[]}, Pars, Url, Data),
+    Data2 = rewrite_host(#child{debug=[]}, Pars, post, Url, Data),
     Data3 = {"http://" ++ Url2 ++ ":80/new/order/send-messages",
         [{"Host", "192.168.9.183"}]},
     ?assert(Data2 =:= Data3)

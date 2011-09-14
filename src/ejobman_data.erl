@@ -37,6 +37,7 @@
 -export([get_time/1, get_params/1, get_host/1]).
 -export([get_auth_info/1, get_auth_user/1, get_auth_password/1]).
 -export([make_string/1, get_auth_type/1, get_auth_data_list/1]).
+-export([get_auth_keys/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Public API
@@ -155,6 +156,19 @@ get_auth_type(Data) ->
 
 get_auth_user(Data) ->
     get_value(Data, <<"user">>).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc Extracts value for "key" item from deserialized auth_info
+%% json structure
+%% @since 2011-08-10 18:19
+%%
+-spec get_auth_keys(any()) -> any().
+
+get_auth_keys(Data) ->
+    A = get_value(Data, <<"authKey">>),
+    S = get_value(Data, <<"secretKey">>),
+    {A, S}.
 
 %%-----------------------------------------------------------------------------
 %%

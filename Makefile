@@ -2,12 +2,14 @@ EXT_MOD = ../amqp_client
 EXT_MOD_INCLUDES = $(EXT_MOD:%=%/include)
 INCLUDE_DIR = include
 INCLUDE_DIR += $(EXT_MOD_INCLUDES)
+#INCLUDE_DIR += ../proper/include ..
 INCLUDES = $(INCLUDE_DIR:%=-I%)
 SRC_DIR = src
 TEST_DIR = test
 EBIN_DIR := ebin
 HTML_DOC_DIR = doc/html
 ERLC_OPTS = +debug_info -DTEST
+#ERLC_OPTS = +debug_info -DTEST -DPROPER -pa ../proper/ebin
 ERLC := erlc $(ERLC_OPTS)
 VSN=1.0
 APP_NAME=ejobman

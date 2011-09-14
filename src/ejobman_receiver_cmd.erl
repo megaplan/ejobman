@@ -142,11 +142,12 @@ fill_auth_data("megaplan", Auth) ->
     end,
     List = ejobman_data:get_auth_data_list(Auth),
     Data = lists:filter(F, List),
-    #auth{type='megaplan', data = Data};
+    {A, S} = ejobman_data:get_auth_keys(Auth),
+    #auth{type='megaplan', data = Data, auth_key = A, secret_key = S};
 fill_auth_data(_, Auth) ->
     User = ejobman_data:get_auth_user(Auth),
     Pass = ejobman_data:get_auth_password(Auth),
-    #auth{user = User, password = Pass}.
+    #auth{type='basic', user = User, password = Pass}.
 
 %%-----------------------------------------------------------------------------
 %%

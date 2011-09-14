@@ -15,6 +15,7 @@
         ejobman_rb,
         ejobman_receiver_cmd,
         ejobman_receiver,
+        ejobman_req_sign,
         ejobman_sup
     ]},
     {registered, [
