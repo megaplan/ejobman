@@ -80,13 +80,13 @@ make_sign(Req, Auth_key, Secret_key) ->
 make_sign(Req, Auth_key, Secret_key, Time) ->
     Bstr = str_to_sign(Req#req{date = Time}),
     Bin_key = base64:decode(Secret_key),
-    A_bin_key = base64:decode_to_string(Auth_key),
     Hmac = crypto:sha_mac(Bin_key, Bstr),
     Hmac_lst = binary_to_list(Hmac),
     Hmac_txt = iolist_to_binary(
         [io_lib:format("~2.16.0b", [X]) || X <- Hmac_lst ]),
     Hmac_b64 = base64:encode_to_string(Hmac_txt),
-    Hdr = A_bin_key ++ ":" ++ Hmac_b64,
+    A_key_str = base64:decode_to_string(Auth_key),
+    Hdr = A_key_str ++ ":" ++ Hmac_b64,
     {Hdr, Time}.
 
 %%-----------------------------------------------------------------------------
@@ -114,57 +114,58 @@ str_to_sign(R) ->
 
 -type t_sreq() :: {req, string(), string(), string(), string(), string(), string()}.
 
-str_precondition(Str) ->
+str_cut(Str) ->
     % unicode:characters_to_binary crashes on weird codes
     [X || X <- Str, (X < 55296) or (X >= 63744), X =< 65533].
 
-sreq_precondition(R) ->
+req_cut(R) ->
     R#req{
-        method = str_precondition(R#req.method),
-        content_md5 = str_precondition(R#req.content_md5),
-        ctype = str_precondition(R#req.ctype),
-        date = str_precondition(R#req.date),
-        host = str_precondition(R#req.host),
-        uri = str_precondition(R#req.uri)
+        method = str_cut(R#req.method),
+        content_md5 = str_cut(R#req.content_md5),
+        ctype = str_cut(R#req.ctype),
+        date = str_cut(R#req.date),
+        host = str_cut(R#req.host),
+        uri = str_cut(R#req.uri)
     }.
 
 prop_str_sign() ->
     ?FORALL({R},
         {t_sreq()},
         begin
-            Dat = sreq_precondition(R),
+            Dat = req_cut(R),
             S = str_to_sign(Dat),
             is_binary(S)
         end
     ).
 
 % I don't like this
-date_precondition({{Y, M, D}, T}) when Y < 1970 ->
-    date_precondition({{1971, M, D}, T});
-date_precondition({{1970, 1, 1}, {H, Mn, S}}) when H =< 12 ->
+date_cut({{Y, M, D}, T}) when Y < 1970 ->
+    date_cut({{1971, M, D}, T});
+date_cut({{1970, 1, 1}, {H, Mn, S}}) when H =< 12 ->
     {{1970, 1, 1}, {13, Mn, S}};
-date_precondition({{Y, 2, D}, T}) when D >= 29 ->
+date_cut({{Y, 2, D}, T}) when D >= 29 ->
     {{Y, 3, D}, T};
-date_precondition({{Y, 4, D}, T}) when D >= 31 ->
+date_cut({{Y, 4, D}, T}) when D >= 31 ->
     {{Y, 5, D}, T};
-date_precondition({{Y, 6, D}, T}) when D >= 31 ->
+date_cut({{Y, 6, D}, T}) when D >= 31 ->
     {{Y, 7, D}, T};
-date_precondition({{Y, 9, D}, T}) when D >= 31 ->
+date_cut({{Y, 9, D}, T}) when D >= 31 ->
     {{Y, 8, D}, T};
-date_precondition({{Y, 11, D}, T}) when D >= 31 ->
+date_cut({{Y, 11, D}, T}) when D >= 31 ->
     {{Y, 12, D}, T};
-date_precondition(D) ->
+date_cut(D) ->
     D.
 
 prop_make_sign() ->
-    ?FORALL({R, K, T},
-        {t_sreq(), binary(), string()},
+    ?FORALL({R, Ka, Ks, T},
+        {t_sreq(), binary(), binary(), string()},
         begin
             crypto:start(),
-            T2 = str_precondition(T),
-            R2 = sreq_precondition(R),
-            K2 = base64:encode_to_string(K),
-            {Hdr, Date} = make_sign(R2, K2, T2),
+            T2 = str_cut(T),
+            R2 = req_cut(R),
+            Ka2 = base64:encode_to_string(Ka),
+            Ks2 = base64:encode_to_string(Ks),
+            {Hdr, Date} = make_sign(R2, Ka2, Ks2, T2),
             ?WHENFAIL(error_logger:info_report({failed, Hdr, Date}),
                 is_list(Hdr) and is_list(Date)
             )
