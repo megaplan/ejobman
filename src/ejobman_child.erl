@@ -100,6 +100,7 @@ terminate(_, State) ->
     mpln_p_debug:pr({?MODULE, terminate, ?LINE, self()},
         State#child.debug, run, 2),
     ok.
+
 %%-----------------------------------------------------------------------------
 %%
 %% Handling all non call/cast messages
@@ -168,6 +169,7 @@ process_cmd(#child{url = <<_, _/binary>> = Url_bin} = St) ->
     real_cmd(St#child{url = Url});
 process_cmd(_) ->
     ok.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc does the command, sends reply to the client.
@@ -231,6 +233,9 @@ rewrite(#child{url_rewrite=Rew_conf} = St, Method, Url,
     end.
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc creates a list containing host and auth headers
+%%
 -spec compose_headers(#child{}, list(), string(), any(), string(), string()) ->
     list().
 
@@ -476,6 +481,7 @@ make_auth_header([]) ->
     [];
 make_auth_header(H) ->
     [{"Authorization", H}].
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc makes either an empty list or a list with a tuple containing the
@@ -498,6 +504,7 @@ make_host_header(H) when is_tuple(H) ->
     [{"Host", Str}];
 make_host_header(H) ->
     [{"Host", H}].
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc creates the body (kind of...) of a http request
