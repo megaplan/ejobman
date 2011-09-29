@@ -1,9 +1,12 @@
+*.plt
 ebin/
 *.beam
 tags
+TAGS
 log/
 *.swp
 *.sublime-*
 .project
 .settings/*
 doc/html
+*~
