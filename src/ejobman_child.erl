@@ -192,8 +192,7 @@ real_cmd(#child{method = Method_bin, params = Params, from = From} = St) ->
         [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
         []),
     gen_server:reply(From, Res),
-    mpln_p_debug:pr({?MODULE, 'real_cmd res', ?LINE, self(), Res},
-        St#child.debug, run, 4).
+    mpln_p_debug:log_http_res({?MODULE, ?LINE}, Res, St#child.debug).
 
 %%-----------------------------------------------------------------------------
 %%
