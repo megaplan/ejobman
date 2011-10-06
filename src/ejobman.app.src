@@ -19,7 +19,7 @@
         ejobman_sup
     ]},
     {registered, [
-        ejobman_receiver.erl,
+        ejobman_receiver,
         ejobman_handler,
         ejobman_child_supervisor
 	]},
