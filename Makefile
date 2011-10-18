@@ -25,8 +25,13 @@ tests: $(EBIN_DIR)
 clean:
 	@rm -rvf $(EBIN_DIR)/* $(HTML_DOC_DIR)
 
+tags: ctags etags
+
 ctags:
 	cd $(SRC_DIR) ; ctags -R . ../include 
+
+etags:
+	cd $(SRC_DIR) ; etags -R . ../include 
 
 $(EBIN_DIR) :
 	( test -d $(EBIN_DIR) || mkdir -p $(EBIN_DIR) )

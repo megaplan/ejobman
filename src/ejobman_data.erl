@@ -36,26 +36,12 @@
 -export([get_type/1, get_rest_info/1, get_method/1, get_url/1]).
 -export([get_time/1, get_params/1, get_host/1]).
 -export([get_auth_info/1, get_auth_user/1, get_auth_password/1]).
--export([make_string/1, get_auth_type/1, get_auth_data_list/1]).
+-export([get_auth_type/1, get_auth_data_list/1]).
 -export([get_auth_keys/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Public API
 %%%----------------------------------------------------------------------------
-%%
-%% @doc gets binary or list and makes it a string
-%% @since 2011-08-11 12:56
-%%
--spec make_string(any()) -> string().
-
-make_string(B) when is_binary(B) ->
-    binary_to_list(B);
-make_string(A) when is_atom(A) ->
-    atom_to_list(A);
-make_string(D) ->
-    D.
-
-%%-----------------------------------------------------------------------------
 -spec get_type(any()) -> any().
 %%
 %% @doc Extracts value for "type" item from deserialized json structure

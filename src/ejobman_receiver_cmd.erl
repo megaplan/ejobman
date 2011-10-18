@@ -123,7 +123,7 @@ make_job(Data) ->
 make_job_auth(Info) ->
     Auth = ejobman_data:get_auth_info(Info),
     Type = ejobman_data:get_auth_type(Auth),
-    Str = ejobman_data:make_string(Type),
+    Str = mpln_misc_web:make_string(Type),
     #job{
         auth = fill_auth_data(Str, Auth)
     }.

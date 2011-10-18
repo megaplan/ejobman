@@ -338,8 +338,8 @@ compose_auth_header(#auth{type=megaplan, auth_key=Akey, secret_key=Skey},
         host = Host,
         uri = make_auth_req_uri(Path, Query)
     },
-    A_str = ejobman_data:make_string(Akey),
-    S_str = ejobman_data:make_string(Skey),
+    A_str = mpln_misc_web:make_string(Akey),
+    S_str = mpln_misc_web:make_string(Skey),
     {Sign, Time} = ejobman_req_sign:make_sign(Req, A_str, S_str),
     [
         {"type", "megaplan"},
@@ -441,16 +441,16 @@ make_url_auth_str(Str) ->
 %% creating
 %%
 make_auth_str([], #auth{type=basic, user=User, password=Pass}) ->
-    U = ejobman_data:make_string(User),
-    P = ejobman_data:make_string(Pass),
+    U = mpln_misc_web:make_string(User),
+    P = mpln_misc_web:make_string(Pass),
     [U, ":", P];
 make_auth_str(<<>>, #auth{type=basic, user=User, password=Pass}) ->
-    U = ejobman_data:make_string(User),
-    P = ejobman_data:make_string(Pass),
+    U = mpln_misc_web:make_string(User),
+    P = mpln_misc_web:make_string(Pass),
     [U, ":", P];
 make_auth_str('undefined', #auth{type=basic, user=User, password=Pass}) ->
-    U = ejobman_data:make_string(User),
-    P = ejobman_data:make_string(Pass),
+    U = mpln_misc_web:make_string(User),
+    P = mpln_misc_web:make_string(Pass),
     [U, ":", P];
 make_auth_str(Auth_url, _Req) ->
     [Auth_url].
