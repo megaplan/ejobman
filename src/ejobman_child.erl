@@ -510,7 +510,8 @@ make_host_header(H) ->
 %% @since 2011-08-04 17:49
 %%
 make_body(Pars) ->
-    mochiweb_util:urlencode(Pars).
+    mpln_misc_web:query_string(Pars).
+    %mochiweb_util:urlencode(Pars).
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests

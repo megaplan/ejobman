@@ -55,3 +55,21 @@ s() ->
 s2() ->
     <<"{\"type\":\"rest\",\"info\":{\"method\":\"post\",\"url\":\"http:\\/\\/bfg.megaplan.kulikov\\/BumsTask\\/AmqpTest\\/myJobAction\",\"params\":{\"orderId\":123134,\"data\":{\"name\":\"Dima\",\"time\":\"Fri, 14 Oct 2011 17:25:54 +0400\"}}}}">>
 .
+
+s3() ->
+{<<"params">>,
+ {struct,
+     [{<<"orderId">>,123134},
+      {<<"data">>,
+       {struct,
+           [{<<"name">>,<<"Dima">>},
+            {<<"time">>,
+             <<"Fri, 14 Oct 2011 17:25:54 +0400">>
+            }
+           ]
+       }
+      }
+     ]
+ }
+}
+.

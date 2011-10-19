@@ -103,14 +103,18 @@ make_job(Data) ->
     Method = ejobman_data:get_method(Info),
     Url = ejobman_data:get_url(Info),
     Host = ejobman_data:get_host(Info),
+
     Params = ejobman_data:get_params(Info),
+    Flat_params = mpln_misc_web:flatten(Params, true),
+    %Query_params = mpln_misc_web:query_string(Flat_params),
+
     T_data = ejobman_data:get_time(Info),
     T = make_time(T_data),
     A#job{
         method = Method,
         url = Url,
         host = Host,
-        params = Params,
+        params = Flat_params,
         run_time = T
     }.
 
