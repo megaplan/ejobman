@@ -162,6 +162,9 @@ fill_ejm_handler_config(List) ->
     #ejm{
         ch_data = [],
         ch_queue = queue:new(),
+        job_log = proplists:get_value(job_log, Hdl_list),
+        job_log_last = calendar:local_time(),
+        job_log_rotate = proplists:get_value(job_log_rotate, Hdl_list),
         url_rewrite = proplists:get_value(url_rewrite, Hdl_list, []),
         max_children = proplists:get_value(max_children, Hdl_list, 32767),
         debug = proplists:get_value(debug, Hdl_list, [])

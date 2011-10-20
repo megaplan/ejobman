@@ -1,7 +1,7 @@
 {application, ejobman, [
     {description, "ejobman"},
     {id, "ejobman"},
-    {vsn, "1.1"},
+    {vsn, "1.2"},
     {modules, [
         ejobman_app,
         ejobman_child,
@@ -12,6 +12,7 @@
         ejobman_data,
         ejobman_handler_cmd,
         ejobman_handler,
+        ejobman_log,
         ejobman_rb,
         ejobman_receiver_cmd,
         ejobman_receiver,
@@ -22,7 +23,7 @@
         ejobman_receiver,
         ejobman_handler,
         ejobman_child_supervisor
-	]},
+    ]},
     {mod, {ejobman_app,[]}},
     {applications, [kernel, stdlib, inets, ssl, rabbit]}
 ]}.

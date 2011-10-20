@@ -50,12 +50,13 @@
 %%
 -spec log_job(#ejm{}, #job{}) -> ok.
 
-log_job(#ejm{jlog=Fd} = St, J) ->
-    msg_head(Fd),
-    msg_title(Fd, J#job.id),
-    msg_date(Fd),
-    msg_body(St, J),
-    msg_foot(Fd).
+log_job(#ejm{debug=D} = St, J) ->
+    N = proplists:get_value(job, D, -1),
+    if  N > 0 ->
+            log_job_2(St, J);
+        true ->
+            ok
+    end.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -64,23 +65,48 @@ log_job(#ejm{jlog=Fd} = St, J) ->
 %%
 -spec log_job_result(#ejm{}, tuple(), reference()) -> ok.
 
-log_job_result(#ejm{jlog=Fd} = St, R, Id) ->
-    msg_head(Fd),
-    msg_title(Fd, Id),
-    msg_date(Fd),
-    msg_res_body(St, R),
-    msg_foot(Fd).
+log_job_result(#ejm{debug=D} = St, R, Id) ->
+    N = proplists:get_value(job, D, -1),
+    if  N > 0 ->
+            log_job_result_2(St, R, Id);
+        true ->
+            ok
+    end.
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
 %%
+%% @doc continues with writing rss message with result
+%%
+log_job_result_2(#ejm{jlog=Fd} = St, R, Id) ->
+    msg_head(Fd),
+    Title = make_title(R, Id),
+    msg_title(Fd, Title),
+    msg_date(Fd),
+    msg_res_body(St, R),
+    msg_foot(Fd).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc continues with writing rss message
+%%
+log_job_2(#ejm{jlog=Fd} = St, J) ->
+    msg_head(Fd),
+    Title = make_title(J#job.id),
+    msg_title(Fd, Title),
+    msg_date(Fd),
+    msg_body(St, J),
+    msg_foot(Fd).
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc writes rss message header to file descriptor
 %%
 msg_head(Fd) ->
-    Str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        "<rss version=\"2.0\">\n"
-        "<channel>\n"
+    Str = %"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        %"<rss version=\"2.0\">\n"
+        %"<channel>\n"
         "<item>\n",
     write_string(Fd, Str).
 
@@ -90,8 +116,9 @@ msg_head(Fd) ->
 %%
 msg_foot(Fd) ->
     Str = "</item>\n"
-        "</channel>\n"
-        "</rss>\n\n",
+        %"</channel>\n"
+        %"</rss>\n\n"
+        ,
     write_string(Fd, Str).
 
 %%-----------------------------------------------------------------------------
@@ -110,11 +137,10 @@ write_string(Fd, Str) ->
 %%
 %% @doc writes rss message title to file descriptor
 %%
-msg_title(Fd, Id) ->
+msg_title(Fd, Title) ->
     Beg = "<title><![CDATA[",
     write_string(Fd, Beg),
-    Str = io_lib:format("Job ~p", [Id]),
-    write_string(Fd, Str),
+    write_string(Fd, Title),
     End = "]]></title>\n",
     write_string(Fd, End).
 
@@ -176,10 +202,11 @@ make_msg_body(#ejm{debug=D}, J) ->
 %% @doc creates rss message description with job result body
 %% in dependence of the configured debug level
 %%
--spec make_msg_result_body(#ejm{}, tuple(3)) -> string() | {string(), binary()}.
+-spec make_msg_result_body(#ejm{}, tuple()) ->
+    string() | {string(), string(), binary()}.
 
 make_msg_result_body(#ejm{debug=D}, {Status, Hdr, Body}) ->
-    N = proplists:get_value(job, D, 0),
+    N = proplists:get_value(job_result, D, 0),
     % N=3 seems most useful level
     if
         N >= 5, is_binary(Body) ->
@@ -235,8 +262,12 @@ msg_res_body(#ejm{jlog=Fd} = St, R) ->
     write_string(Fd, Beg),
     Body_res = 
         case R of
+            {ok, {_, _, _}=Result} ->
+                make_msg_result_body(St, Result);
             {_, _, _} ->
                 make_msg_result_body(St, R);
+            {error, Reason} ->
+                make_msg_result_body(St, {error, [], Reason});
             {Code, Body} ->
                 make_msg_result_body(St, {Code, [], Body})
         end,
@@ -253,5 +284,16 @@ msg_res_body(#ejm{jlog=Fd} = St, R) ->
     end,
     End = "]]></description>\n",
     write_string(Fd, End).
+
+%%-----------------------------------------------------------------------------
+make_title(Id) ->
+    make_title({ok, {request, "", ""}}, Id).
+
+make_title({ok, {Scode, _Body}}, Id) ->
+    io_lib:format("Job ~p - ok, ~p", [Id, Scode]);
+make_title({ok, {Stline, _Hdr, _Body}}, Id) ->
+    io_lib:format("Job ~p - ~p", [Id, Stline]);
+make_title({error, Reason}, Id) ->
+    io_lib:format("Job ~p - error, ~p", [Id, Reason]).
 
 %%-----------------------------------------------------------------------------

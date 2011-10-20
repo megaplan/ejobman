@@ -41,6 +41,7 @@
 
 -export([cmd/1, remove_child/1]).
 -export([cmd_result/2]).
+-export([get_job_log_filename/0]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -73,6 +74,11 @@ init(_) ->
 -spec handle_call(any(), any(), #ejm{}) ->
     {noreply, #ejm{}, non_neg_integer()}
     | {any(), any(), #ejm{}, non_neg_integer()}.
+
+%% @doc returns job log file name
+handle_call(get_job_log_filename, _From, St) ->
+    New = do_smth(St),
+    {reply, New#ejm.jlog_f, New, ?T};
 
 %% @doc deletes disposable child from the state
 handle_call({remove_child, Pid}, _From, St) ->
@@ -198,6 +204,15 @@ cmd_result(Res, Pid) ->
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc asks ejobman_handler for job log file name
+%%
+-spec get_job_log_filename() -> string() | undefined.
+
+get_job_log_filename() ->
+    gen_server:call(?MODULE, get_job_log_filename).
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc asks ejobman_handler to remove child from the list
 %%
 -spec remove_child(pid()) -> ok.
@@ -230,7 +245,7 @@ remove_child(#ejm{ch_data=Ch} = St, Pid) ->
 -spec do_smth(#ejm{}) -> #ejm{}.
 
 do_smth(State) ->
-    St = job_logrotate(State),
+    St = job_log_rotate(State),
     mpln_p_debug:pr({?MODULE, 'do_smth', ?LINE}, St#ejm.debug, run, 5),
     Stc = check_children(St),
     check_queued_commands(Stc).
@@ -291,11 +306,11 @@ prepare_job_log(#ejm{job_log=Base} = St) ->
     filelib:ensure_dir(File),
     case file:open(File, [raw, append, binary]) of
         {ok, Fd} ->
-            St#ejm{jlog=Fd};
+            St#ejm{jlog=Fd, jlog_f=File};
         {error, Reason} ->
             mpln_p_debug:pr({?MODULE, "prepare_job_log error", ?LINE, Reason},
                 St#ejm.debug, run, 0),
-            St
+            St#ejm{jlog_f=undefined}
     end.
 
 close_job_log(#ejm{jlog = undefined}) ->
@@ -307,9 +322,17 @@ close_job_log(#ejm{jlog = Fd}) ->
 %%
 %% @doc rotates job log only. Does not touch error log.
 %%
-job_logrotate(St) ->
-    St % @FIXME
-.
+-spec job_log_rotate(#ejm{}) -> #ejm{}.
+
+job_log_rotate(#ejm{job_log_last=Last, job_log_rotate=Dur} = St) ->
+    case mpln_misc_log:need_rotate(Last, Dur) of
+        true ->
+            close_job_log(St),
+            St_f = prepare_job_log(St),
+            St_f#ejm{job_log_last = calendar:local_time()};
+        false ->
+            St
+    end.
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests

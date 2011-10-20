@@ -56,7 +56,10 @@
     conn,
     log,
     job_log, % filename for job log
+    job_log_last,
+    job_log_rotate :: minute | hour | day | month,
     jlog, % file descriptor
+    jlog_f, % expanded file name
     debug
 }).
 
