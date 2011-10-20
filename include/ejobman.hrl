@@ -55,6 +55,8 @@
     rses,
     conn,
     log,
+    job_log, % filename for job log
+    jlog, % file descriptor
     debug
 }).
 

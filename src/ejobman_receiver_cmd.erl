@@ -111,6 +111,7 @@ make_job(Data) ->
     T_data = ejobman_data:get_time(Info),
     T = make_time(T_data),
     A#job{
+        id = make_ref(),
         method = Method,
         url = Url,
         host = Host,

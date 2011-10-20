@@ -179,7 +179,7 @@ process_cmd(_) ->
 %% https://github.com/cmullaparthi/ibrowse
 %% @since 2011-07-18
 %%
-real_cmd(#child{method = Method_bin, params = Params, from = From} = St) ->
+real_cmd(#child{id=Id, method=Method_bin, params=Params, from=From} = St) ->
     mpln_p_debug:pr({?MODULE, 'real_cmd params', ?LINE, self(), St},
         St#child.debug, run, 4),
     Method = ejobman_clean:get_method(Method_bin),
@@ -192,6 +192,7 @@ real_cmd(#child{method = Method_bin, params = Params, from = From} = St) ->
         [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
         []),
     gen_server:reply(From, Res),
+    ejobman_handler:cmd_result(Res, Id),
     mpln_p_debug:log_http_res({?MODULE, ?LINE}, Res, St#child.debug).
 
 %%-----------------------------------------------------------------------------

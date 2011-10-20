@@ -40,6 +40,7 @@
 -export([terminate/2, code_change/3]).
 
 -export([cmd/1, remove_child/1]).
+-export([cmd_result/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -58,10 +59,12 @@
 %%%----------------------------------------------------------------------------
 init(_) ->
     C = ejobman_conf:get_config_hdl(),
+    St = prepare_all(C),
+    % trap_exit is necessary because the job log is opened
     % trap_exit is unnecessary. Children are ripped by supervisor
     %process_flag(trap_exit, true),
-    mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, C#ejm.debug, run, 1),
-    {ok, C, ?T}.
+    mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, St#ejm.debug, run, 1),
+    {ok, St, ?T}.
 %%-----------------------------------------------------------------------------
 %%
 %% Handling call messages
@@ -100,6 +103,11 @@ handle_call(_N, _From, St) ->
 
 handle_cast(stop, St) ->
     {stop, normal, St};
+handle_cast({cmd_result, Res, Id}, St) ->
+    mpln_p_debug:pr({?MODULE, 'cast cmd res', ?LINE, Id, Res}, St#ejm.debug, run, 4),
+    ejobman_handler_cmd:do_command_result(St, Res, Id),
+    New = do_smth(St),
+    {noreply, New, ?T};
 handle_cast(_N, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _N}, St#ejm.debug, run, 2),
     New = do_smth(St),
@@ -109,6 +117,7 @@ handle_cast(_N, St) ->
 %% @doc Note: it won't be called unless trap_exit is set
 %%
 terminate(_, State) ->
+    close_job_log(State),
     mpln_p_debug:pr({?MODULE, 'terminate', ?LINE}, State#ejm.debug, run, 1),
     ok.
 %%-----------------------------------------------------------------------------
@@ -179,6 +188,16 @@ cmd(Job) ->
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc sends message to server to log cmd result
+%% @since 2011-07-15 11:00
+%%
+-spec cmd_result(tuple(), pid()) -> ok.
+
+cmd_result(Res, Pid) ->
+    gen_server:cast(?MODULE, {cmd_result, Res, Pid}).
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc asks ejobman_handler to remove child from the list
 %%
 -spec remove_child(pid()) -> ok.
@@ -211,8 +230,9 @@ remove_child(#ejm{ch_data=Ch} = St, Pid) ->
 -spec do_smth(#ejm{}) -> #ejm{}.
 
 do_smth(State) ->
-    mpln_p_debug:pr({?MODULE, 'do_smth', ?LINE}, State#ejm.debug, run, 5),
-    Stc = check_children(State),
+    St = job_logrotate(State),
+    mpln_p_debug:pr({?MODULE, 'do_smth', ?LINE}, St#ejm.debug, run, 5),
+    Stc = check_children(St),
     check_queued_commands(Stc).
 
 %%-----------------------------------------------------------------------------
@@ -248,6 +268,48 @@ check_child(#chi{pid=Pid}) ->
         _ ->
             false
     end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc prepares necessary things
+%%
+-spec prepare_all(#ejm{}) -> #ejm{}.
+
+prepare_all(St) ->
+    prepare_job_log(St).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc prepares log for jobs and results
+%%
+-spec prepare_job_log(#ejm{}) -> #ejm{}.
+
+prepare_job_log(#ejm{job_log=undefined} = St) ->
+    St;
+prepare_job_log(#ejm{job_log=Base} = St) ->
+    File = mpln_misc_log:get_fname(Base),
+    filelib:ensure_dir(File),
+    case file:open(File, [raw, append, binary]) of
+        {ok, Fd} ->
+            St#ejm{jlog=Fd};
+        {error, Reason} ->
+            mpln_p_debug:pr({?MODULE, "prepare_job_log error", ?LINE, Reason},
+                St#ejm.debug, run, 0),
+            St
+    end.
+
+close_job_log(#ejm{jlog = undefined}) ->
+    ok;
+close_job_log(#ejm{jlog = Fd}) ->
+    file:close(Fd).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc rotates job log only. Does not touch error log.
+%%
+job_logrotate(St) ->
+    St % @FIXME
+.
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests

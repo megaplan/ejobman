@@ -4,6 +4,7 @@
 %-define(T, 1000).
 
 -record(job, {
+    id :: reference(),
     type = 'rest',
     method,
     url,

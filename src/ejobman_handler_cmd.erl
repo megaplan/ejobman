@@ -35,6 +35,7 @@
 %%%----------------------------------------------------------------------------
 
 -export([do_command/3, do_short_commands/1]).
+-export([do_command_result/3]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -59,6 +60,16 @@
 do_command(St, From, Job) ->
     St_q = store_in_ch_queue(St, From, Job),
     do_short_commands(St_q).
+
+%%%----------------------------------------------------------------------------
+%%
+%% @doc logs a command result to the job log
+%% @since 2011-10-19 18:00
+%%
+-spec do_command_result(#ejm{}, tuple(), reference()) -> ok.
+
+do_command_result(St, Res, Id) ->
+    ejobman_log:log_job_result(St, Res, Id).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -128,10 +139,12 @@ check_one_command(#ejm{ch_queue = Q} = St) ->
 do_one_command(St, {From, J}) ->
     mpln_p_debug:pr({?MODULE, 'do_one_command cmd', ?LINE, From, J},
         St#ejm.debug, handler_child, 3),
+    ejobman_log:log_job(St, J),
     % parameters for ejobman_child
     Child_params = [
         {url_rewrite, St#ejm.url_rewrite},
         {from, From},
+        {id, J#job.id},
         {method, J#job.method},
         {url, J#job.url},
         {host, J#job.host},
