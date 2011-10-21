@@ -28,8 +28,8 @@
 %%% 
 
 -module(ejobman_log).
--compile(export_all). % @todo for debug only
 -export([log_job/2, log_job_result/3]).
+-export([make_jlog_xml/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -38,12 +38,32 @@
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
+-include_lib("kernel/include/file.hrl").
 -include("ejobman.hrl").
 -include("job.hrl").
 
 %%%----------------------------------------------------------------------------
+%%% Defines
+%%%----------------------------------------------------------------------------
+
+-define(BLOCK, 4096).
+
+%%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
+%%
+%% @doc reads last N bytes from job log file and creates the xml (rss) output
+%% @since 2011-10-21 14:07
+%%
+-spec make_jlog_xml(string(), non_neg_integer()) -> string().
+
+make_jlog_xml(File, Size) ->
+    Data = get_jlog_data(File, Size),
+    Head = get_jlog_head(),
+    Foot = get_jlog_foot(),
+    Head ++ Data ++ Foot.
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc writes rss message with job request to file descriptor
 %% @since 2011-10-20 11:35
@@ -104,10 +124,7 @@ log_job_2(#ejm{jlog=Fd} = St, J) ->
 %% @doc writes rss message header to file descriptor
 %%
 msg_head(Fd) ->
-    Str = %"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        %"<rss version=\"2.0\">\n"
-        %"<channel>\n"
-        "<item>\n",
+    Str = "<item>\n",
     write_string(Fd, Str).
 
 %%-----------------------------------------------------------------------------
@@ -115,10 +132,7 @@ msg_head(Fd) ->
 %% @doc writes rss message footer to file descriptor
 %%
 msg_foot(Fd) ->
-    Str = "</item>\n"
-        %"</channel>\n"
-        %"</rss>\n\n"
-        ,
+    Str = "</item>\n",
     write_string(Fd, Str).
 
 %%-----------------------------------------------------------------------------
@@ -162,11 +176,11 @@ msg_date(Fd) ->
 %% @doc writes rss message description to file descriptor
 %%
 msg_body(#ejm{jlog=Fd} = St, J) ->
-    Beg = "<description><![CDATA[",
+    Beg = "<description><![CDATA[<pre>",
     write_string(Fd, Beg),
     Body = make_msg_body(St, J),
     write_string(Fd, Body),
-    End = "]]></description>\n",
+    End = "</pre>]]></description>\n",
     write_string(Fd, End).
 
 %%-----------------------------------------------------------------------------
@@ -264,8 +278,6 @@ msg_res_body(#ejm{jlog=Fd} = St, R) ->
         case R of
             {ok, {_, _, _}=Result} ->
                 make_msg_result_body(St, Result);
-            {_, _, _} ->
-                make_msg_result_body(St, R);
             {error, Reason} ->
                 make_msg_result_body(St, {error, [], Reason});
             {Code, Body} ->
@@ -286,6 +298,9 @@ msg_res_body(#ejm{jlog=Fd} = St, R) ->
     write_string(Fd, End).
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc creates title with id for rss item
+%%
 make_title(Id) ->
     make_title({ok, {request, "", ""}}, Id).
 
@@ -295,5 +310,106 @@ make_title({ok, {Stline, _Hdr, _Body}}, Id) ->
     io_lib:format("Job ~p - ~p", [Id, Stline]);
 make_title({error, Reason}, Id) ->
     io_lib:format("Job ~p - error, ~p", [Id, Reason]).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc reads N bytes from file and removes leading rubbish
+%%
+-spec get_jlog_data(string(), non_neg_integer()) -> string().
+
+get_jlog_data(File, Size) ->
+    Res = prepare_fd(File),
+    Data = read_data(Res, Size),
+    binary_to_list(Data).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc sets position in file based on file size and requested size.
+%% Returns size to read.
+%%
+get_pos_len(Fd, #file_info{size = Size}, Size_in)
+        when is_integer(Size_in), Size > Size_in, Size_in > 0 ->
+    file:position(Fd, {eof, -Size_in}),
+    Size_in;
+get_pos_len(Fd, #file_info{size = Size}, Size_in) when Size > Size_in ->
+    file:position(Fd, {eof, -?BLOCK}),
+    ?BLOCK;
+get_pos_len(Fd, #file_info{size = Size}, _Size_in) ->
+    file:position(Fd, bof),
+    Size.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc reads tail of the log, strips non xml rubbish at the beginning,
+%% returns binary data
+%%
+-spec read_data({ok, any(), #file_info{}, non_neg_integer()}
+    | {error, any(), any()}, non_neg_integer()) -> binary().
+
+read_data({ok, Fd, Info}, Size_in) ->
+    Size = get_pos_len(Fd, Info, Size_in),
+    case file:read(Fd, Size) of
+        {ok, Data} ->
+            file:close(Fd),
+            strip_rss_begin(Data);
+        {error, Reason} ->
+            error_logger:info_report({?MODULE, read_data, ?LINE,
+                error, Reason}),
+            file:close(Fd),
+            <<>>
+    end;
+read_data({error, _R1, _R2}, _) ->
+    <<>>.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc reads file info, opens file, returns file handler and info or error.
+%%
+-spec prepare_fd(string()) -> {ok, any(), #file_info{}}
+    | {error, any(), any()}.
+
+prepare_fd(File) ->
+    case file:read_file_info(File) of
+        {ok, Info} ->
+            case file:open(File, [raw, binary]) of
+                {ok, Fd} ->
+                    {ok, Fd, Info};
+                {error, R_p} ->
+                    error_logger:info_report({?MODULE, prepare_fd, ?LINE,
+                        error_open, R_p}),
+                    {error, R_p, Info}
+            end;
+        {error, R_i} ->
+            error_logger:info_report({?MODULE, prepare_fd, ?LINE,
+                error_info, R_i}),
+            {error, R_i, undefined}
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc strip leading non xml rubbish.
+%%
+-spec strip_rss_begin(binary()) -> binary().
+
+strip_rss_begin(Data) ->
+    case re:run(Data, "<item>") of
+        {match, [{Offset, _}]} ->
+            {_, D2} = split_binary(Data, Offset),
+            D2;
+        _ ->
+            Data
+    end.
+
+%%-----------------------------------------------------------------------------
+get_jlog_head() ->
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<rss version=\"2.0\">\n"
+        "<channel>\n"
+.
+
+%%-----------------------------------------------------------------------------
+get_jlog_foot() ->
+    "</channel>\n</rss>\n\n"
+.
 
 %%-----------------------------------------------------------------------------
