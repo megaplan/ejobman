@@ -24,12 +24,13 @@
 %%% @author arkdro <arkdro@gmail.com>
 %%% @since 2011-10-20 11:35
 %%% @license MIT
-%%% @doc job logging functions
+%%% @doc job logging functions. Log parse and rss recreating forced by
+%%% some contradictious requests.
 %%% 
 
 -module(ejobman_log).
 -export([log_job/2, log_job_result/3]).
--export([make_jlog_xml/2]).
+-export([make_jlog_xml/1, make_jlog_xml/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -47,6 +48,14 @@
 %%%----------------------------------------------------------------------------
 
 -define(BLOCK, 4096).
+-define(QRY, request).
+-define(RES, result).
+-record(item, {
+    ref,
+    date,
+    desc,
+    status
+}).
 
 %%%----------------------------------------------------------------------------
 %%% API
@@ -55,6 +64,11 @@
 %% @doc reads last N bytes from job log file and creates the xml (rss) output
 %% @since 2011-10-21 14:07
 %%
+-spec make_jlog_xml(string()) -> string().
+
+make_jlog_xml(File) ->
+    make_jlog_xml(File, ?BLOCK).
+
 -spec make_jlog_xml(string(), non_neg_integer()) -> string().
 
 make_jlog_xml(File, Size) ->
@@ -341,7 +355,7 @@ get_pos_len(Fd, #file_info{size = Size}, _Size_in) ->
 %%-----------------------------------------------------------------------------
 %%
 %% @doc reads tail of the log, strips non xml rubbish at the beginning,
-%% returns binary data
+%% joins request-result pairs, returns binary data
 %%
 -spec read_data({ok, any(), #file_info{}, non_neg_integer()}
     | {error, any(), any()}, non_neg_integer()) -> binary().
@@ -351,7 +365,8 @@ read_data({ok, Fd, Info}, Size_in) ->
     case file:read(Fd, Size) of
         {ok, Data} ->
             file:close(Fd),
-            strip_rss_begin(Data);
+            Sdata = strip_rss_begin(Data),
+            build_new_rss(Sdata);
         {error, Reason} ->
             error_logger:info_report({?MODULE, read_data, ?LINE,
                 error, Reason}),
@@ -411,5 +426,167 @@ get_jlog_head() ->
 get_jlog_foot() ->
     "</channel>\n</rss>\n\n"
 .
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc builds new rss data
+%%
+build_new_rss(Data) ->
+    case re:run(Data, "(<item>.*</item>)", [global, dotall, ungreedy, {capture, all_but_first, binary}]) of
+        {match, L} ->
+            Dict = parse_items(L),
+            List = create_new_items(Dict),
+            create_new_data(List);
+        _ ->
+            Data
+    end.
+
+%%-----------------------------------------------------------------------------
+parse_items(List) ->
+    D = orddict:new(),
+    lists:foldl(fun get_info_lines/2, D, List).
+
+%%-----------------------------------------------------------------------------
+-spec get_info_lines(binary(), any()) -> any().
+
+get_info_lines(Item, Acc) ->
+    % Item is [Item] in fact because re:run returns so for 'global'.
+    % Key: for later use in sort. So don't parse awry rfc822 date
+    Key = get_ref_longnum(Item),
+    Ref = get_ref(Item),
+    Date = get_date(Item),
+    Desc = get_description(Item),
+    Desc_c = clear_extra(Desc),
+    Desc_p = clear_pre(Desc_c),
+    St = get_status(Desc_p),
+    Data = fetch_item(Key, Acc, Desc_p),
+    New = Data#item{
+        ref = Ref,
+        date = Date,
+        status = St
+    },
+    orddict:store(Key, New, Acc).
+
+%%-----------------------------------------------------------------------------
+fetch_item(Key, Acc, Desc) ->
+    case orddict:find(Key, Acc) of
+        {ok, Val} ->
+            Val;
+        _ ->
+            #item{desc=Desc}
+    end.
+
+%%-----------------------------------------------------------------------------
+get_status(Item) ->
+    case re:run(Item, "\\bstatus=([^<>\\[\\]]+)", [{capture, all_but_first, binary}]) of
+        {match, L} ->
+            hd(L);
+        _ ->
+            <<"status_undefined">>
+    end.
+
+%%-----------------------------------------------------------------------------
+get_description(Item) ->
+    case re:run(Item, "<description>(.+?)</description>", [dotall, ungreedy, {capture, all_but_first, binary}]) of
+        {match, L} ->
+            clear_extra(hd(L));
+        _ ->
+            <<"description_undefined">>
+    end.
+
+%%-----------------------------------------------------------------------------
+get_date(Item) ->
+    case re:run(Item, "<pubDate>([^<>]+)</pubDate>", [{capture, all_but_first, binary}]) of
+        {match, L} ->
+            hd(L);
+        _ ->
+            <<"pubdate_undefined">>
+    end.
+
+%%-----------------------------------------------------------------------------
+get_ref_longnum(Item) ->
+    case re:run(Item, "#Ref<(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)>", [{capture, all_but_first, list}]) of
+        {match, L} ->
+            make_ref_text(L);
+        _ ->
+            <<"ref_undefined">>
+    end.
+
+%%-----------------------------------------------------------------------------
+make_ref_text(List) ->
+    S = lists:map(fun(X) ->
+        io_lib:format("~6.10.0B", [list_to_integer(X)])
+    end, List),
+    list_to_binary(S).
+
+%%-----------------------------------------------------------------------------
+get_ref(Item) ->
+    case re:run(Item, "(#Ref<\\d+\\.\\d+\\.\\d+\\.\\d+>)", [{capture, all_but_first, binary}]) of
+        {match, L} ->
+            hd(L);
+        _ ->
+            <<"ref_undefined">>
+    end.
+
+%%-----------------------------------------------------------------------------
+clear_extra(Item) ->
+    case re:run(Item, "<!\\[CDATA\\[(.*)\\]\\]>", [dotall, {capture, all_but_first, binary}]) of
+        {match, L} ->
+            hd(L);
+        _ ->
+            Item
+    end.
+
+%%-----------------------------------------------------------------------------
+clear_pre(Item) ->
+    case re:run(Item, "<pre>(.*)</pre>", [dotall, {capture, all_but_first, binary}]) of
+        {match, L} ->
+            hd(L);
+        _ ->
+            Item
+    end.
+
+%%-----------------------------------------------------------------------------
+create_new_items(Dict) ->
+    D2 = orddict:map(fun create_one_item/2, Dict),
+    [V || {_K, V} <- lists:reverse(orddict:to_list(D2))].
+
+%%-----------------------------------------------------------------------------
+create_new_data(List) ->
+    L2 = [[X,"\n"] || X <- List],
+    iolist_to_binary(L2).
+
+%%-----------------------------------------------------------------------------
+create_one_item(_Key, I) ->
+    Title = create_item_title(I),
+    Date = create_item_date(I),
+    Desc = create_item_description(I),
+    iolist_to_binary([
+        "<item>",
+        Title,
+        Date,
+        Desc,
+        "</item>\n"
+    ]).
+
+%%-----------------------------------------------------------------------------
+create_item_description(I) ->
+    ["<description><![CDATA[<pre>",
+    I#item.desc,
+    "</pre>]]></description>\n"].
+
+%%-----------------------------------------------------------------------------
+create_item_date(I) ->
+    ["<pubDate>",
+    I#item.date,
+    "</pubDate>\n"].
+
+%%-----------------------------------------------------------------------------
+create_item_title(I) ->
+    ["<title><![CDATA[Job - ",
+    I#item.ref,
+    " - ",
+    I#item.status,
+    "]]></title>\n"].
 
 %%-----------------------------------------------------------------------------
