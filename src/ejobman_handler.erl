@@ -80,12 +80,6 @@ handle_call(get_job_log_filename, _From, St) ->
     New = do_smth(St),
     {reply, New#ejm.jlog_f, New, ?T};
 
-%% @doc deletes disposable child from the state
-handle_call({remove_child, Pid}, _From, St) ->
-    St_d = do_smth(St),
-    New = remove_child(St_d, Pid),
-    {reply, ok, New, ?T};
-
 %% @doc calls disposable child
 handle_call({cmd, Job}, From, St) ->
     St_d = do_smth(St),
@@ -114,6 +108,14 @@ handle_cast({cmd_result, Res, Id}, St) ->
     ejobman_handler_cmd:do_command_result(St, Res, Id),
     New = do_smth(St),
     {noreply, New, ?T};
+
+%% @doc deletes disposable child from the state
+handle_cast({remove_child, Pid}, St) ->
+    mpln_p_debug:pr({?MODULE, "remove child", ?LINE, Pid}, St#ejm.debug, run, 4),
+    St_d = do_smth(St),
+    New = remove_child(St_d, Pid),
+    {noreply, New, ?T};
+
 handle_cast(_N, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _N}, St#ejm.debug, run, 2),
     New = do_smth(St),
