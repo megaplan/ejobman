@@ -142,6 +142,8 @@ do_one_command(St, {From, J}) ->
     ejobman_log:log_job(St, J),
     % parameters for ejobman_child
     Child_params = [
+        {http_connect_timeout, St#ejm.http_connect_timeout},
+        {http_timeout, St#ejm.http_timeout},
         {url_rewrite, St#ejm.url_rewrite},
         {from, From},
         {id, J#job.id},

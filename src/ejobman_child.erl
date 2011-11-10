@@ -50,7 +50,7 @@
 -include("amqp_client.hrl").
 -include("sign_req.hrl").
 
--define(HTTP_TIMEOUT, 15000).
+%-define(HTTP_TIMEOUT, 15000).
 -define(CTYPE, "application/x-www-form-urlencoded").
 
 %%%----------------------------------------------------------------------------
@@ -179,7 +179,8 @@ process_cmd(_) ->
 %% https://github.com/cmullaparthi/ibrowse
 %% @since 2011-07-18
 %%
-real_cmd(#child{id=Id, method=Method_bin, params=Params, from=From} = St) ->
+real_cmd(#child{id=Id, method=Method_bin, params=Params,
+        http_connect_timeout=Conn_t, http_timeout=Http_t} = St) ->
     mpln_p_debug:pr({?MODULE, 'real_cmd params', ?LINE, self(), St},
         St#child.debug, run, 4),
     Method = ejobman_clean:get_method(Method_bin),
@@ -189,9 +190,11 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, from=From} = St) ->
     mpln_p_debug:pr({?MODULE, 'real_cmd request', ?LINE, self(), Req},
         St#child.debug, http, 4),
     Res = http:request(Method, Req,
-        [{timeout, ?HTTP_TIMEOUT}, {connect_timeout, ?HTTP_TIMEOUT}],
+        [{timeout, Http_t}, {connect_timeout, Conn_t}],
         []),
-    gen_server:reply(From, Res),
+    % reply should be either removed or changed
+    % in according with ejobman_handler:cmd
+    %gen_server:reply(From, Res),
     ejobman_handler:cmd_result(Res, Id),
     mpln_p_debug:log_http_res({?MODULE, ?LINE}, Res, St#child.debug).
 

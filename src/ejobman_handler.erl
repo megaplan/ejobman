@@ -84,7 +84,8 @@ handle_call(get_job_log_filename, _From, St) ->
 handle_call({cmd, Job}, From, St) ->
     St_d = do_smth(St),
     New = ejobman_handler_cmd:do_command(St_d, From, Job),
-    {noreply, New, ?T};
+    mpln_p_debug:pr({?MODULE, 'cmd started', ?LINE}, St#ejm.debug, run, 3),
+    {reply, ok, New, ?T};
 
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
@@ -192,7 +193,7 @@ stop() ->
 -spec cmd(#job{}) -> ok.
 
 cmd(Job) ->
-    gen_server:call(?MODULE, {cmd, Job}).
+    gen_server:call(?MODULE, {cmd, Job}, infinity).
 
 %%-----------------------------------------------------------------------------
 %%

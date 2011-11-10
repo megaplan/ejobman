@@ -1,6 +1,8 @@
 -ifndef(ejobman_params).
 -define(ejobman_params, true).
 
+-define(HTTP_CONNECT_TIMEOUT, 15000).
+-define(HTTP_TIMEOUT, 3600000).
 -define(T, 1000).
 -define(TC, 0).
 -define(LOG, "/var/log/erpher/ejm").
@@ -19,6 +21,8 @@
     host,
     auth,
     url_rewrite,
+    http_connect_timeout,
+    http_timeout,
     params,
     debug
 }).
@@ -49,6 +53,8 @@
     ch_data, % spawned children
     ch_queue,
     max_children = 32767,
+    http_connect_timeout = ?HTTP_CONNECT_TIMEOUT,
+    http_timeout = ?HTTP_TIMEOUT,
     url_rewrite,
     web_server_pid,
     web_server_opts,
