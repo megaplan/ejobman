@@ -109,7 +109,8 @@ fill_config(List) ->
     #ejm{
         rses = Rses,
         debug = proplists:get_value(debug, List, []),
-        log = proplists:get_value(log, List)
+        log = proplists:get_value(log, List),
+        pid_file = proplists:get_value(pid_file, List)
     }.
 
 %%-----------------------------------------------------------------------------
