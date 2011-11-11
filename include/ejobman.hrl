@@ -61,6 +61,7 @@
     rses,
     conn,
     log,
+    pid_file,
     job_log, % filename for job log
     job_log_last,
     job_log_rotate :: minute | hour | day | month,

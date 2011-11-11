@@ -181,6 +181,7 @@ logrotate() ->
 
 prepare_all(C) ->
     prepare_log(C),
+    write_pid(C),
     prepare_q(C).
 
 %%-----------------------------------------------------------------------------
@@ -207,3 +208,14 @@ prepare_log(#ejm{log=Log}) ->
     mpln_misc_log:prepare_log(Log).
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc writes pid file
+%% @since 2011-11-11 14:17
+%%
+-spec write_pid(#ejm{}) -> ok.
+
+write_pid(#ejm{pid_file=undefined}) ->
+    ok;
+write_pid(#ejm{pid_file=File}) ->
+    mpln_misc_run:write_pid(File).
+
