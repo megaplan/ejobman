@@ -36,6 +36,7 @@
 
 -export([do_command/3, do_short_commands/1]).
 -export([do_command_result/3]).
+-export([remove_child/3]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -61,7 +62,20 @@ do_command(St, From, Job) ->
     St_q = store_in_ch_queue(St, From, Job),
     do_short_commands(St_q).
 
-%%%----------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
+%%
+%% @doc iterates over all queues for short commands
+%%
+-spec do_short_commands(#ejm{}) -> #ejm{}.
+
+do_short_commands(#ejm{ch_queues=Data} = St) ->
+    F = fun(Gid, _, Acc) ->
+        short_command_step(Acc, Gid)
+    end,
+    St_s = dict:fold(F, St, Data),
+    St_s.
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc logs a command result to the job log
 %% @since 2011-10-19 18:00
@@ -73,70 +87,215 @@ do_command_result(St, Res, Id) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc repeatedly calls for creating new child until either limit
-%% reached or command queue exhausted. Returns updated state.
-%% @since 2011-07-22 14:54
+%% @doc removes child from the list of children
+%% @since 2011-11-14 17:14
 %%
--spec do_short_commands(#ejm{}) -> #ejm{}.
+-spec remove_child(#ejm{}, pid(), any()) -> #ejm{}.
 
-do_short_commands(#ejm{ch_queue = Q, ch_data = Ch, max_children = Max} = St) ->
-    Len = length(Ch),
-    mpln_p_debug:pr({?MODULE, 'do_short_commands', ?LINE, Len, Max},
-        St#ejm.debug, handler_run, 4),
-    case queue:is_empty(Q) of
-        false when Len < Max ->
-            New_st = check_one_command(St),
-            do_short_commands(New_st); % repeat to do commands
-        false ->
-            mpln_p_debug:pr({?MODULE, 'do_short_commands too many children',
-                ?LINE, Len, Max}, St#ejm.debug, handler_run, 2),
-            St;
+remove_child(St, Pid, Group) ->
+    Ch = fetch_spawned_children(St, Group),
+    F = fun(#chi{pid=X}) when X == Pid ->
+            false;
+        (_) ->
+            true
+    end,
+    New_ch = lists:filter(F, Ch),
+    store_spawned_children(St, Group, New_ch).
+
+%%%----------------------------------------------------------------------------
+%%% Internal functions
+%%%----------------------------------------------------------------------------
+%%
+%% @doc does one iteration for given group over queue and spawned children.
+%% Returns updated state with new queue and spawned children
+%%
+-spec short_command_step(#ejm{}, any()) -> #ejm{}.
+
+short_command_step(#ejm{job_groups=Groups, max_children=Max} = St, Gid) ->
+    Q = fetch_job_queue(St, Gid),
+    Ch = fetch_spawned_children(St, Gid),
+    Max = get_group_max(Groups, Gid, Max),
+    {New_q, New_ch} = do_short_command_queue(St, {Q, Ch}, Max),
+    St_j = store_job_queue(St, Gid, New_q),
+    St_ch = store_spawned_children(St_j, Gid, New_ch),
+    St_ch.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc stores a queue for the given group to a dictionary
+%%
+-spec store_job_queue(#ejm{}, any(), queue()) -> #ejm{}.
+
+store_job_queue(#ejm{ch_queues=Data} = St, Gid, Q) ->
+    New_dict = dict:store(Gid, Q, Data),
+    St#ejm{ch_queues=New_dict}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fetches particular queue from dict of queues or creates empty one
+%%
+-spec fetch_job_queue(#ejm{}, any()) -> queue().
+
+fetch_job_queue(#ejm{ch_queues=Data}, Gid) ->
+    case dict:find(Gid, Data) of
+        {ok, Q} ->
+            Q;
         _ ->
-            mpln_p_debug:pr({?MODULE, 'do_short_commands no new child',
-                ?LINE, Len, Max}, St#ejm.debug, handler_run, 4),
-            St
+            queue:new()
     end.
 
 %%-----------------------------------------------------------------------------
-%% Internal functions
+%%
+%% @doc stores a children list for the given group to a dictionary
+%%
+-spec store_spawned_children(#ejm{}, any(), list()) -> #ejm{}.
+
+store_spawned_children(#ejm{ch_data=Data} = St, Gid, Ch) ->
+    New_dict = dict:store(Gid, Ch, Data),
+    St#ejm{ch_data=New_dict}.
+
 %%-----------------------------------------------------------------------------
 %%
-%% @doc stores the command into a queue for later processing.
+%% @doc fetches particular list from dict of lists or creates empty one
+%%
+-spec fetch_spawned_children(#ejm{}, any()) -> list().
+
+fetch_spawned_children(#ejm{ch_data=Data}, Gid) ->
+    case dict:find(Gid, Data) of
+        {ok, L} ->
+            L;
+        _ ->
+            []
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc repeatedly calls for creating new child for the given queue
+%% until either limit is reached or command queue exhausted.
+%% Returns updated queue and spawned children list.
+%% @since 2011-07-22 14:54
+%%
+-spec do_short_command_queue(#ejm{}, {Q, L}, any()) -> {Q, L}.
+
+do_short_command_queue(St, {Q, Ch}, Max) ->
+    Len = length(Ch),
+    mpln_p_debug:pr({?MODULE, 'do_short_command_queue', ?LINE, Len, Max},
+        St#ejm.debug, handler_run, 4),
+    case queue:is_empty(Q) of
+        false when Len < Max ->
+            New_dat = check_one_command(St, {Q, Ch}),
+            do_short_command_queue(St, New_dat, Max); % repeat to do commands
+        false ->
+            mpln_p_debug:pr({?MODULE,
+                "do_short_command_queue too many children",
+                ?LINE, Len, Max}, St#ejm.debug, handler_run, 2),
+            {Q, Ch};
+        _ ->
+            mpln_p_debug:pr({?MODULE, 'do_short_command_queue no new child',
+                ?LINE, Len, Max}, St#ejm.debug, handler_run, 4),
+            {Q, Ch}
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc returns configured max_children for the given group or default
+%%
+-spec get_group_max(list(), any(), non_neg_integer()) -> non_neg_integer().
+
+get_group_max(Groups, Gid, Default) ->
+    L2 = [X || X <- Groups,
+        X#jgroup.id == Gid, is_integer(X#jgroup.max_children)],
+    case L2 of
+        [I | _] ->
+            I#jgroup.max_children;
+        _ ->
+            Default
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc stores a command into a queue for the given group for later processing.
 %% @since 2011-07-22 10:00
 %%
 -spec store_in_ch_queue(#ejm{}, any(), #job{}) -> #ejm{}.
 
-store_in_ch_queue(#ejm{ch_queue = Q} = St, From, Job) ->
-    New = queue:in({From, Job}, Q),
-    St#ejm{ch_queue=New}.
+store_in_ch_queue(St, From, Job) ->
+    {Q, Job_g} = fetch_queue(St, Job),
+    New_q = queue:in({From, Job_g}, Q),
+    store_queue(St, Job_g#job.group, New_q).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc stores the given queue in a dictionary using the given group
+%%
+-spec store_queue(#ejm{}, default | any(), queue()) -> #ejm{}.
+
+store_queue(#ejm{ch_queues=Data} = St, Gid, Q) ->
+    New_data = dict:store(Gid, Q, Data),
+    St#ejm{ch_queues=New_data}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fetches queue from the state for given job group. Returns queue and
+%% job with group data filled
+%%
+-spec fetch_queue(#ejm{}, #job{}) -> {queue(), #job{}}.
+
+fetch_queue(#ejm{ch_queues=Data} = St, #job{group=Gid} = Job) ->
+    Allowed = get_allowed_group(St, Gid),
+    case dict:find(Allowed, Data) of
+        {ok, Q} ->
+            {Q, Job};
+        _ ->
+            {queue:new(), Job#job{group=Allowed}}
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks whether the group configured. Returns either the configured
+%% value or atom 'default'
+%%
+get_allowed_group(#ejm{job_groups=L}, Gid) ->
+    F = fun(#jgroup{id=Id}) when Id == Gid ->
+            true;
+        (_) ->
+            false
+    end,
+    case lists:any(F, L) of
+        true ->
+            Gid;
+        false ->
+            default
+    end.
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc checks for a queued command and calls do_one_command for processing
-%% if any. Otherwise returns old state.
+%% if any. Otherwise returns old queue and spawned children.
 %% @since 2011-07-22 10:00
 %%
--spec check_one_command(#ejm{}) -> #ejm{}.
+-spec check_one_command(#ejm{}, {Q, L}) -> {Q, L}.
 
-check_one_command(#ejm{ch_queue = Q} = St) ->
+check_one_command(St, {Q, Ch}) ->
     mpln_p_debug:pr({?MODULE, 'check_one_command', ?LINE},
         St#ejm.debug, handler_run, 4),
     case queue:out(Q) of
         {{value, Item}, Q2} ->
-            do_one_command(St#ejm{ch_queue=Q2}, Item);
+            New_ch = do_one_command(St, Ch, Item),
+            {Q2, New_ch};
         _ ->
-            St
+            {Q, Ch}
     end.
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc does command processing in background then sends reply to the client.
-%% Returns a state with a new child if the one is created.
+%% Returns modified children list with a new child if the one is created.
 %% @since 2011-07-15 10:00
 %%
--spec do_one_command(#ejm{}, {any(), #job{}}) -> #ejm{}.
+-spec do_one_command(#ejm{}, list(), {any(), #job{}}) -> list().
 
-do_one_command(St, {From, J}) ->
+do_one_command(St, Ch, {From, J}) ->
     mpln_p_debug:pr({?MODULE, 'do_one_command cmd', ?LINE, From, J},
         St#ejm.debug, handler_child, 3),
     ejobman_log:log_job(St, J),
@@ -147,6 +306,7 @@ do_one_command(St, {From, J}) ->
         {url_rewrite, St#ejm.url_rewrite},
         {from, From},
         {id, J#job.id},
+        {group, J#job.group},
         {method, J#job.method},
         {url, J#job.url},
         {host, J#job.host},
@@ -159,20 +319,24 @@ do_one_command(St, {From, J}) ->
         St#ejm.debug, handler_child, 4),
     case Res of
         {ok, Pid} ->
-            add_child(St, Pid);
+            add_child(Ch, Pid);
+        {ok, Pid, _Info} ->
+            add_child(Ch, Pid);
         _ ->
-            St
+            Ch
     end.
 
 %%-----------------------------------------------------------------------------
+%%
 %% @doc adds child's pid to the list for later use
 %% (e.g.: assign a job, kill, rip, etc...)
--spec add_child(#ejm{}, pid()) -> #ejm{}.
+%%
+-spec add_child(list(), pid()) -> list().
 
-add_child(#ejm{ch_data=Children} = St, Pid) ->
+add_child(Children, Pid) ->
     Ch = #chi{pid = Pid, start = now()},
-    St#ejm{ch_data = [Ch | Children]}
-.
+    [Ch | Children].
+
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
 %%%----------------------------------------------------------------------------
@@ -194,7 +358,7 @@ make_test_st({Pid, _}) ->
         ch_data = [#chi{pid=Pid, start=now()}],
         max_children = 1,
         debug = [{run, -1}],
-        ch_queue = queue:new()
+        ch_queues = dict:store("key1", queue:new(), dict:new())
     }.
 
 make_test_data() ->
@@ -205,11 +369,12 @@ make_test_data() ->
 
 do_command_test() ->
     {St, From, Method, Url} = make_test_data(),
+    Q_in = queue:in(
+        {From, #job{method = Method, url = Url}},
+        queue:new()),
     New = do_command(St, From, #job{method = Method, url = Url}),
     Stq = St#ejm{
-        ch_queue = queue:in(
-            {From, #job{method = Method, url = Url}},
-            queue:new())
+        ch_queues = dict:store("key2", Q_in, dict:new())
             },
     ?assert(Stq =:= New).
 

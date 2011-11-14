@@ -11,6 +11,7 @@
     host,
     auth,
     params,
+    group,
     run_time
 }).
 

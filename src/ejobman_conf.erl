@@ -59,11 +59,13 @@
 
 get_config_child(List) ->
     #child{
-        http_connect_timeout = proplists:get_value(http_connect_timeout, List, ?HTTP_CONNECT_TIMEOUT),
+        http_connect_timeout = proplists:get_value(http_connect_timeout, List,
+            ?HTTP_CONNECT_TIMEOUT),
         http_timeout = proplists:get_value(http_timeout, List, ?HTTP_TIMEOUT),
         url_rewrite = proplists:get_value(url_rewrite, List, []),
         name = proplists:get_value(name, List),
         id = proplists:get_value(id, List),
+        group = proplists:get_value(group, List),
         from = proplists:get_value(from, List),
         method = proplists:get_value(method, List, <<>>),
         url = proplists:get_value(url, List, <<>>),
@@ -164,7 +166,7 @@ fill_ejm_handler_config(List) ->
     Hdl_list = proplists:get_value(handler, List, []),
     #ejm{
         ch_data = [],
-        ch_queue = queue:new(),
+        ch_queues = dict:new(),
         job_log = proplists:get_value(job_log, Hdl_list),
         job_log_last = calendar:local_time(),
         job_log_rotate = proplists:get_value(job_log_rotate, Hdl_list),

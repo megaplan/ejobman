@@ -14,6 +14,7 @@
     port,
     id,
     os_pid,
+    group,
     duration,
     from,
     method,
@@ -25,6 +26,11 @@
     http_timeout,
     params,
     debug
+}).
+
+-record(jgroup, {
+    id,
+    max_children
 }).
 
 -record(chi, {
@@ -50,8 +56,10 @@
 % state of a handler and a receiver gen_server
 -record(ejm, {
     w_pools = [],
-    ch_data, % spawned children
-    ch_queue,
+    ch_data, % dict: group -> spawned children list
+    ch_queues, % dict: group -> queue of jobs
+%    default_ch_data = [], % default spawned children list
+%    default_queue, % default queue
     max_children = 32767,
     http_connect_timeout = ?HTTP_CONNECT_TIMEOUT,
     http_timeout = ?HTTP_TIMEOUT,
@@ -62,6 +70,7 @@
     conn,
     log,
     pid_file,
+    job_groups = [], % configured job groups
     job_log, % filename for job log
     job_log_last,
     job_log_rotate :: minute | hour | day | month,

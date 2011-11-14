@@ -108,6 +108,7 @@ make_job(Data) ->
     Flat_params = mpln_misc_web:flatten(Params, true),
     %Query_params = mpln_misc_web:query_string(Flat_params),
 
+    Group = ejobman_data:get_group(Info),
     T_data = ejobman_data:get_time(Info),
     T = make_time(T_data),
     A#job{
@@ -116,6 +117,7 @@ make_job(Data) ->
         url = Url,
         host = Host,
         params = Flat_params,
+        group = Group,
         run_time = T
     }.
 

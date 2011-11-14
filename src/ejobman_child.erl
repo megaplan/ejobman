@@ -58,7 +58,7 @@
 %%%----------------------------------------------------------------------------
 init(Params) ->
     C = ejobman_conf:get_config_child(Params),
-    mpln_p_debug:pr({?MODULE, 'init done', ?LINE, self()},
+    mpln_p_debug:pr({?MODULE, 'init done', ?LINE, C#child.id, self()},
         C#child.debug, run, 2),
     {ok, C, ?TC}. % yes, this is fast and dirty hack (?TC)
 
@@ -74,7 +74,7 @@ handle_call(stop, _From, St) ->
 handle_call(status, _From, St) ->
     {reply, St, St, ?TC};
 handle_call(_N, _From, St) ->
-    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N, self()},
+    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N, St#child.id, self()},
         St#child.debug, run, 2),
     New = do_smth(St),
     {reply, {error, unknown_request}, New, ?TC}.
@@ -96,8 +96,8 @@ handle_cast(_, St) ->
 
 %%-----------------------------------------------------------------------------
 terminate(_, State) ->
-    ejobman_handler:remove_child(self()),
-    mpln_p_debug:pr({?MODULE, terminate, ?LINE, self()},
+    ejobman_handler:remove_child(self(), State#child.group),
+    mpln_p_debug:pr({?MODULE, terminate, ?LINE, State#child.id, self()},
         State#child.debug, run, 2),
     ok.
 
@@ -108,12 +108,12 @@ terminate(_, State) ->
 -spec handle_info(any(), #child{}) -> any().
 
 handle_info(timeout, State) ->
-    mpln_p_debug:pr({?MODULE, info_timeout, ?LINE, self()},
+    mpln_p_debug:pr({?MODULE, info_timeout, ?LINE, State#child.id, self()},
         State#child.debug, run, 6),
     New = do_smth(State),
     {noreply, New, ?TC};
 handle_info(_Req, State) ->
-    mpln_p_debug:pr({?MODULE, other, ?LINE, _Req, self()},
+    mpln_p_debug:pr({?MODULE, other, ?LINE, _Req, State#child.id, self()},
         State#child.debug, run, 2),
     New = do_smth(State),
     {noreply, New, ?TC}.
@@ -181,14 +181,14 @@ process_cmd(_) ->
 %%
 real_cmd(#child{id=Id, method=Method_bin, params=Params,
         http_connect_timeout=Conn_t, http_timeout=Http_t} = St) ->
-    mpln_p_debug:pr({?MODULE, 'real_cmd params', ?LINE, self(), St},
-        St#child.debug, run, 4),
+    mpln_p_debug:pr({?MODULE, "real_cmd params", ?LINE, St#child.id, self(),
+        St}, St#child.debug, run, 4),
     Method = ejobman_clean:get_method(Method_bin),
     Method_str = ejobman_clean:get_method_str(Method),
     {Url, Hdr} = make_url(St, Method_str),
     Req = make_req(Method, Url, Hdr, Params),
-    mpln_p_debug:pr({?MODULE, 'real_cmd request', ?LINE, self(), Req},
-        St#child.debug, http, 4),
+    mpln_p_debug:pr({?MODULE, "real_cmd request", ?LINE, St#child.id, self(),
+        Req}, St#child.debug, http, 4),
     Res = http:request(Method, Req,
         [{timeout, Http_t}, {connect_timeout, Conn_t}],
         []),

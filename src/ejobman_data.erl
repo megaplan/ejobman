@@ -38,10 +38,20 @@
 -export([get_auth_info/1, get_auth_user/1, get_auth_password/1]).
 -export([get_auth_type/1, get_auth_data_list/1]).
 -export([get_auth_keys/1]).
+-export([get_group/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Public API
 %%%----------------------------------------------------------------------------
+-spec get_group(any()) -> any().
+%%
+%% @doc Extracts value for "group" item from deserialized json structure
+%% @since 2011-11-11 17:33
+%%
+get_group(Data) ->
+    get_value(Data, <<"group">>).
+
+%%-----------------------------------------------------------------------------
 -spec get_type(any()) -> any().
 %%
 %% @doc Extracts value for "type" item from deserialized json structure

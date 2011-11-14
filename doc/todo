@@ -1,10 +1,6 @@
 TODO:
 
-- use catch and/or timeout for ejobman_long_worker:cmd call
-  in ejobman_handler_cmd:do_one_long_command. Because we don't want to crash
-  handler on worker timeout.
 - compile and store regexp in ejobman_handler config preparation
-- logrotate
 - config reload:
   - amqp reconnect?
 
@@ -21,3 +17,7 @@ DONE:
   just a half of the messages. To get an another half one has to restart
   erlang VM (or completely eradicate old consumer from the rabbit's brain).
   DONE (shutdown timeout + trap exit in receiver)
+- use catch and/or timeout for ejobman_long_worker:cmd call
+  in ejobman_handler_cmd:do_one_long_command. Because we don't want to crash
+  handler on worker timeout.
+- logrotate

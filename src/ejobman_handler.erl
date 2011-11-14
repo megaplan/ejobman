@@ -39,7 +39,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 
--export([cmd/1, remove_child/1]).
+-export([cmd/1, remove_child/2]).
 -export([cmd_result/2]).
 -export([get_job_log_filename/0]).
 
@@ -72,8 +72,8 @@ init(_) ->
 %% @since 2011-07-15 11:00
 %%
 -spec handle_call(any(), any(), #ejm{}) ->
-    {noreply, #ejm{}, non_neg_integer()}
-    | {any(), any(), #ejm{}, non_neg_integer()}.
+    {reply , any(), #ejm{}, non_neg_integer()}
+    | {stop, normal, ok, #ejm{}}.
 
 %% @doc returns job log file name
 handle_call(get_job_log_filename, _From, St) ->
@@ -105,16 +105,18 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 handle_cast({cmd_result, Res, Id}, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast cmd res', ?LINE, Id, Res}, St#ejm.debug, run, 4),
+    mpln_p_debug:pr({?MODULE, 'cast cmd res', ?LINE, Id, Res},
+        St#ejm.debug, run, 4),
     ejobman_handler_cmd:do_command_result(St, Res, Id),
     New = do_smth(St),
     {noreply, New, ?T};
 
 %% @doc deletes disposable child from the state
-handle_cast({remove_child, Pid}, St) ->
-    mpln_p_debug:pr({?MODULE, "remove child", ?LINE, Pid}, St#ejm.debug, run, 4),
+handle_cast({remove_child, Pid, Group}, St) ->
+    mpln_p_debug:pr({?MODULE, "remove child", ?LINE, Pid, Group},
+        St#ejm.debug, run, 4),
     St_d = do_smth(St),
-    New = remove_child(St_d, Pid),
+    New = ejobman_handler_cmd:remove_child(St_d, Pid, Group),
     {noreply, New, ?T};
 
 handle_cast(_N, St) ->
@@ -200,10 +202,10 @@ cmd(Job) ->
 %% @doc sends message to server to log cmd result
 %% @since 2011-07-15 11:00
 %%
--spec cmd_result(tuple(), pid()) -> ok.
+-spec cmd_result(tuple(), reference()) -> ok.
 
-cmd_result(Res, Pid) ->
-    gen_server:cast(?MODULE, {cmd_result, Res, Pid}).
+cmd_result(Res, Id) ->
+    gen_server:cast(?MODULE, {cmd_result, Res, Id}).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -218,29 +220,14 @@ get_job_log_filename() ->
 %%
 %% @doc asks ejobman_handler to remove child from the list
 %%
--spec remove_child(pid()) -> ok.
+-spec remove_child(pid(), any()) -> ok.
 
-remove_child(Pid) ->
-    gen_server:cast(?MODULE, {remove_child, Pid}).
+remove_child(Pid, Group) ->
+    gen_server:cast(?MODULE, {remove_child, Pid, Group}).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
-%%
-%% @doc removes child from the list of children
-%%
--spec remove_child(#ejm{}, pid()) -> #ejm{}.
-
-remove_child(#ejm{ch_data=Ch} = St, Pid) ->
-    F = fun(#chi{pid=X}) when X == Pid ->
-            false;
-        (_) ->
-            true
-    end,
-    New = lists:filter(F, Ch),
-    St#ejm{ch_data=New}.
-
-%%-----------------------------------------------------------------------------
 %%
 %% @doc does miscellaneous periodic checks. E.g.: check for children. Returns
 %% updated state.
@@ -267,11 +254,12 @@ check_queued_commands(St) ->
 %% @doc checks that all the children are alive. Returns new state with
 %% live children only
 %%
--spec check_children(#ejm{}) -> #ejm{}.
-
-check_children(#ejm{ch_data=Ch} = State) ->
-    New = lists:filter(fun check_child/1, Ch),
-    State#ejm{ch_data = New}.
+check_children(#ejm{ch_data=Data} = St) ->
+    F = fun(_Gid, List) ->
+        lists:filter(fun check_child/1, List)
+    end,
+    New_data = dict:map(F, Data),
+    St#ejm{ch_data=New_data}.
 
 %%-----------------------------------------------------------------------------
 %%
