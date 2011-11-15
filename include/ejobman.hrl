@@ -56,10 +56,10 @@
 % state of a handler and a receiver gen_server
 -record(ejm, {
     w_pools = [],
-    ch_data, % dict: group -> spawned children list
     ch_queues, % dict: group -> queue of jobs
-%    default_ch_data = [], % default spawned children list
+    ch_data, % dict: group -> spawned children list
 %    default_queue, % default queue
+%    default_ch_data = [], % default spawned children list
     max_children = 32767,
     http_connect_timeout = ?HTTP_CONNECT_TIMEOUT,
     http_timeout = ?HTTP_TIMEOUT,

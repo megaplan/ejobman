@@ -65,6 +65,7 @@ do_command(St, From, Job) ->
 %%-----------------------------------------------------------------------------
 %%
 %% @doc iterates over all queues for short commands
+%% @since 2011-11-14 17:14
 %%
 -spec do_short_commands(#ejm{}) -> #ejm{}.
 
@@ -115,7 +116,7 @@ short_command_step(#ejm{job_groups=Groups, max_children=Max} = St, Gid) ->
     Q = fetch_job_queue(St, Gid),
     Ch = fetch_spawned_children(St, Gid),
     Max = get_group_max(Groups, Gid, Max),
-    {New_q, New_ch} = do_short_command_queue(St, {Q, Ch}, Max),
+    {New_q, New_ch} = do_short_command_queue(St, {Q, Ch}, Gid, Max),
     St_j = store_job_queue(St, Gid, New_q),
     St_ch = store_spawned_children(St_j, Gid, New_ch),
     St_ch.
@@ -175,24 +176,25 @@ fetch_spawned_children(#ejm{ch_data=Data}, Gid) ->
 %% Returns updated queue and spawned children list.
 %% @since 2011-07-22 14:54
 %%
--spec do_short_command_queue(#ejm{}, {Q, L}, any()) -> {Q, L}.
+-spec do_short_command_queue(#ejm{}, {Q, L}, any(), non_neg_integer()) ->
+    {Q, L}.
 
-do_short_command_queue(St, {Q, Ch}, Max) ->
+do_short_command_queue(St, {Q, Ch}, Gid, Max) ->
     Len = length(Ch),
-    mpln_p_debug:pr({?MODULE, 'do_short_command_queue', ?LINE, Len, Max},
+    mpln_p_debug:pr({?MODULE, "do_short_command_queue", ?LINE, Gid, Len, Max},
         St#ejm.debug, handler_run, 4),
     case queue:is_empty(Q) of
         false when Len < Max ->
             New_dat = check_one_command(St, {Q, Ch}),
-            do_short_command_queue(St, New_dat, Max); % repeat to do commands
+            do_short_command_queue(St, New_dat, Gid, Max);
         false ->
             mpln_p_debug:pr({?MODULE,
                 "do_short_command_queue too many children",
-                ?LINE, Len, Max}, St#ejm.debug, handler_run, 2),
+                ?LINE, Gid, Len, Max}, St#ejm.debug, handler_run, 2),
             {Q, Ch};
         _ ->
-            mpln_p_debug:pr({?MODULE, 'do_short_command_queue no new child',
-                ?LINE, Len, Max}, St#ejm.debug, handler_run, 4),
+            mpln_p_debug:pr({?MODULE, "do_short_command_queue no new child",
+                ?LINE, Gid, Len, Max}, St#ejm.debug, handler_run, 4),
             {Q, Ch}
     end.
 
@@ -245,7 +247,7 @@ fetch_queue(#ejm{ch_queues=Data} = St, #job{group=Gid} = Job) ->
     Allowed = get_allowed_group(St, Gid),
     case dict:find(Allowed, Data) of
         {ok, Q} ->
-            {Q, Job};
+            {Q, Job#job{group=Allowed}};
         _ ->
             {queue:new(), Job#job{group=Allowed}}
     end.
@@ -296,7 +298,7 @@ check_one_command(St, {Q, Ch}) ->
 -spec do_one_command(#ejm{}, list(), {any(), #job{}}) -> list().
 
 do_one_command(St, Ch, {From, J}) ->
-    mpln_p_debug:pr({?MODULE, 'do_one_command cmd', ?LINE, From, J},
+    mpln_p_debug:pr({?MODULE, 'do_one_command_cmd', ?LINE, From, J},
         St#ejm.debug, handler_child, 3),
     ejobman_log:log_job(St, J),
     % parameters for ejobman_child
@@ -315,7 +317,7 @@ do_one_command(St, Ch, {From, J}) ->
         {debug, St#ejm.debug}
         ],
     Res = supervisor:start_child(ejobman_child_supervisor, [Child_params]),
-    mpln_p_debug:pr({?MODULE, 'do_one_command res', ?LINE, Res},
+    mpln_p_debug:pr({?MODULE, 'do_one_command_res', ?LINE, Res},
         St#ejm.debug, handler_child, 4),
     case Res of
         {ok, Pid} ->
@@ -353,12 +355,51 @@ make_test_req(N) ->
         integer_to_list(N),
     {From, Method, Url}.
 
+make_test_req2() ->
+    make_test_req2(1).
+
+make_test_req2(N) ->
+    Pid = self(),
+    From = {Pid, 'tag'},
+    Method = "get",
+    Rnd = crypto:rand_uniform(0, 100),
+    Url = lists:flatten(io_lib:format(
+        "http://localhost:8184/lp.yaws?new_id=~p&ref=~p", [N, Rnd])),
+    Job = #job{method = Method, url = Url},
+    %?debugFmt("make_test_req2: ~p, ~p~n~p~n", [N, Rnd, Job]),
+    {From, Job}.
+
 make_test_st({Pid, _}) ->
+    K = "key1",
+    Ch = [#chi{pid=Pid, start=now()}],
     #ejm{
-        ch_data = [#chi{pid=Pid, start=now()}],
+        ch_data = dict:store(K, Ch, dict:new()),
+        http_connect_timeout = 15002,
+        http_timeout = 15003,
         max_children = 1,
-        debug = [{run, -1}],
-        ch_queues = dict:store("key1", queue:new(), dict:new())
+        url_rewrite = [],
+        job_groups = [
+            [
+            {name, "g1"},
+            {max_children, 1}
+            ],
+            [
+            {name, "g2"},
+            {max_children, 2}
+            ],
+            [
+            {name, "g3"},
+            {max_children, 3}
+            ]
+        ],
+        debug = [
+            {config, 6},
+            {handler_child, 6},
+            {handler_run, 6},
+            {run, 6},
+            {http, 6}
+        ],
+        ch_queues = dict:new()
     }.
 
 make_test_data() ->
@@ -367,30 +408,57 @@ make_test_data() ->
     {St, From, Method, Url}
 .
 
-do_command_test() ->
-    {St, From, Method, Url} = make_test_data(),
+make_test_data2() ->
+    {From, Job} = make_test_req2(),
+    St = make_test_st(From),
+    {St, From, Job}
+.
+
+store_in_ch_queue_test() ->
+    {St, From, Job} = make_test_data2(),
+    New = store_in_ch_queue(St, From, Job),
+    %?debugFmt("~p", [New]),
     Q_in = queue:in(
-        {From, #job{method = Method, url = Url}},
+        {From, Job#job{group=default}},
         queue:new()),
-    New = do_command(St, From, #job{method = Method, url = Url}),
     Stq = St#ejm{
-        ch_queues = dict:store("key2", Q_in, dict:new())
+        ch_queues = dict:store(default, Q_in, dict:new())
             },
+    %?debugFmt("~p", [Stq]),
+    ?assert(Stq =:= New).
+
+do_command_test() ->
+    {St, From, Job} = make_test_data2(),
+    %?debugFmt("~p", [St]),
+    New = do_command(St, From, Job),
+    %?debugFmt("~p", [New]),
+    Q_in = queue:in(
+        {From, Job#job{group=default}},
+        queue:new()),
+    Stq = St#ejm{
+        ch_queues = dict:store(default, Q_in, dict:new()),
+        ch_data = dict:store(default, queue:new(), dict:new())
+            },
+    %?debugFmt("~p", [Stq]),
     ?assert(Stq =:= New).
 
 do_command2_test() ->
     {St, _From, _Method, _Url} = make_test_data(),
-    {F2, M2, U2} = make_test_req(2),
-    {F3, M3, U3} = make_test_req(3),
-    {F4, M4, U4} = make_test_req(4),
-    {F5, M5, U5} = make_test_req(5),
-    St2 = store_in_ch_queue(St , F2, #job{method = M2, url = U2}),
-    St3 = store_in_ch_queue(St2, F3, #job{method = M3, url = U3}),
-    St4 = store_in_ch_queue(St3, F4, #job{method = M4, url = U4}),
-    St5 = store_in_ch_queue(St4, F5, #job{method = M5, url = U5}),
-    mpln_p_debug:pr({?MODULE, 'do_command2_test', ?LINE, St5}, [], run, 0),
-    Res = do_short_commands(St5),
-    mpln_p_debug:pr({?MODULE, 'do_command2_test res', ?LINE, Res}, [], run, 0),
+    %?debugFmt("do_command2_test 1:~n~p~n", [St]),
+    {F2, J2} = make_test_req2(2),
+    {F3, J3} = make_test_req2(3),
+    {F4, J4} = make_test_req2(4),
+    {F5, J5} = make_test_req2(5),
+    St2 = store_in_ch_queue(St , F2, J2),
+    %?debugFmt("do_command2_test 2:~n~p~n", [St2]),
+    St3 = store_in_ch_queue(St2, F3, J3),
+    %?debugFmt("do_command2_test 3:~n~p~n", [St3]),
+    St4 = store_in_ch_queue(St3, F4, J4),
+    %?debugFmt("do_command2_test 4:~n~p~n", [St4]),
+    St5 = store_in_ch_queue(St4, F5, J5),
+    %?debugFmt("do_command2_test 5:~n~p~n", [St5]),
+    _Res = do_short_commands(St5),
+    %mpln_p_debug:pr({?MODULE, 'do_command2_test res', ?LINE, Res}, [], run, 0),
     ok.
 
 -endif.

@@ -165,7 +165,8 @@ get_config_list() ->
 fill_ejm_handler_config(List) ->
     Hdl_list = proplists:get_value(handler, List, []),
     #ejm{
-        ch_data = [],
+        job_groups = proplists:get_value(job_groups, Hdl_list, []),
+        ch_data = dict:new(),
         ch_queues = dict:new(),
         job_log = proplists:get_value(job_log, Hdl_list),
         job_log_last = calendar:local_time(),

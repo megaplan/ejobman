@@ -58,6 +58,8 @@
 %%%----------------------------------------------------------------------------
 init(Params) ->
     C = ejobman_conf:get_config_child(Params),
+    mpln_p_debug:pr({?MODULE, 'init', ?LINE, C#child.id, self(), Params, C},
+        C#child.debug, config, 4),
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE, C#child.id, self()},
         C#child.debug, run, 2),
     {ok, C, ?TC}. % yes, this is fast and dirty hack (?TC)
