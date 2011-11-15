@@ -59,6 +59,8 @@
 -spec do_command(#ejm{}, any(), #job{}) -> #ejm{}.
 
 do_command(St, From, Job) ->
+    mpln_p_debug:pr({?MODULE, "do_command", ?LINE, From, Job},
+        St#ejm.debug, job, 4),
     St_q = store_in_ch_queue(St, From, Job),
     do_short_commands(St_q).
 
@@ -71,6 +73,8 @@ do_command(St, From, Job) ->
 
 do_short_commands(#ejm{ch_queues=Data} = St) ->
     F = fun(Gid, _, Acc) ->
+        mpln_p_debug:pr({?MODULE, "do_short_command", ?LINE, Gid},
+            St#ejm.debug, job_queue, 3),
         short_command_step(Acc, Gid)
     end,
     St_s = dict:fold(F, St, Data),
@@ -115,8 +119,8 @@ remove_child(St, Pid, Group) ->
 short_command_step(#ejm{job_groups=Groups, max_children=Max} = St, Gid) ->
     Q = fetch_job_queue(St, Gid),
     Ch = fetch_spawned_children(St, Gid),
-    Max = get_group_max(Groups, Gid, Max),
-    {New_q, New_ch} = do_short_command_queue(St, {Q, Ch}, Gid, Max),
+    G_max = get_group_max(Groups, Gid, Max),
+    {New_q, New_ch} = do_short_command_queue(St, {Q, Ch}, Gid, G_max),
     St_j = store_job_queue(St, Gid, New_q),
     St_ch = store_spawned_children(St_j, Gid, New_ch),
     St_ch.
@@ -183,6 +187,8 @@ do_short_command_queue(St, {Q, Ch}, Gid, Max) ->
     Len = length(Ch),
     mpln_p_debug:pr({?MODULE, "do_short_command_queue", ?LINE, Gid, Len, Max},
         St#ejm.debug, handler_run, 4),
+    mpln_p_debug:pr({?MODULE, "do_short_command_queue queue", ?LINE,
+        Gid, Q, Ch}, St#ejm.debug, job_queue, 4),
     case queue:is_empty(Q) of
         false when Len < Max ->
             New_dat = check_one_command(St, {Q, Ch}),
@@ -224,6 +230,8 @@ get_group_max(Groups, Gid, Default) ->
 store_in_ch_queue(St, From, Job) ->
     {Q, Job_g} = fetch_queue(St, Job),
     New_q = queue:in({From, Job_g}, Q),
+    mpln_p_debug:pr({?MODULE, "store_in_ch_queue", ?LINE,
+        Job_g#job.group, New_q}, St#ejm.debug, job_queue, 3),
     store_queue(St, Job_g#job.group, New_q).
 
 %%-----------------------------------------------------------------------------
@@ -316,9 +324,11 @@ do_one_command(St, Ch, {From, J}) ->
         {auth, J#job.auth},
         {debug, St#ejm.debug}
         ],
+    mpln_p_debug:pr({?MODULE, 'do_one_command child params', ?LINE,
+        Child_params}, St#ejm.debug, handler_child, 4),
     Res = supervisor:start_child(ejobman_child_supervisor, [Child_params]),
     mpln_p_debug:pr({?MODULE, 'do_one_command_res', ?LINE, Res},
-        St#ejm.debug, handler_child, 4),
+        St#ejm.debug, handler_child, 5),
     case Res of
         {ok, Pid} ->
             add_child(Ch, Pid);

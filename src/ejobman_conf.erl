@@ -165,7 +165,7 @@ get_config_list() ->
 fill_ejm_handler_config(List) ->
     Hdl_list = proplists:get_value(handler, List, []),
     #ejm{
-        job_groups = proplists:get_value(job_groups, Hdl_list, []),
+        job_groups = fill_job_groups(Hdl_list),
         ch_data = dict:new(),
         ch_queues = dict:new(),
         job_log = proplists:get_value(job_log, Hdl_list),
@@ -177,6 +177,21 @@ fill_ejm_handler_config(List) ->
         max_children = proplists:get_value(max_children, Hdl_list, 32767),
         debug = proplists:get_value(debug, Hdl_list, [])
     }.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc converts list of proplists with group data to list of #jgroup{}
+%%
+-spec fill_job_groups([list()]) -> [#jgroup{}].
+
+fill_job_groups(List) ->
+    L2 = proplists:get_value(job_groups, List, []),
+    F = fun(Small) ->
+        Id = proplists:get_value(name, Small),
+        Max = proplists:get_value(max_children, Small),
+        #jgroup{id=Id, max_children=Max}
+    end,
+    lists:map(F, L2).
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
