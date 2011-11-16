@@ -39,6 +39,18 @@ $(EBIN_DIR) :
 dia:
 	PATH=$(HOME)/util/erlang/dist/r14b3/bin:$(PATH) \
 	dialyzer \
+		-Wrace_conditions \
+		-Werror_handling \
+		$(INCLUDES) \
+		--src \
+		-r $(SRC_DIR)
+
+dia2:
+	PATH=$(HOME)/util/erlang/dist/r14b3/bin:$(PATH) \
+	dialyzer \
+		-Wunmatched_returns \
+		-Wrace_conditions \
+		-Werror_handling \
 		$(INCLUDES) \
 		--src \
 		-r $(SRC_DIR)

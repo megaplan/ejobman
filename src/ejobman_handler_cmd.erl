@@ -61,7 +61,8 @@
 do_command(St, From, Job) ->
     mpln_p_debug:pr({?MODULE, "do_command", ?LINE, From, Job},
         St#ejm.debug, job, 4),
-    St_q = store_in_ch_queue(St, From, Job),
+    Job_r = fill_id(Job),
+    St_q = store_in_ch_queue(St, From, Job_r),
     do_short_commands(St_q).
 
 %%-----------------------------------------------------------------------------
@@ -348,6 +349,15 @@ do_one_command(St, Ch, {From, J}) ->
 add_child(Children, Pid) ->
     Ch = #chi{pid = Pid, start = now()},
     [Ch | Children].
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fills id for job if it is undefined
+%%
+fill_id(#job{id=undefined} = Job) ->
+    Job#job{id=make_ref()};
+fill_id(Job) ->
+    Job.
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests

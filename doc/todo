@@ -3,6 +3,8 @@ TODO:
 - compile and store regexp in ejobman_handler config preparation
 - config reload:
   - amqp reconnect?
+- save (to ets/dets/...) jobs that are fetched from rabbit but not yet
+  processed because of job limits
 
 DONE:
 

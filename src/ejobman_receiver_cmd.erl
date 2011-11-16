@@ -83,6 +83,8 @@ store_rabbit_cmd(State, Bin) ->
 
 proceed_cmd_type(State, <<"rest">>, Data) ->
     Job = make_job(Data),
+    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type job', ?LINE, Job},
+        State#ejm.debug, job, 4),
     % timeout on child crash leads to exception
     Res = (catch ejobman_handler:cmd(Job)),
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type res', ?LINE, Res},
