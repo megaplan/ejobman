@@ -60,7 +60,7 @@
 
 do_command(St, From, Job) ->
     mpln_p_debug:pr({?MODULE, "do_command", ?LINE, From, Job},
-        St#ejm.debug, job, 4),
+        St#ejm.debug, job, 5),
     Job_r = fill_id(Job),
     St_q = store_in_ch_queue(St, From, Job_r),
     do_short_commands(St_q).

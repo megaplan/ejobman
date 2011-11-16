@@ -297,7 +297,7 @@ msg_res_body(St, R) ->
                 Text2
         end,
     Text4 = "]]></description>\n",
-    [Text1, Text2, Text3, Text4].
+    [Text1, Text3, Text4].
 
 %%-----------------------------------------------------------------------------
 %%
