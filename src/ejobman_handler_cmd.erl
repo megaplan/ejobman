@@ -67,7 +67,7 @@ do_command(St, From, Job) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc iterates over all queues for short commands
+%% @doc iterates over all short commands queues
 %% @since 2011-11-14 17:14
 %%
 -spec do_short_commands(#ejm{}) -> #ejm{}.
@@ -78,8 +78,7 @@ do_short_commands(#ejm{ch_queues=Data} = St) ->
             St#ejm.debug, job_queue, 3),
         short_command_step(Acc, Gid)
     end,
-    St_s = dict:fold(F, St, Data),
-    St_s.
+    dict:fold(F, St, Data).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -189,7 +188,7 @@ do_short_command_queue(St, {Q, Ch}, Gid, Max) ->
     mpln_p_debug:pr({?MODULE, "do_short_command_queue", ?LINE, Gid, Len, Max},
         St#ejm.debug, handler_run, 4),
     mpln_p_debug:pr({?MODULE, "do_short_command_queue queue", ?LINE,
-        Gid, Q, Ch}, St#ejm.debug, job_queue, 4),
+        Gid, Q, Ch}, St#ejm.debug, job_queue, 5),
     case queue:is_empty(Q) of
         false when Len < Max ->
             New_dat = check_one_command(St, {Q, Ch}),
@@ -231,8 +230,10 @@ get_group_max(Groups, Gid, Default) ->
 store_in_ch_queue(St, From, Job) ->
     {Q, Job_g} = fetch_queue(St, Job),
     New_q = queue:in({From, Job_g}, Q),
-    mpln_p_debug:pr({?MODULE, "store_in_ch_queue", ?LINE,
-        Job_g#job.group, New_q}, St#ejm.debug, job_queue, 3),
+    mpln_p_debug:pr({?MODULE, "store_in_ch_queue", ?LINE, Job_g#job.group},
+        St#ejm.debug, job_queue, 2),
+    mpln_p_debug:pr({?MODULE, "store_in_ch_queue", ?LINE, New_q},
+        St#ejm.debug, job_queue, 4),
     store_queue(St, Job_g#job.group, New_q).
 
 %%-----------------------------------------------------------------------------

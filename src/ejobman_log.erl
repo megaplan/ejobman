@@ -24,8 +24,8 @@
 %%% @author arkdro <arkdro@gmail.com>
 %%% @since 2011-10-20 11:35
 %%% @license MIT
-%%% @doc job logging functions. Log parse and rss recreating forced by
-%%% some contradictious requests.
+%%% @doc job logging functions. Log parsing and rss recreating. Forced by
+%%% some contradictious customer requests.
 %%% 
 
 -module(ejobman_log).
@@ -114,48 +114,45 @@ log_job_result(#ejm{debug=D} = St, R, Id) ->
 %% @doc continues with writing rss message with result
 %%
 log_job_result_2(#ejm{jlog=Fd} = St, R, Id) ->
-    msg_head(Fd),
+    T1 = msg_head(),
     Title = make_title(R, Id),
-    msg_title(Fd, Title),
-    msg_date(Fd),
-    msg_res_body(St, R),
-    msg_foot(Fd).
+    T2 = msg_title(Title),
+    T3 = msg_date(),
+    T4 = msg_res_body(St, R),
+    T5 = msg_foot(),
+    write_string(Fd, [T1, T2, T3, T4, T5]).
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc continues with writing rss message
 %%
 log_job_2(#ejm{jlog=Fd} = St, J) ->
-    msg_head(Fd),
+    T1 = msg_head(),
     Title = make_title(J#job.id),
-    msg_title(Fd, Title),
-    msg_date(Fd),
-    msg_body(St, J),
-    msg_foot(Fd).
+    T2 = msg_title(Title),
+    T3 = msg_date(),
+    T4 = msg_body(St, J),
+    T5 = msg_foot(),
+    write_string(Fd, [T1, T2, T3, T4, T5]).
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc writes rss message header to file descriptor
+%% @doc returns rss message header
 %%
-msg_head(Fd) ->
-    Str = "<item>\n",
-    write_string(Fd, Str).
+msg_head() ->
+    "<item>\n".
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc writes rss message footer to file descriptor
+%% @doc returns rss message footer
 %%
-msg_foot(Fd) ->
-    Str = "</item>\n",
-    write_string(Fd, Str).
+msg_foot() ->
+    "</item>\n".
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc writes string/binary to file descriptor
 %%
-write_string(Fd, Data) when is_binary(Data) ->
-    % @todo are the error logging/handling necessary here?
-    catch file:write(Fd, Data);
 write_string(Fd, Str) ->
     Bin = unicode:characters_to_binary(Str),
     % @todo are the error logging/handling necessary here?
@@ -163,39 +160,33 @@ write_string(Fd, Str) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc writes rss message title to file descriptor
+%% @doc returns rss message title
 %%
-msg_title(Fd, Title) ->
+msg_title(Title) ->
     Beg = "<title><![CDATA[",
-    write_string(Fd, Beg),
-    write_string(Fd, Title),
     End = "]]></title>\n",
-    write_string(Fd, End).
+    [Beg, Title, End].
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc writes rss message date to file descriptor
+%% @doc returns rss message date
 %%
-msg_date(Fd) ->
+msg_date() ->
     Lt = erlang:localtime(),
     Ts = httpd_util:rfc1123_date(Lt),
     Beg = "<pubDate>",
-    write_string(Fd, Beg),
-    write_string(Fd, Ts),
     End = "</pubDate>\n",
-    write_string(Fd, End).
+    [Beg, Ts, End].
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc writes rss message description to file descriptor
+%% @doc returns rss message description
 %%
-msg_body(#ejm{jlog=Fd} = St, J) ->
+msg_body(St, J) ->
     Beg = "<description><![CDATA[<pre>",
-    write_string(Fd, Beg),
     Body = make_msg_body(St, J),
-    write_string(Fd, Body),
     End = "</pre>]]></description>\n",
-    write_string(Fd, End).
+    [Beg, Body, End].
 
 %%-----------------------------------------------------------------------------
 %%
@@ -271,9 +262,11 @@ make_msg_result_body(#ejm{debug=D}, {Status, Hdr, Body}) ->
 %% @doc creates short debug info from a job
 %%
 make_short_info(J) ->
-    io_lib:format("id=~p~ntype=~p~nmethod=~p~nurl=~p~nhost=~p~n", [
+    io_lib:format("id=~p~ntype=~p~ngroup=~p~n"
+        "method=~p~nurl=~p~nhost=~p~n", [
             J#job.id,
             J#job.type,
+            J#job.group,
             J#job.method,
             J#job.url,
             J#job.host
@@ -281,14 +274,13 @@ make_short_info(J) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc writes rss message description with job result body to file descriptor
+%% @doc returns rss message description with job result body
 %%
--spec msg_res_body(#ejm{}, tuple()) -> ok.
+-spec msg_res_body(#ejm{}, tuple()) -> list().
 
-msg_res_body(#ejm{jlog=Fd} = St, R) ->
-    Beg = "<description><![CDATA[",
-    write_string(Fd, Beg),
-    Body_res = 
+msg_res_body(St, R) ->
+    Text1 = "<description><![CDATA[",
+    Text2 =
         case R of
             {ok, {_, _, _}=Result} ->
                 make_msg_result_body(St, Result);
@@ -297,19 +289,15 @@ msg_res_body(#ejm{jlog=Fd} = St, R) ->
             {Code, Body} ->
                 make_msg_result_body(St, {Code, [], Body})
         end,
-    case Body_res of
-        {Beg_str, Body_str, Body_bin} ->
-            write_string(Fd, Beg_str),
-            write_string(Fd, "\nbody_bin="),
-            write_string(Fd, Body_bin),
-            write_string(Fd, "\n"),
-            write_string(Fd, Body_str),
-            write_string(Fd, "\n");
-        _ ->
-            write_string(Fd, Body_res)
-    end,
-    End = "]]></description>\n",
-    write_string(Fd, End).
+    Text3 =
+        case Text2 of
+            {Beg_str, Body_str, Body_bin} ->
+                [Beg_str, "\nbody_bin=", Body_bin, "\n", Body_str, "\n"];
+            _ ->
+                Text2
+        end,
+    Text4 = "]]></description>\n",
+    [Text1, Text2, Text3, Text4].
 
 %%-----------------------------------------------------------------------------
 %%
