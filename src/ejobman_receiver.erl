@@ -92,8 +92,9 @@ handle_cast(_Other, St) ->
     {noreply, St, ?T}.
 
 %------------------------------------------------------------------------------
-terminate(_, #ejm{conn=Conn} = State) ->
+terminate(_, #ejm{conn=Conn, pid_file=File} = State) ->
     ejobman_rb:teardown(Conn),
+    mpln_misc_run:remove_pid(File),
     mpln_p_debug:pr({?MODULE, terminate, ?LINE}, State#ejm.debug, run, 1),
     ok.
 
