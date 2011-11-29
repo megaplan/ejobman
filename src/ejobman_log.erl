@@ -102,6 +102,7 @@ log_job(#ejm{debug=D} = St, J) ->
 log_job_result(#ejm{debug=D} = St, R, Id) ->
     N = proplists:get_value(job, D, -1),
     if  N > 0 ->
+            common_log_job_result(St, R, Id),
             log_job_result_2(St, R, Id);
         true ->
             ok
@@ -110,6 +111,27 @@ log_job_result(#ejm{debug=D} = St, R, Id) ->
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
+%%
+%% @doc logs result to common erpher log
+%%
+common_log_job_result(St, {ok, Result}, Id) ->
+    {St_head, Body_str, Bin} = make_msg_result_body(St, Result),
+    mpln_p_debug:pr({?MODULE, 'common_log_job_result', ?LINE,
+        Id, St_head}, St#ejm.debug, http, 3),
+    mpln_p_debug:pr({?MODULE, 'common_log_job_result', ?LINE,
+        Id, Body_str}, St#ejm.debug, http, 5),
+    mpln_p_debug:pr({?MODULE, 'common_log_job_result', ?LINE,
+        Id, Bin}, St#ejm.debug, http, 4);
+common_log_job_result(St, {error, Reason}, Id) ->
+    mpln_p_debug:pr({?MODULE, 'common_log_job_result error', ?LINE,
+        Id, Reason}, St#ejm.debug, http, 2);
+common_log_job_result(St, {Other, Reason}, Id) ->
+    mpln_p_debug:pr({?MODULE, 'common_log_job_result other', ?LINE,
+        Id, Other, Reason}, St#ejm.debug, http, 2)
+.
+
+%%-----------------------------------------------------------------------------
+
 %%
 %% @doc continues with writing rss message with result
 %%

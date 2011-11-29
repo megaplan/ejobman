@@ -88,6 +88,8 @@ do_short_commands(#ejm{ch_queues=Data} = St) ->
 -spec do_command_result(#ejm{}, tuple(), reference()) -> ok.
 
 do_command_result(St, Res, Id) ->
+    mpln_p_debug:pr({?MODULE, 'do_command_result', ?LINE, Id, Res},
+        St#ejm.debug, run, 4),
     ejobman_log:log_job_result(St, Res, Id).
 
 %%-----------------------------------------------------------------------------
@@ -194,9 +196,10 @@ do_short_command_queue(St, {Q, Ch}, Gid, Max) ->
             New_dat = check_one_command(St, {Q, Ch}),
             do_short_command_queue(St, New_dat, Gid, Max);
         false ->
+            Qlen = queue:len(Q),
             mpln_p_debug:pr({?MODULE,
                 "do_short_command_queue too many children",
-                ?LINE, Gid, Len, Max}, St#ejm.debug, handler_run, 2),
+                ?LINE, Gid, Qlen, Len, Max}, St#ejm.debug, handler_run, 2),
             {Q, Ch};
         _ ->
             mpln_p_debug:pr({?MODULE, "do_short_command_queue no new child",
@@ -230,9 +233,9 @@ get_group_max(Groups, Gid, Default) ->
 store_in_ch_queue(St, From, Job) ->
     {Q, Job_g} = fetch_queue(St, Job),
     New_q = queue:in({From, Job_g}, Q),
-    mpln_p_debug:pr({?MODULE, "store_in_ch_queue", ?LINE, Job_g#job.group},
-        St#ejm.debug, job_queue, 2),
-    mpln_p_debug:pr({?MODULE, "store_in_ch_queue", ?LINE, New_q},
+    mpln_p_debug:pr({?MODULE, 'store_in_ch_queue', ?LINE,
+        Job_g#job.id, Job_g#job.group}, St#ejm.debug, job_queue, 2),
+    mpln_p_debug:pr({?MODULE, 'store_in_ch_queue', ?LINE, New_q},
         St#ejm.debug, job_queue, 4),
     store_queue(St, Job_g#job.group, New_q).
 
@@ -308,6 +311,8 @@ check_one_command(St, {Q, Ch}) ->
 -spec do_one_command(#ejm{}, list(), {any(), #job{}}) -> list().
 
 do_one_command(St, Ch, {From, J}) ->
+    mpln_p_debug:pr({?MODULE, 'do_one_command_cmd job_id', ?LINE, J#job.id},
+        St#ejm.debug, handler_child, 2),
     mpln_p_debug:pr({?MODULE, 'do_one_command_cmd', ?LINE, From, J},
         St#ejm.debug, handler_child, 3),
     ejobman_log:log_job(St, J),

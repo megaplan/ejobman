@@ -105,8 +105,8 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 handle_cast({cmd_result, Res, Id}, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast cmd res', ?LINE, Id, Res},
-        St#ejm.debug, run, 4),
+    mpln_p_debug:pr({?MODULE, 'cast cmd res', ?LINE, Id},
+        St#ejm.debug, run, 2),
     ejobman_handler_cmd:do_command_result(St, Res, Id),
     New = do_smth(St),
     {noreply, New, ?T};
