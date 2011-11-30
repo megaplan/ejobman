@@ -183,22 +183,22 @@ process_cmd(_) ->
 %%
 real_cmd(#child{id=Id, method=Method_bin, params=Params,
         http_connect_timeout=Conn_t, http_timeout=Http_t} = St) ->
-    mpln_p_debug:pr({?MODULE, "real_cmd params", ?LINE, St#child.id, self(),
+    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, params, Id, self(),
         St}, St#child.debug, run, 4),
     Method = ejobman_clean:get_method(Method_bin),
     Method_str = ejobman_clean:get_method_str(Method),
     {Url, Hdr} = make_url(St, Method_str),
     Req = make_req(Method, Url, Hdr, Params),
-    mpln_p_debug:pr({?MODULE, "real_cmd request", ?LINE, St#child.id, self(),
-        Req}, St#child.debug, http, 4),
+    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, 'request url', Id, self(),
+        Url, Hdr}, St#child.debug, http, 4),
+    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, request, Id, self(),
+        Req}, St#child.debug, http, 5),
     Res = http:request(Method, Req,
         [{timeout, Http_t}, {connect_timeout, Conn_t}],
         []),
-    % reply should be either removed or changed
-    % in according with ejobman_handler:cmd
-    %gen_server:reply(From, Res),
     ejobman_handler:cmd_result(Res, Id),
-    mpln_p_debug:log_http_res({?MODULE, ?LINE}, Res, St#child.debug).
+    mpln_p_debug:log_http_res({?MODULE, real_cmd, ?LINE, Id, self()},
+        Res, St#child.debug).
 
 %%-----------------------------------------------------------------------------
 %%
