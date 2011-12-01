@@ -80,13 +80,6 @@ handle_call(get_job_log_filename, _From, St) ->
     New = do_smth(St),
     {reply, New#ejm.jlog_f, New, ?T};
 
-%% @doc calls disposable child
-handle_call({cmd, Job}, From, St) ->
-    St_d = do_smth(St),
-    New = ejobman_handler_cmd:do_command(St_d, From, Job),
-    mpln_p_debug:pr({?MODULE, 'cmd started', ?LINE}, St#ejm.debug, run, 3),
-    {reply, ok, New, ?T};
-
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
 handle_call(status, _From, St) ->
@@ -104,6 +97,15 @@ handle_call(_N, _From, St) ->
 
 handle_cast(stop, St) ->
     {stop, normal, St};
+
+%% @doc calls disposable child
+handle_cast({cmd, Job}, St) ->
+    St_d = do_smth(St),
+    New = ejobman_handler_cmd:do_command(St_d, From, Job),
+    mpln_p_debug:pr({?MODULE, 'cmd started', ?LINE}, St#ejm.debug, run, 3),
+    {noreply, New, ?T};
+
+%% @doc result of work of disposable child
 handle_cast({cmd_result, Res, Id}, St) ->
     mpln_p_debug:pr({?MODULE, 'cast cmd res', ?LINE, Id},
         St#ejm.debug, run, 2),
@@ -123,6 +125,7 @@ handle_cast(_N, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _N}, St#ejm.debug, run, 2),
     New = do_smth(St),
     {noreply, New, ?T}.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc Note: it won't be called unless trap_exit is set
@@ -131,6 +134,7 @@ terminate(_, State) ->
     close_job_log(State),
     mpln_p_debug:pr({?MODULE, 'terminate', ?LINE}, State#ejm.debug, run, 1),
     ok.
+
 %%-----------------------------------------------------------------------------
 %%
 %% Handling all non call/cast messages
@@ -146,6 +150,7 @@ handle_info(_Req, State) ->
     mpln_p_debug:pr({?MODULE, other, ?LINE, _Req}, State#ejm.debug, run, 2),
     New = do_smth(State),
     {noreply, New, ?T}.
+
 %%-----------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
@@ -189,13 +194,13 @@ stop() ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc calls any received command to be executed by disposable child
+%% @doc sends received command to be executed by disposable child
 %% @since 2011-07-15 11:00
 %%
 -spec cmd(#job{}) -> ok.
 
 cmd(Job) ->
-    gen_server:call(?MODULE, {cmd, Job}, infinity).
+    gen_server:cast(?MODULE, {cmd, Job}).
 
 %%-----------------------------------------------------------------------------
 %%
