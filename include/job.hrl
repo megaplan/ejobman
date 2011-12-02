@@ -12,6 +12,7 @@
     auth,
     params,
     group,
+    tag, % delivery tag for amqp
     run_time
 }).
 

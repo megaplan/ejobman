@@ -104,10 +104,10 @@ start(Rses) ->
         routing_key = BindKey,
         nowait = false, arguments = []},
     #'queue.bind_ok'{} = amqp_channel:call(Channel, QueueBind),
-    {ok, ConsumerTag} = setup_consumer(Channel, Q),
+    ConsumerTag = setup_consumer(Channel, Q),
     {ok, #conn{channel=Channel,
         connection=Connection,
-        consumer_tag=ConsumerTag}
+        consumer_tag = ConsumerTag}
     }.
 %%-----------------------------------------------------------------------------
 %%
@@ -161,13 +161,8 @@ setup_consumer(Channel, Q) ->
     BasicConsume = #'basic.consume'{queue = Q, no_ack = false },
     #'basic.consume_ok'{consumer_tag = ConsumerTag}
         = amqp_channel:subscribe(Channel, BasicConsume, self()),
-    receive
-        #'basic.consume_ok'{consumer_tag = ConsumerTag} ->
-            {ok, ConsumerTag}
-    after ?SETUP_CONSUMER_TIMEOUT ->
-        {error, setup_consumer_timeout}
-    end
-.
+    ConsumerTag.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc cancels consumer

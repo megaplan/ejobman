@@ -33,13 +33,15 @@
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([store_rabbit_cmd/2]).
+-export([store_rabbit_cmd/3]).
+-export([store_consumer_tag/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
 %%%----------------------------------------------------------------------------
 
--include("ejobman.hrl").
+-include("receiver.hrl").
+%-include("ejobman.hrl").
 -include("job.hrl").
 -include("rabbit_session.hrl").
 
@@ -53,23 +55,46 @@
 %%% API
 %%%----------------------------------------------------------------------------
 %%
+%% @doc stores consumer tag if it's undefined. Returns updated state
+%% @since 2011-12-02 14:19
+%%
+store_consumer_tag(#ejr{conn=#conn{consumer_tag=undefined} = Conn} = State,
+                   Tag) ->
+    mpln_p_debug:pr({?MODULE, 'consumer tag', ?LINE, Tag},
+                    State#ejr.debug, run, 3),
+    New = Conn#conn{consumer_tag=Tag},
+    State#ejr{conn=New};
+
+store_consumer_tag(#ejr{conn=#conn{consumer_tag=Tag}} = State, Tag) ->
+    mpln_p_debug:pr({?MODULE, 'confirmation of consumer tag', ?LINE},
+                    State#ejr.debug, run, 2),
+    State;
+
+store_consumer_tag(State, _Tag) ->
+    mpln_p_debug:pr({?MODULE, 'unknown consumer tag', ?LINE},
+                    State#ejr.debug, run, 2),
+    State.
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc sends received command to a command handler. Returns nothing actually.
 %% @since 2011-07-15
 %%
--spec store_rabbit_cmd(#ejm{}, binary()) -> #ejm{}.
+-spec store_rabbit_cmd(#ejr{}, binary(), binary()) -> #ejr{}.
 
-store_rabbit_cmd(State, Bin) ->
+store_rabbit_cmd(State, Tag, Bin) ->
     mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Bin},
-        State#ejm.debug, msg, 4),
+        State#ejr.debug, msg, 4),
     case catch mochijson2:decode(Bin) of
         {'EXIT', Reason} ->
             mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd error',
-                ?LINE, Reason}, State#ejm.debug, run, 2);
+                ?LINE, Reason}, State#ejr.debug, run, 2),
+            ejobman_rb:send_ack(State#ejr.conn, Tag);
         Data ->
             mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json dat',
-                ?LINE, Data}, State#ejm.debug, json, 3),
+                ?LINE, Data}, State#ejr.debug, json, 3),
             Type = ejobman_data:get_type(Data),
-            proceed_cmd_type(State, Type, Data)
+            proceed_cmd_type(State, Type, Tag, Data)
     end,
     State.
 
@@ -79,29 +104,30 @@ store_rabbit_cmd(State, Bin) ->
 %%
 %% @doc calls ejobman_handler with received command info
 %%
--spec proceed_cmd_type(#ejm{}, binary(), any()) -> ok.
+-spec proceed_cmd_type(#ejr{}, binary(), binary(), any()) -> ok.
 
-proceed_cmd_type(State, <<"rest">>, Data) ->
-    Job = make_job(Data),
+proceed_cmd_type(State, <<"rest">>, Tag, Data) ->
+    Job = make_job(Tag, Data),
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type job_id', ?LINE, Job#job.id},
-        State#ejm.debug, job, 2),
+        State#ejr.debug, job, 2),
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type job', ?LINE, Job},
-        State#ejm.debug, job, 4),
-    % timeout on child crash leads to exception
+        State#ejr.debug, job, 4),
     Res = (catch ejobman_handler:cmd(Job)),
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type res', ?LINE, Res},
-        State#ejm.debug, run, 5);
-proceed_cmd_type(State, Other, _Data) ->
+        State#ejr.debug, run, 5);
+
+proceed_cmd_type(State, Other, Tag, _Data) ->
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Other},
-        State#ejm.debug, run, 2).
+                    State#ejr.debug, run, 2),
+    ejobman_rb:send_ack(State#ejr.conn, Tag).
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc fills in a #job record
 %%
--spec make_job(any()) -> #job{}.
+-spec make_job(binary(), any()) -> #job{}.
 
-make_job(Data) ->
+make_job(Tag, Data) ->
     Info = ejobman_data:get_rest_info(Data),
     A = make_job_auth(Info),
     Method = ejobman_data:get_method(Info),
@@ -110,13 +136,13 @@ make_job(Data) ->
 
     Params = ejobman_data:get_params(Info),
     Flat_params = mpln_misc_web:flatten(Params, true),
-    %Query_params = mpln_misc_web:query_string(Flat_params),
 
     Group = ejobman_data:get_group(Info),
     T_data = ejobman_data:get_time(Info),
     T = make_time(T_data),
     A#job{
         id = make_ref(),
+        tag = Tag,
         method = Method,
         url = Url,
         host = Host,

@@ -1,12 +1,7 @@
 -ifndef(ejobman_params).
 -define(ejobman_params, true).
 
--define(HTTP_CONNECT_TIMEOUT, 15000).
--define(HTTP_TIMEOUT, 3600000).
--define(T, 1000).
--define(TC, 0).
--define(LOG, "/var/log/erpher/ejm").
--define(CONF, "ejobman.conf").
+-include("nums.hrl").
 
 % state of a worker gen_server
 -record(child, {
@@ -15,6 +10,7 @@
     id,
     os_pid,
     group,
+    tag,
     duration,
     from,
     method,
@@ -38,6 +34,7 @@
     id,
     mon,
     os_pid,
+    tag,
     start={0,0,0} % time in now() format
 }).
 
@@ -55,7 +52,7 @@
 
 % state of a handler and a receiver gen_server
 -record(ejm, {
-    w_pools = [],
+%    w_pools = [],
     ch_queues, % dict: group -> queue of jobs
     ch_data, % dict: group -> spawned children list
 %    default_queue, % default queue
@@ -66,8 +63,8 @@
     url_rewrite,
     web_server_pid,
     web_server_opts,
-    rses,
-    conn,
+%    rses,
+%    conn,
     log,
     pid_file,
     job_groups = [], % configured job groups

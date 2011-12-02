@@ -33,9 +33,9 @@
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([get_config/0]).
 -export([get_config_hdl/0]).
 -export([get_config_child/1]).
+-export([get_config_receiver/0]).
 -export([fill_one_pool_config/1]).
 
 %%%----------------------------------------------------------------------------
@@ -47,6 +47,7 @@
 -endif.
 
 -include("ejobman.hrl").
+-include("receiver.hrl").
 
 %%%----------------------------------------------------------------------------
 %%% API
@@ -65,6 +66,7 @@ get_config_child(List) ->
         url_rewrite = proplists:get_value(url_rewrite, List, []),
         name = proplists:get_value(name, List),
         id = proplists:get_value(id, List),
+        tag = proplists:get_value(tag, List),
         group = proplists:get_value(group, List),
         from = proplists:get_value(from, List),
         method = proplists:get_value(method, List, <<>>),
@@ -92,28 +94,11 @@ get_config_hdl() ->
 %% values
 %% @since 2011-07-15
 %%
--spec get_config() -> #ejm{}.
+-spec get_config_receiver() -> #ejr{}.
 
-get_config() ->
+get_config_receiver() ->
     List = get_config_list(),
-    fill_config(List).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc gets data from the list of key-value tuples and stores it into
-%% ejm record
-%% @since 2011-07-15
-%%
--spec fill_config(list()) -> #ejm{}.
-
-fill_config(List) ->
-    Rses = ejobman_conf_rabbit:stuff_rabbit_with(List),
-    #ejm{
-        rses = Rses,
-        debug = proplists:get_value(debug, List, []),
-        log = proplists:get_value(log, List),
-        pid_file = proplists:get_value(pid_file, List)
-    }.
+    fill_config_receiver(List).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -158,6 +143,23 @@ get_config_list() ->
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc gets data from the list of key-value tuples and stores it into
+%% ejr record
+%% @since 2011-07-15
+%%
+-spec fill_config_receiver(list()) -> #ejr{}.
+
+fill_config_receiver(List) ->
+    Rses = ejobman_conf_rabbit:stuff_rabbit_with(List),
+    #ejr{
+        rses = Rses,
+        debug = proplists:get_value(debug, List, []),
+        log = proplists:get_value(log, List),
+        pid_file = proplists:get_value(pid_file, List)
+    }.
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc creates a handler config
 %%
 -spec fill_ejm_handler_config(list()) -> #ejm{}.
@@ -198,9 +200,9 @@ fill_job_groups(List) ->
 %%%----------------------------------------------------------------------------
 -ifdef(TEST).
 fill_config_test() ->
-    #ejm{rses=_, debug=[], log=?LOG} = fill_config([]),
-    #ejm{rses=_, debug=[{info, 5}, {run, 2}], log=?LOG} =
-    fill_config([
+    #ejr{rses=_, debug=[], log=?LOG} = fill_config_receiver([]),
+    #ejr{rses=_, debug=[{info, 5}, {run, 2}], log=?LOG} =
+    fill_config_receiver([
         {debug, [{info, 5}, {run, 2}]}
         ]).
 
@@ -259,66 +261,6 @@ fill_ejm_config_test() ->
 get_test_config_2() ->
 [
 
-{pools, [
-    [
-        {id, p4},
-        {min_workers, 1}, % long lasting workers
-        {restart_policy, delay},
-        {restart_delay, 10}, % sec. Delay before restarting the crashed worker
-        {worker_duration, 601}, % seconds. Time before terminate
-        {worker, [
-            {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
-            {debug,
-                [
-                    {run, 6},
-                    {http, 1}
-                ]
-            }]}
-    ],
-    [
-        {id, p1},
-        {min_workers, 1}, % long lasting workers
-        {restart_policy, delay},
-        {restart_delay, 10}, % sec. Delay before restarting the crashed worker
-        {worker_duration, 0}, % seconds. Time before terminate
-        {worker, [
-            {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
-            {debug,
-                [
-                    {run, 6},
-                    {http, 1}
-                ]
-            }]}
-    ],
-    [
-        {id, p3},
-        {min_workers, 1}, % long lasting workers
-        {restart_policy, delay},
-        {restart_delay, 10}, % sec. Delay before restarting the crashed worker
-        {worker, [
-            {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
-            {debug,
-                [
-                    {run, 6},
-                    {http, 1}
-                ]
-            }]}
-    ],
-    [
-        {id, p2},
-        {min_workers, 2}, % long lasting workers
-        {worker_duration, -1}, % seconds. Time before terminate
-        {worker, [
-            {name, "/etc/erpher/workers/test.sh"},
-            {debug,
-                [
-                    {run, 6},
-                    {http, 1}
-                ]
-            }]}
-    ]
-]}
-
 ].
 
 %%-----------------------------------------------------------------------------
@@ -326,72 +268,8 @@ fill_ejm_handler_config_test() ->
     Config = get_test_config_2(),
     C = fill_ejm_handler_config(Config),
     C2 = #ejm{
-        w_pools = [
-            #pool{
-                w_queue = queue:new(),
-                id=p4,
-                min_workers=1,
-                restart_policy=delay,
-                restart_delay=10,
-                w_duration=601,
-                worker_config= [
-                    {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
-                    {debug,
-                        [
-                            {run, 6},
-                            {http, 1}
-                        ]
-                    }]
-            },
-            #pool{
-                w_queue = queue:new(),
-                id=p1,
-                min_workers=1,
-                restart_policy=delay,
-                restart_delay=10,
-                w_duration=0,
-                worker_config=[
-                    {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
-                    {debug,
-                        [
-                            {run, 6},
-                            {http, 1}
-                        ]
-                    }]
-            },
-            #pool{
-                w_queue = queue:new(),
-                id=p3,
-                min_workers=1,
-                restart_policy=delay,
-                restart_delay=10,
-                worker_config=[
-                    {name, "/usr/bin/perl -Mstrict -w /etc/erpher/workers/t.pl"},
-                    {debug,
-                        [
-                            {run, 6},
-                            {http, 1}
-                        ]
-                    }]
-            },
-            #pool{
-                w_queue = queue:new(),
-                id=p2,
-                min_workers=2,
-                w_duration=0,
-                restart_delay=10,
-                worker_config=[
-                    {name, "/etc/erpher/workers/test.sh"},
-                    {debug,
-                        [
-                            {run, 6},
-                            {http, 1}
-                        ]
-                    }]
-            }
-        ]
     },
-    ?assert(C#ejm.w_pools =:= C2#ejm.w_pools).
+    ?assert(C =:= C2).
 
 -endif.
 %%-----------------------------------------------------------------------------

@@ -35,7 +35,7 @@
 %%%----------------------------------------------------------------------------
 
 -export([do_command/3, do_short_commands/1]).
--export([do_command_result/3]).
+-export([do_command_result/4]).
 -export([remove_child/3]).
 
 %%%----------------------------------------------------------------------------
@@ -82,15 +82,18 @@ do_short_commands(#ejm{ch_queues=Data} = St) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc logs a command result to the job log
+%% @doc sends ack for job to amqp, removes the child from the list of
+%% children, logs a command result to the job log
 %% @since 2011-10-19 18:00
 %%
--spec do_command_result(#ejm{}, tuple(), reference()) -> ok.
+-spec do_command_result(#ejm{}, tuple(), default | binary(), reference()) ->
+                               #ejm{}.
 
-do_command_result(St, Res, Id) ->
-    mpln_p_debug:pr({?MODULE, 'do_command_result', ?LINE, Id, Res},
+do_command_result(St, Res, Group, Id) ->
+    mpln_p_debug:pr({?MODULE, 'do_command_result', ?LINE, Group, Id, Res},
         St#ejm.debug, run, 4),
-    ejobman_log:log_job_result(St, Res, Id).
+    ejobman_log:log_job_result(St, Res, Id),
+    St.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -308,7 +311,7 @@ check_one_command(St, {Q, Ch}) ->
 %% Returns modified children list with a new child if the one is created.
 %% @since 2011-07-15 10:00
 %%
--spec do_one_command(#ejm{}, list(), {any(), #job{}}) -> list().
+-spec do_one_command(#ejm{}, [C], {any(), #job{}}) -> [C].
 
 do_one_command(St, Ch, {From, J}) ->
     mpln_p_debug:pr({?MODULE, 'do_one_command_cmd job_id', ?LINE, J#job.id},
@@ -323,6 +326,7 @@ do_one_command(St, Ch, {From, J}) ->
         {url_rewrite, St#ejm.url_rewrite},
         {from, From},
         {id, J#job.id},
+        {tag, J#job.tag},
         {group, J#job.group},
         {method, J#job.method},
         {url, J#job.url},
@@ -338,9 +342,9 @@ do_one_command(St, Ch, {From, J}) ->
         St#ejm.debug, handler_child, 5),
     case Res of
         {ok, Pid} ->
-            add_child(Ch, Pid);
+            add_child(Ch, Pid, J#job.id, J#job.tag);
         {ok, Pid, _Info} ->
-            add_child(Ch, Pid);
+            add_child(Ch, Pid, J#job.id, J#job.tag);
         _ ->
             Ch
     end.
@@ -348,12 +352,12 @@ do_one_command(St, Ch, {From, J}) ->
 %%-----------------------------------------------------------------------------
 %%
 %% @doc adds child's pid to the list for later use
-%% (e.g.: assign a job, kill, rip, etc...)
+%% (e.g.: assign a job, send ack to rabbit, kill, rip, etc...)
 %%
--spec add_child(list(), pid()) -> list().
+-spec add_child([#chi{}], pid(), reference(), binary()) -> [#chi{}].
 
-add_child(Children, Pid) ->
-    Ch = #chi{pid = Pid, start = now()},
+add_child(Children, Pid, Id, Tag) ->
+    Ch = #chi{pid = Pid, id = Id, start = now(), tag = Tag},
     [Ch | Children].
 
 %%-----------------------------------------------------------------------------

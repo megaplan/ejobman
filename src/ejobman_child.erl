@@ -50,7 +50,6 @@
 -include("amqp_client.hrl").
 -include("sign_req.hrl").
 
-%-define(HTTP_TIMEOUT, 15000).
 -define(CTYPE, "application/x-www-form-urlencoded").
 
 %%%----------------------------------------------------------------------------
@@ -90,16 +89,14 @@ handle_call(_N, _From, St) ->
 
 handle_cast(stop, St) ->
     {stop, normal, St};
-handle_cast(st0p, St) ->
-    St;
 handle_cast(_, St) ->
     New = do_smth(St),
     {noreply, New, ?TC}.
 
 %%-----------------------------------------------------------------------------
-terminate(_, State) ->
-    ejobman_handler:remove_child(self(), State#child.group),
-    mpln_p_debug:pr({?MODULE, terminate, ?LINE, State#child.id, self()},
+terminate(_, #child{id=Id, group=Group} = State) ->
+    ejobman_handler:remove_child(self(), Group),
+    mpln_p_debug:pr({?MODULE, terminate, ?LINE, Id, self()},
         State#child.debug, run, 2),
     ok.
 
@@ -196,9 +193,18 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params,
     Res = http:request(Method, Req,
         [{timeout, Http_t}, {connect_timeout, Conn_t}],
         []),
-    ejobman_handler:cmd_result(Res, Id),
+    process_result(St, Res),
     mpln_p_debug:log_http_res({?MODULE, real_cmd, ?LINE, Id, self()},
         Res, St#child.debug).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc sends result to ejobman_handler, sends acknowledge signal to
+%% ejobman_receiver
+%%
+process_result(#child{id=Id, group=Group, tag=Tag}, Res) ->
+    ejobman_handler:cmd_result(Res, Group, Id),
+    ejobman_receiver:send_ack(Id, Tag).
 
 %%-----------------------------------------------------------------------------
 %%
