@@ -132,9 +132,14 @@ short_command_step(#ejm{job_groups=Groups, max_children=Max} = St, Gid) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc stores a queue for the given group to a dictionary
+%% @doc stores a queue for the given group to a dictionary. If the queue is
+%% empty then erases it completely from the dictionary.
 %%
--spec store_job_queue(#ejm{}, any(), queue()) -> #ejm{}.
+-spec store_job_queue(#ejm{}, any(), undefined | queue()) -> #ejm{}.
+
+store_job_queue(#ejm{ch_queues=Data} = St, Gid, undefined) ->
+    New_dict = dict:erase(Gid, Data),
+    St#ejm{ch_queues=New_dict};
 
 store_job_queue(#ejm{ch_queues=Data} = St, Gid, Q) ->
     New_dict = dict:store(Gid, Q, Data),
@@ -186,7 +191,7 @@ fetch_spawned_children(#ejm{ch_data=Data}, Gid) ->
 %% @since 2011-07-22 14:54
 %%
 -spec do_short_command_queue(#ejm{}, {Q, L}, any(), non_neg_integer()) ->
-    {Q, L}.
+    {undefined | Q, L}.
 
 do_short_command_queue(St, {Q, Ch}, Gid, Max) ->
     Len = length(Ch),
@@ -207,7 +212,7 @@ do_short_command_queue(St, {Q, Ch}, Gid, Max) ->
         _ ->
             mpln_p_debug:pr({?MODULE, "do_short_command_queue no new child",
                 ?LINE, Gid, Len, Max}, St#ejm.debug, handler_run, 4),
-            {Q, Ch}
+            {undefined, Ch}
     end.
 
 %%-----------------------------------------------------------------------------
