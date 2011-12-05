@@ -1,10 +1,10 @@
 TODO:
 
+- log hostname, pid
+- runtime stat: memory, etc
 - compile and store regexp in ejobman_handler config preparation
 - config reload:
   - amqp reconnect?
-- save (to ets/dets/...) jobs that are fetched from rabbit but not yet
-  processed because of job limits
 
 DONE:
 
@@ -23,3 +23,5 @@ DONE:
   in ejobman_handler_cmd:do_one_long_command. Because we don't want to crash
   handler on worker timeout.
 - logrotate
+- save (to ets/dets/...) jobs that are fetched from rabbit but not yet
+  processed because of job limits. Done by amqp:send_ack after job's finish

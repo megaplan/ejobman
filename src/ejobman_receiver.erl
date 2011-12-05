@@ -199,7 +199,18 @@ send_ack(Id, Tag) ->
 prepare_all(C) ->
     prepare_log(C),
     write_pid(C),
+    log_sys_info(C),
     prepare_q(C).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc logs erlang vm pid and local host name
+%%
+log_sys_info(C) ->
+    mpln_p_debug:pr({?MODULE, 'prepare_all pid', ?LINE, os:getpid()},
+                    C#ejr.debug, run, 0),
+    mpln_p_debug:pr({?MODULE, 'prepare_all localhost', ?LINE,
+                     net_adm:localhost()}, C#ejr.debug, run, 0).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -236,3 +247,4 @@ write_pid(#ejr{pid_file=undefined}) ->
 write_pid(#ejr{pid_file=File}) ->
     mpln_misc_run:write_pid(File).
 
+%%-----------------------------------------------------------------------------
