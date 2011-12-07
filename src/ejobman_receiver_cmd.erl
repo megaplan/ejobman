@@ -33,7 +33,7 @@
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([store_rabbit_cmd/3]).
+-export([store_rabbit_cmd/4]).
 -export([store_consumer_tag/2]).
 
 %%%----------------------------------------------------------------------------
@@ -80,21 +80,21 @@ store_consumer_tag(State, _Tag) ->
 %% @doc sends received command to a command handler. Returns nothing actually.
 %% @since 2011-07-15
 %%
--spec store_rabbit_cmd(#ejr{}, binary(), binary()) -> #ejr{}.
+-spec store_rabbit_cmd(#ejr{}, binary(), reference(), binary()) -> #ejr{}.
 
-store_rabbit_cmd(State, Tag, Bin) ->
-    mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Bin},
+store_rabbit_cmd(State, Tag, Ref, Bin) ->
+    mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Ref, Bin},
         State#ejr.debug, msg, 4),
     case catch mochijson2:decode(Bin) of
         {'EXIT', Reason} ->
             mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd error',
-                ?LINE, Reason}, State#ejr.debug, run, 2),
+                ?LINE, Ref, Reason}, State#ejr.debug, run, 2),
             ejobman_rb:send_ack(State#ejr.conn, Tag);
         Data ->
             mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json dat',
-                ?LINE, Data}, State#ejr.debug, json, 3),
+                ?LINE, Ref, Data}, State#ejr.debug, json, 3),
             Type = ejobman_data:get_type(Data),
-            proceed_cmd_type(State, Type, Tag, Data)
+            proceed_cmd_type(State, Type, Tag, Ref, Data)
     end,
     State.
 
@@ -104,10 +104,10 @@ store_rabbit_cmd(State, Tag, Bin) ->
 %%
 %% @doc calls ejobman_handler with received command info
 %%
--spec proceed_cmd_type(#ejr{}, binary(), binary(), any()) -> ok.
+-spec proceed_cmd_type(#ejr{}, binary(), binary(), reference(), any()) -> ok.
 
-proceed_cmd_type(State, <<"rest">>, Tag, Data) ->
-    Job = make_job(Tag, Data),
+proceed_cmd_type(State, <<"rest">>, Tag, Ref, Data) ->
+    Job = make_job(Tag, Ref, Data),
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type job_id', ?LINE, Job#job.id},
         State#ejr.debug, job, 2),
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type job', ?LINE, Job},
@@ -116,8 +116,8 @@ proceed_cmd_type(State, <<"rest">>, Tag, Data) ->
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type res', ?LINE, Res},
         State#ejr.debug, run, 5);
 
-proceed_cmd_type(State, Other, Tag, _Data) ->
-    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Other},
+proceed_cmd_type(State, Other, Tag, Ref, _Data) ->
+    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Ref, Other},
                     State#ejr.debug, run, 2),
     ejobman_rb:send_ack(State#ejr.conn, Tag).
 
@@ -125,9 +125,9 @@ proceed_cmd_type(State, Other, Tag, _Data) ->
 %%
 %% @doc fills in a #job record
 %%
--spec make_job(binary(), any()) -> #job{}.
+-spec make_job(binary(), reference(), any()) -> #job{}.
 
-make_job(Tag, Data) ->
+make_job(Tag, Ref, Data) ->
     Info = ejobman_data:get_rest_info(Data),
     A = make_job_auth(Info),
     Method = ejobman_data:get_method(Info),
@@ -141,7 +141,7 @@ make_job(Tag, Data) ->
     T_data = ejobman_data:get_time(Info),
     T = make_time(T_data),
     A#job{
-        id = make_ref(),
+        id = Ref,
         tag = Tag,
         method = Method,
         url = Url,

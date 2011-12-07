@@ -190,8 +190,12 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params,
         Url, Hdr}, St#child.debug, http, 4),
     mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, request, Id, self(),
         Req}, St#child.debug, http, 5),
-    Res = http:request(Method, Req,
-        [{timeout, Http_t}, {connect_timeout, Conn_t}],
+    Res = httpc:request(Method, Req,
+        [{timeout, Http_t}, {connect_timeout, Conn_t},
+         % http/1.0 is necessary, because for some rare cases a http/1.1
+         % request to nginx leads to duplicated requests. Nginx logs 
+         % result codes 299 and 200 in this case.
+        {version, "HTTP/1.0"}],
         []),
     process_result(St, Res),
     mpln_p_debug:log_http_res({?MODULE, real_cmd, ?LINE, Id, self()},
@@ -253,7 +257,14 @@ rewrite(#child{url_rewrite=Rew_conf} = St, Method, Url,
 compose_headers(St, Config, Method, Url_host, Path, Query) ->
     A = compose_auth_header(St#child.auth, Method, Url_host, Path, Query),
     H = compose_host_header(Config, St#child.host, Url_host),
-    lists:flatten([A, H]).
+    U = compose_ext_header(),
+    lists:flatten([A, H, U]).
+
+%%-----------------------------------------------------------------------------
+compose_ext_header() ->
+    [
+     {"User-Agent", "Ejobman"}
+     ].
 
 %%-----------------------------------------------------------------------------
 %%

@@ -11,7 +11,7 @@ HTML_DOC_DIR = doc/html
 ERLC_OPTS = +debug_info -DTEST
 #ERLC_OPTS = +debug_info -DTEST -DPROPER -pa ../proper/ebin
 ERLC := erlc $(ERLC_OPTS)
-VSN=1.1
+VSN=1.3
 APP_NAME=ejobman
 LICENSE=MIT
 
@@ -37,7 +37,6 @@ $(EBIN_DIR) :
 	( test -d $(EBIN_DIR) || mkdir -p $(EBIN_DIR) )
 
 dia:
-	PATH=$(HOME)/util/erlang/dist/r14b3/bin:$(PATH) \
 	dialyzer \
 		-Wrace_conditions \
 		-Werror_handling \
@@ -46,7 +45,6 @@ dia:
 		-r $(SRC_DIR)
 
 dia2:
-	PATH=$(HOME)/util/erlang/dist/r14b3/bin:$(PATH) \
 	dialyzer \
 		-Wunmatched_returns \
 		-Wrace_conditions \

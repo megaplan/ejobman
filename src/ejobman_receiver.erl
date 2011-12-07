@@ -110,10 +110,11 @@ handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#ejr.debug, run, 6),
     {noreply, State, ?T};
 handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req, State) ->
-    mpln_p_debug:p("~p::~p basic.deliver:~n~p~n",
-        [?MODULE, ?LINE, _Req], State#ejr.debug, msg, 3),
+    Ref = make_ref(),
+    mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Ref, _Req},
+                    State#ejr.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
-    New = ejobman_receiver_cmd:store_rabbit_cmd(State, Tag, Payload),
+    New = ejobman_receiver_cmd:store_rabbit_cmd(State, Tag, Ref, Payload),
     {noreply, New, ?T};
 handle_info(#'basic.consume_ok'{consumer_tag = Tag}, State) ->
     New = ejobman_receiver_cmd:store_consumer_tag(State, Tag),
