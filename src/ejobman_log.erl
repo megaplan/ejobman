@@ -307,11 +307,11 @@ make_title(Id) ->
     make_title({ok, {request, "", ""}}, Id).
 
 make_title({ok, {Scode, _Body}}, Id) ->
-    io_lib:format("Job ~p - ok, ~p", [Id, Scode]);
+    io_lib:format("Job ~p, ~p - ok", [Scode, Id]);
 make_title({ok, {Stline, _Hdr, _Body}}, Id) ->
-    io_lib:format("Job ~p - ~p", [Id, Stline]);
+    io_lib:format("Job ~p - ~p", [Stline, Id]);
 make_title({error, Reason}, Id) ->
-    io_lib:format("Job ~p - error, ~p", [Id, Reason]).
+    io_lib:format("Job ~p, ~p - error", [Reason, Id]).
 
 %%-----------------------------------------------------------------------------
 %%
