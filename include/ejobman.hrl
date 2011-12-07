@@ -52,25 +52,20 @@
 
 % state of a handler and a receiver gen_server
 -record(ejm, {
-%    w_pools = [],
     ch_queues, % dict: group -> queue of jobs
     ch_data, % dict: group -> spawned children list
-%    default_queue, % default queue
-%    default_ch_data = [], % default spawned children list
     max_children = 32767,
     http_connect_timeout = ?HTTP_CONNECT_TIMEOUT,
     http_timeout = ?HTTP_TIMEOUT,
     url_rewrite,
     web_server_pid,
     web_server_opts,
-%    rses,
-%    conn,
     log,
     pid_file,
     job_groups = [], % configured job groups
     job_log, % filename for job log
     job_log_last,
-    job_log_rotate :: minute | hour | day | month,
+    job_log_rotate :: never | minute | hour | day | {dow, 0..7} | month | year,
     jlog, % file descriptor
     jlog_f, % expanded file name
     debug

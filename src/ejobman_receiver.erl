@@ -66,8 +66,15 @@ init(_) ->
 %%
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
+
 handle_call(status, _From, St) ->
     {reply, St, St, ?T};
+
+handle_call({set_debug_item, Facility, Level}, _From, St) ->
+    % no api for this, use message passing
+    New = mpln_misc_run:update_debug_level(St#ejr.debug, Facility, Level),
+    {reply, St#ejr.debug, St#ejr{debug=New}, ?T};
+
 handle_call(_N, _From, St) ->
     mpln_p_debug:p("~p::~p other:~n~p~n",
         [?MODULE, ?LINE, _N], St#ejr.debug, run, 2),

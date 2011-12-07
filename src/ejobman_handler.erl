@@ -80,6 +80,12 @@ handle_call(get_job_log_filename, _From, St) ->
     New = do_smth(St),
     {reply, New#ejm.jlog_f, New, ?T};
 
+%% @doc set new debug level for facility
+handle_call({set_debug_item, Facility, Level}, _From, St) ->
+    % no api for this, use message passing
+    New = mpln_misc_run:update_debug_level(St#ejm.debug, Facility, Level),
+    {reply, St#ejm.debug, St#ejm{debug=New}, ?T};
+
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
 handle_call(status, _From, St) ->
