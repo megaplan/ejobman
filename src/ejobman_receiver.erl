@@ -94,7 +94,7 @@ handle_cast(logrotate, St) ->
 handle_cast({send_ack, Id, Tag}, #ejr{conn=Conn} = St) ->
     Res = ejobman_rb:send_ack(Conn, Tag),
     mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res},
-        St#ejr.debug, msg, 3),
+        St#ejr.debug, msg, 2),
     {noreply, St, ?T};
 handle_cast(_Other, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},

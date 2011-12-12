@@ -40,7 +40,7 @@
 -export([terminate/2, code_change/3]).
 
 -export([cmd/1, remove_child/2]).
--export([cmd_result/3]).
+-export([cmd_result/4]).
 -export([get_job_log_filename/0]).
 
 %%%----------------------------------------------------------------------------
@@ -112,10 +112,10 @@ handle_cast({cmd, Job}, St) ->
     {noreply, New, ?T};
 
 %% @doc result of work of disposable child
-handle_cast({cmd_result, Res, Group, Id}, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast cmd res', ?LINE, Group, Id},
+handle_cast({cmd_result, Res, Dur, Group, Id}, St) ->
+    mpln_p_debug:pr({?MODULE, 'cast cmd res', ?LINE, Group, Id, Dur},
         St#ejm.debug, run, 2),
-    St_r = ejobman_handler_cmd:do_command_result(St, Res, Group, Id),
+    St_r = ejobman_handler_cmd:do_command_result(St, Res, Dur, Group, Id),
     New = do_smth(St_r),
     {noreply, New, ?T};
 
@@ -213,10 +213,11 @@ cmd(Job) ->
 %% @doc sends message to server to log cmd result
 %% @since 2011-07-15 11:00
 %%
--spec cmd_result(tuple(), default | binary(), reference()) -> ok.
+-spec cmd_result(tuple(), non_neg_integer(), default | binary(), reference())
+    -> ok.
 
-cmd_result(Res, Group, Id) ->
-    gen_server:cast(?MODULE, {cmd_result, Res, Group, Id}).
+cmd_result(Res, Dur, Group, Id) ->
+    gen_server:cast(?MODULE, {cmd_result, Res, Dur, Group, Id}).
 
 %%-----------------------------------------------------------------------------
 %%

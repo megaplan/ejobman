@@ -190,6 +190,9 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params,
         Url, Hdr}, St#child.debug, http, 4),
     mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, request, Id, self(),
         Req}, St#child.debug, http, 5),
+    mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, start, Id, self()},
+        St#child.debug, run, 2),
+    T1 = now(),
     Res = httpc:request(Method, Req,
         [{timeout, Http_t}, {connect_timeout, Conn_t},
          % http/1.0 is necessary, because for some rare cases a http/1.1
@@ -197,7 +200,9 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params,
          % result codes 299 and 200 in this case.
         {version, "HTTP/1.0"}],
         []),
-    process_result(St, Res),
+    T2 = now(),
+    Dur = timer:now_diff(T2, T1),
+    process_result(St, Res, Dur),
     mpln_p_debug:log_http_res({?MODULE, real_cmd, ?LINE, Id, self()},
         Res, St#child.debug).
 
@@ -206,8 +211,8 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params,
 %% @doc sends result to ejobman_handler, sends acknowledge signal to
 %% ejobman_receiver
 %%
-process_result(#child{id=Id, group=Group, tag=Tag}, Res) ->
-    ejobman_handler:cmd_result(Res, Group, Id),
+process_result(#child{id=Id, group=Group, tag=Tag}, Res, Dur) ->
+    ejobman_handler:cmd_result(Res, Dur, Group, Id),
     ejobman_receiver:send_ack(Id, Tag).
 
 %%-----------------------------------------------------------------------------

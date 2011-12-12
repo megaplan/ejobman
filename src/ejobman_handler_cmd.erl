@@ -35,7 +35,7 @@
 %%%----------------------------------------------------------------------------
 
 -export([do_command/3, do_short_commands/1]).
--export([do_command_result/4]).
+-export([do_command_result/5]).
 -export([remove_child/3]).
 
 %%%----------------------------------------------------------------------------
@@ -86,11 +86,11 @@ do_short_commands(#ejm{ch_queues=Data} = St) ->
 %% children, logs a command result to the job log
 %% @since 2011-10-19 18:00
 %%
--spec do_command_result(#ejm{}, tuple(), default | binary(), reference()) ->
-                               #ejm{}.
+-spec do_command_result(#ejm{}, tuple(), non_neg_integer(),
+    default | binary(), reference()) -> #ejm{}.
 
-do_command_result(St, Res, Group, Id) ->
-    mpln_p_debug:pr({?MODULE, 'do_command_result', ?LINE, Group, Id, Res},
+do_command_result(St, Res, Dur, Group, Id) ->
+    mpln_p_debug:pr({?MODULE, 'do_command_result', ?LINE, Group, Id, Dur, Res},
         St#ejm.debug, run, 4),
     ejobman_log:log_job_result(St, Res, Id),
     St.
