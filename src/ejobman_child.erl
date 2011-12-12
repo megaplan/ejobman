@@ -178,7 +178,7 @@ process_cmd(_) ->
 %% https://github.com/cmullaparthi/ibrowse
 %% @since 2011-07-18
 %%
-real_cmd(#child{id=Id, method=Method_bin, params=Params,
+real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag,
         http_connect_timeout=Conn_t, http_timeout=Http_t} = St) ->
     mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, params, Id, self(),
         St}, St#child.debug, run, 4),
@@ -192,6 +192,7 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params,
         Req}, St#child.debug, http, 5),
     mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, start, Id, self()},
         St#child.debug, run, 2),
+    ejobman_receiver:send_ack(Id, Tag),
     T1 = now(),
     Res = httpc:request(Method, Req,
         [{timeout, Http_t}, {connect_timeout, Conn_t},
@@ -211,9 +212,8 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params,
 %% @doc sends result to ejobman_handler, sends acknowledge signal to
 %% ejobman_receiver
 %%
-process_result(#child{id=Id, group=Group, tag=Tag}, Res, Dur) ->
-    ejobman_handler:cmd_result(Res, Dur, Group, Id),
-    ejobman_receiver:send_ack(Id, Tag).
+process_result(#child{id=Id, group=Group}, Res, Dur) ->
+    ejobman_handler:cmd_result(Res, Dur, Group, Id).
 
 %%-----------------------------------------------------------------------------
 %%
