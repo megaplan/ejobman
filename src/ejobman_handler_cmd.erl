@@ -92,6 +92,7 @@ do_short_commands(#ejm{ch_queues=Data} = St) ->
 do_command_result(St, Res, Dur, Group, Id) ->
     mpln_p_debug:pr({?MODULE, 'do_command_result', ?LINE, Group, Id, Dur, Res},
         St#ejm.debug, run, 4),
+    log_child_duration(St, Group, Id),
     ejobman_log:log_job_result(St, Res, Id),
     St.
 
@@ -115,6 +116,26 @@ remove_child(St, Pid, Group) ->
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
+%%
+%% @doc logs duration for children
+%%
+log_child_duration(St, Group, Id) ->
+    Ch = fetch_spawned_children(St, Group),
+    F = fun(#chi{id=X}) when X == Id ->
+            true;
+        (_) ->
+            false
+    end,
+    Term = lists:filter(F, Ch),
+    Now = now(),
+    F2 = fun(#chi{id=Id2, start=T}) ->
+        Dur = timer:now_diff(Now, T),
+        mpln_p_debug:pr({?MODULE, 'log_child_duration', ?LINE, Group, Id2, Dur},
+            St#ejm.debug, run, 2)
+    end,
+    lists:foreach(F2, Term).
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc does one iteration for given group over queue and spawned children.
 %% Returns updated state with new queue and spawned children

@@ -123,8 +123,8 @@ handle_cast({cmd_result, Res, Dur, Group, Id}, St) ->
 handle_cast({remove_child, Pid, Group}, St) ->
     mpln_p_debug:pr({?MODULE, "remove child", ?LINE, Pid, Group},
         St#ejm.debug, run, 4),
-    St_d = do_smth(St),
-    New = ejobman_handler_cmd:remove_child(St_d, Pid, Group),
+    St_r = ejobman_handler_cmd:remove_child(St, Pid, Group),
+    New = do_smth(St_r),
     {noreply, New, ?T};
 
 handle_cast(_N, St) ->
