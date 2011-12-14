@@ -77,7 +77,7 @@ handle_call(status, _From, St) ->
 handle_call(_N, _From, St) ->
     mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N, St#child.id, self()},
         St#child.debug, run, 2),
-    New = do_smth(St),
+    New = main_action(St),
     {reply, {error, unknown_request}, New, ?TC}.
 
 %%-----------------------------------------------------------------------------
@@ -90,7 +90,7 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 handle_cast(_, St) ->
-    New = do_smth(St),
+    New = main_action(St),
     {noreply, New, ?TC}.
 
 %%-----------------------------------------------------------------------------
@@ -109,12 +109,12 @@ terminate(_, #child{id=Id, group=Group} = State) ->
 handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, info_timeout, ?LINE, State#child.id, self()},
         State#child.debug, run, 6),
-    New = do_smth(State),
+    New = main_action(State),
     {noreply, New, ?TC};
 handle_info(_Req, State) ->
     mpln_p_debug:pr({?MODULE, other, ?LINE, _Req, State#child.id, self()},
         State#child.debug, run, 2),
-    New = do_smth(State),
+    New = main_action(State),
     {noreply, New, ?TC}.
 
 %%-----------------------------------------------------------------------------
@@ -122,15 +122,18 @@ code_change(_Old_vsn, State, _Extra) ->
     {ok, State}.
 
 %%%----------------------------------------------------------------------------
-%%% api
+%%% API
 %%%----------------------------------------------------------------------------
 start() ->
     start_link().
+
 %%-----------------------------------------------------------------------------
 start_link() ->
     start_link([]).
+
 start_link(Params) ->
     gen_server:start_link(?MODULE, Params, []).
+
 %%-----------------------------------------------------------------------------
 stop() ->
     gen_server:call(?MODULE, stop).
@@ -142,9 +145,9 @@ stop() ->
 %% @doc processes command, then sends stop message to itself
 %% @since 2011-07-15
 %%
--spec do_smth(#child{}) -> #child{}.
+-spec main_action(#child{}) -> #child{}.
 
-do_smth(State) ->
+main_action(State) ->
     process_cmd(State),
     gen_server:cast(self(), stop),
     State#child{method = <<>>, url = <<>>,
@@ -224,14 +227,64 @@ process_result(#child{id=Id, group=Group}, Res, Dur) ->
 
 make_url(#child{url=Bin} = St, Method) ->
     Url = ejobman_clean:get_url(Bin),
-    case http_uri:parse(Url) of
+    rewrite(St, Method, Url).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc rewrites host and schema parts of an url according to the config, adds
+%% host header if necessary
+%% @since 2011-12-13 19:24
+%%
+rewrite(St, Method, Url) ->
+    case rewrite_scheme(St, Url) of
         %{https,"l:p","host.localdomain",123,"/goo","?foo=baz"}
         %{Scheme, Auth, Host, Port, Path, Query}
         {error, _Reason} ->
             H = compose_headers(St, [], "", "", "", ""),
             {Url, H};
-        Data ->
-            rewrite(St, Method, Url, Data)
+        Data_s ->
+            rewrite_addr(St, Method, Url, Data_s)
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc rewrites schema part of an url according to the config
+%% @since 2011-12-13 19:24
+%%
+-spec rewrite_scheme(#child{}, string()) -> {error, any()} | tuple().
+
+rewrite_scheme(#child{schema_rewrite=Rew_conf} = St, Url) ->
+    case http_uri:parse(Url) of
+        %{https,"l:p","host.localdomain",123,"/goo","?foo=baz"}
+        %{Scheme, Auth, Host, Port, Path, Query}
+        {error, Reason} ->
+            {error, Reason};
+        {_Scheme, _Auth, Host, _Port, _Path, _Query} = Data ->
+            Res = find_matching_host(Rew_conf, Host),
+            rewrite_scheme2(St, Url, Data, Res)
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc continue to rewrite schema - check teh config and build new url
+%%
+-spec rewrite_scheme2(#child{}, string(), tuple(), error|{ok, list()}) ->
+    {error, any()} | tuple().
+
+rewrite_scheme2(_St, _Url, _Data, error) ->
+    {error, not_matched};
+
+rewrite_scheme2(St, Url, {_Scheme, Auth, Host, Port, Path, Query} = Data,
+        {ok, Config}) ->
+    mpln_p_debug:pr({?MODULE, 'rewrite_scheme2 pars', ?LINE, self(),
+        Config, Host, Url}, St#child.debug, rewrite, 4),
+    case proplists:get_value(https, Config) of
+        true ->
+            {'https', Auth, Host, Port, Path, Query};
+        false ->
+            {'http', Auth, Host, Port, Path, Query};
+        _ ->
+            Data
     end.
 
 %%-----------------------------------------------------------------------------
@@ -240,9 +293,9 @@ make_url(#child{url=Bin} = St, Method) ->
 %% host header if necessary
 %% @since 2011-08-08 13:53
 %%
--spec rewrite(#child{}, string(), string(), tuple()) -> {string(), list()}.
+-spec rewrite_addr(#child{}, string(), string(), tuple()) -> {string(), list()}.
 
-rewrite(#child{url_rewrite=Rew_conf} = St, Method, Url,
+rewrite_addr(#child{url_rewrite=Rew_conf} = St, Method, Url,
         {_Scheme, _Auth, Host, _Port, Path, Query} = Data) ->
     case find_matching_host(Rew_conf, Host) of
         {ok, Config} ->

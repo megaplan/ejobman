@@ -17,6 +17,7 @@
     url,
     host,
     auth,
+    schema_rewrite,
     url_rewrite,
     http_connect_timeout,
     http_timeout,
