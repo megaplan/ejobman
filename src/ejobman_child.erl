@@ -243,7 +243,10 @@ rewrite(St, Method, Url) ->
             H = compose_headers(St, [], "", "", "", ""),
             {Url, H};
         Data_s ->
-            rewrite_addr(St, Method, Url, Data_s)
+            {Scheme, Auth, Host, Port, Path, Query} = Data_s,
+            New_url = proceed_rewrite_host(St, Scheme, Auth, Host, Port,
+                Path, Query),
+            rewrite_addr(St, Method, New_url, Data_s)
     end.
 
 %%-----------------------------------------------------------------------------
@@ -269,10 +272,10 @@ rewrite_scheme(#child{schema_rewrite=Rew_conf} = St, Url) ->
 %% @doc continue to rewrite schema - check teh config and build new url
 %%
 -spec rewrite_scheme2(#child{}, string(), tuple(), error|{ok, list()}) ->
-    {error, any()} | tuple().
+    tuple().
 
-rewrite_scheme2(_St, _Url, _Data, error) ->
-    {error, not_matched};
+rewrite_scheme2(_St, _Url, Data, error) ->
+    Data;
 
 rewrite_scheme2(St, Url, {_Scheme, Auth, Host, Port, Path, Query} = Data,
         {ok, Config}) ->
@@ -605,6 +608,21 @@ process_cmd_test() ->
     ok = process_cmd(#child{url = ""}),
     ok = process_cmd([]).
 
+make_schema_rewrite_conf() ->
+    [
+            [
+                {src_host_part, "promo.megaplan.kulikov"},
+                % true - on, false - off, other - don't change
+                {https, false}
+            ],
+            [
+                {src_type, regex},
+                {src_host_part, "127\\.0\\.0\\.\\d+"},
+                % true - on, false - off, other - don't change
+                {https, true}
+            ]
+        ].
+
 make_url_rewrite_conf() ->
     [
         [
@@ -660,8 +678,9 @@ make_url1_test() ->
     Conf = make_url_rewrite_conf(),
     Bin = <<"http://192.168.9.183/new/order/send-messages">>,
     R1 = make_url(#child{url=Bin, url_rewrite=Conf, debug=[]}, post),
-    R0 = { "http://192.168.9.183/new/order/send-messages", 
-        [{"Host", "promo.megaplan.kulikov"}]},
+    R0 = { "http://192.168.9.183:80/new/order/send-messages", 
+        [{"Host", "promo.megaplan.kulikov"}, {"User-Agent","Ejobman"}]},
+    %?debugFmt("~p:make_url1_test:~p~n~p~n~p~n", [?MODULE, ?LINE, R0, R1]),
     ?assert(R0 =:= R1),
     ok
 .
@@ -669,28 +688,99 @@ make_url1_test() ->
 make_url2_test() ->
     Conf = make_url_rewrite_conf(),
     Bin = <<"http://192.168.9.183/new/order/send-messages">>,
-    R1 = make_url(#child{url=Bin, url_rewrite=Conf, debug=[],
+    R1 = make_url(#child{url=Bin, url_rewrite=Conf,
+        debug=[{rewrite, 0}],
         auth=#auth{user="usr1", password="psw2"}}, post),
-    R0 = { "http://192.168.9.183/new/order/send-messages", 
+    R0 = { "http://192.168.9.183:80/new/order/send-messages", 
         [{"Authorization","Basic dXNyMTpwc3cy"},
-            {"Host", "promo.megaplan.kulikov"}]},
-    %mpln_p_debug:pr({?MODULE, ?LINE, R0, R1}, [], run, 0),
+            {"Host", "promo.megaplan.kulikov"}, {"User-Agent","Ejobman"}]},
+    %?debugFmt("~p:make_url2_test:~p~n~p~n~p~n", [?MODULE, ?LINE, R0, R1]),
     ?assert(R0 =:= R1),
     ok
 .
 
-rewrite_host_test() ->
-    Url = "192.168.9.183",
-    Url2 = "promo.megaplan.kulikov",
+rewrite_scheme_test() ->
+    Data = [
+        {
+        "192.168.9.183",
+        % {'https', Auth, Host, Port, Path, Query}
+        {'https', "", "192.168.9.183", 80, "/new/order/send-messages", []}
+        },
+        {
+        "promo.megaplan.kulikov",
+        {'https', "", "promo.megaplan.kulikov", 80,
+            "/new/order/send-messages", []}
+        }
+        ],
+    % Pars - config, matched for src host
     Pars = [
-        {src_host_part, Url},
-        {dst_host_part, Url2}
+        {src_type, regex},
+        {src_host_part, ".+\\.megaplan\\.kulikov"},
+        {https, true}
     ],
+    F = fun({Url, Res}) ->
+        do_one_test_scheme_rewrite(Pars, Url, Res)
+    end,
+    lists:foreach(F, Data).
+
+do_one_test_scheme_rewrite(Pars, Url, Data3) ->
     Link = "http://" ++ Url ++ ":80/new/order/send-messages",
     Data = http_uri:parse(Link),
-    Data2 = rewrite_host(#child{debug=[]}, Pars, post, Url, Data),
-    Data3 = {"http://" ++ Url2 ++ ":80/new/order/send-messages",
-        [{"Host", "192.168.9.183"}]},
+    Data2 = rewrite_scheme2(#child{debug=[]}, Url, Data, {ok, Pars}),
+    %?debugFmt("rewrite_scheme_test3~n~p~n~p~n~p~n~p, ~p~n",
+    %    [Data, Data2, Data3, Data2 == Data3, Data2 =:= Data3]),
+    ?assert(Data2 =:= Data3).
+
+rewrite_addr_test() ->
+    Data = [
+        {
+            "http://192.168.9.183/new/order/send-messages", % request url
+            "promo.megaplan.kulikov",                       % request host
+            #auth{user="usr1", password="psw2"},            % request auth
+            { "http://192.168.9.183/new/order/send-messages", % response
+                [{"Authorization","Basic dXNyMTpwc3cy"},
+                 {"Host", "promo.megaplan.kulikov"},
+                 {"User-Agent","Ejobman"}
+                ]
+            }
+        },
+        {
+            "http://promo.megaplan.kulikov/new/order/send-messages",
+            undefined,
+            undefined,
+            { "http://192.168.9.183:80/new/order/send-messages",
+                [{"Host", "promo.megaplan.kulikov"},
+                 {"User-Agent","Ejobman"}
+                ]
+            }
+        },
+        {
+            "https://promo.megaplan.kulikov:8080/new/order/send-messages",
+            undefined,
+            undefined,
+            { "https://192.168.9.183:8080/new/order/send-messages",
+                [{"Host", "promo.megaplan.kulikov"},
+                 {"User-Agent","Ejobman"}
+                ]
+            }
+        }
+    ],
+    Rewrite_scheme = make_schema_rewrite_conf(),
+    Rewrite_host = make_url_rewrite_conf(),
+    Conf = #child{debug=[{rewrite, 6}],
+        schema_rewrite=Rewrite_scheme,
+        url_rewrite=Rewrite_host},
+    F = fun({Url, Host, Auth, Dat}) ->
+        one_test_rewrite_host(Conf#child{host=Host, auth=Auth}, Url, Dat)
+    end,
+    lists:foreach(F, Data)
+.
+
+one_test_rewrite_host(Conf, Url, Data3) ->
+    Data = http_uri:parse(Url),
+    Data2 = rewrite_addr(Conf, post, Url, Data),
+    %?debugFmt("one_test_rewrite_host~n~p~n~p~n~p~n",
+    %    [Data, Data2, Data3]),
     ?assert(Data2 =:= Data3)
 .
 
