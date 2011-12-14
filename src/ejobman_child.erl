@@ -381,10 +381,10 @@ match_one_host_regex(Host, Src_url) ->
 -spec rewrite_host(#child{}, list(), string(), string(), tuple()) ->
     {string(), list()}.
 
-rewrite_host(St, Config, Method, Url,
+rewrite_host(#child{id=Id} = St, Config, Method, Url,
         {Scheme, Auth, Host, Port, Path, Query}) ->
-    mpln_p_debug:pr({?MODULE, 'rewrite_host pars', ?LINE, self(),
-        Config, Host, Url}, St#child.debug, rewrite, 4),
+    mpln_p_debug:pr({?MODULE, 'rewrite_host pars', ?LINE, Id, self(),
+        Config, Host, Scheme, Port, Url}, St#child.debug, rewrite, 4),
     case proplists:get_value(dst_host_part, Config) of
         undefined ->
             New_url = Url;

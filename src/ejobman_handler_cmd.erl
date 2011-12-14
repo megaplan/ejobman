@@ -349,6 +349,7 @@ do_one_command(St, Ch, {From, J}) ->
     Child_params = [
         {http_connect_timeout, St#ejm.http_connect_timeout},
         {http_timeout, St#ejm.http_timeout},
+        {schema_rewrite, St#ejm.schema_rewrite},
         {url_rewrite, St#ejm.url_rewrite},
         {from, From},
         {id, J#job.id},

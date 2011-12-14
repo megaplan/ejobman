@@ -63,6 +63,7 @@ get_config_child(List) ->
         http_connect_timeout = proplists:get_value(http_connect_timeout, List,
             ?HTTP_CONNECT_TIMEOUT),
         http_timeout = proplists:get_value(http_timeout, List, ?HTTP_TIMEOUT),
+        schema_rewrite = proplists:get_value(schema_rewrite, List, []),
         url_rewrite = proplists:get_value(url_rewrite, List, []),
         name = proplists:get_value(name, List),
         id = proplists:get_value(id, List),
@@ -175,6 +176,7 @@ fill_ejm_handler_config(List) ->
         job_log_rotate = proplists:get_value(job_log_rotate, Hdl_list),
         http_connect_timeout = proplists:get_value(http_connect_timeout, Hdl_list, ?HTTP_CONNECT_TIMEOUT),
         http_timeout = proplists:get_value(http_timeout, Hdl_list, ?HTTP_TIMEOUT),
+        schema_rewrite = proplists:get_value(schema_rewrite, Hdl_list, []),
         url_rewrite = proplists:get_value(url_rewrite, Hdl_list, []),
         max_children = proplists:get_value(max_children, Hdl_list, 32767),
         debug = proplists:get_value(debug, Hdl_list, [])
