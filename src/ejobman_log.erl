@@ -1,5 +1,5 @@
 %%%
-%%% ejobman_log: job logging
+%%% ejobman_log: log job info
 %%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
@@ -572,9 +572,9 @@ create_item_date(I) ->
 %%-----------------------------------------------------------------------------
 create_item_title(I) ->
     ["<title><![CDATA[Job - ",
-    I#item.ref,
-    " - ",
     I#item.status,
+    " - ",
+    I#item.ref,
     "]]></title>\n"].
 
 %%-----------------------------------------------------------------------------
