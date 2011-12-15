@@ -731,6 +731,58 @@ do_one_test_scheme_rewrite(Pars, Url, Data3) ->
     %    [Data, Data2, Data3, Data2 == Data3, Data2 =:= Data3]),
     ?assert(Data2 =:= Data3).
 
+rewrite_url_test() ->
+    Data = [
+        {
+            "http://192.168.9.183/new/order/send-messages", % request url
+            "promo.megaplan.kulikov",                       % request host
+            #auth{user="usr1", password="psw2"},            % request auth
+            { "http://192.168.9.183:80/new/order/send-messages", % response
+                [{"Authorization","Basic dXNyMTpwc3cy"},
+                 {"Host", "promo.megaplan.kulikov"},
+                 {"User-Agent","Ejobman"}
+                ]
+            }
+        },
+        {
+            "http://promo.megaplan.kulikov/new/order/send-messages",
+            undefined,
+            undefined,
+            { "http://192.168.9.183:80/new/order/send-messages",
+                [{"Host", "promo.megaplan.kulikov"},
+                 {"User-Agent","Ejobman"}
+                ]
+            }
+        },
+        {
+            "https://promo.megaplan.kulikov:8080/new/order/send-messages",
+            undefined,
+            undefined,
+            { "http://192.168.9.183:8080/new/order/send-messages",
+                [{"Host", "promo.megaplan.kulikov"},
+                 {"User-Agent","Ejobman"}
+                ]
+            }
+        }
+    ],
+    Rewrite_scheme = make_schema_rewrite_conf(),
+    Rewrite_host = make_url_rewrite_conf(),
+    Conf = #child{debug=[{rewrite, 0}],
+        schema_rewrite=Rewrite_scheme,
+        url_rewrite=Rewrite_host},
+    F = fun({Url, Host, Auth, Dat}) ->
+        one_test_rewrite_url(Conf#child{host=Host, auth=Auth}, Url, Dat)
+    end,
+    lists:foreach(F, Data)
+.
+
+one_test_rewrite_url(Conf, Url, Data3) ->
+    Data2 = rewrite(Conf, post, Url),
+    %?debugFmt("one_test_rewrite_url~n~p~n~p~n~p~n",
+    %    [Url, Data2, Data3]),
+    ?assert(Data2 =:= Data3)
+.
+
 rewrite_addr_test() ->
     Data = [
         {
@@ -767,7 +819,7 @@ rewrite_addr_test() ->
     ],
     Rewrite_scheme = make_schema_rewrite_conf(),
     Rewrite_host = make_url_rewrite_conf(),
-    Conf = #child{debug=[{rewrite, 6}],
+    Conf = #child{debug=[{rewrite, 0}],
         schema_rewrite=Rewrite_scheme,
         url_rewrite=Rewrite_host},
     F = fun({Url, Host, Auth, Dat}) ->
