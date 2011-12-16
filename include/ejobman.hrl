@@ -70,6 +70,10 @@
     job_log_rotate :: never | minute | hour | day | {dow, 0..7} | month | year,
     jlog, % file descriptor
     jlog_f, % expanded file name
+    stat_t       :: dict(),
+    stat_r       :: dict(),
+    stat_limit_n :: non_neg_integer(), % amount
+    stat_limit_t :: non_neg_integer(), % time, seconds
     debug
 }).
 

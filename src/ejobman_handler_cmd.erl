@@ -63,7 +63,9 @@ do_command(St, From, Job) ->
         St#ejm.debug, job, 5),
     Job_r = fill_id(Job),
     St_q = store_in_ch_queue(St, From, Job_r),
-    do_short_commands(St_q).
+    St_st = add_cmd_stat(St_q, Job_r),
+    St_st2 = check_cmd_stat(St_st),
+    do_short_commands(St_st2).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -92,9 +94,11 @@ do_short_commands(#ejm{ch_queues=Data} = St) ->
 do_command_result(St, Res, Dur, Group, Id) ->
     mpln_p_debug:pr({?MODULE, 'do_command_result', ?LINE, Group, Id, Dur, Res},
         St#ejm.debug, run, 4),
-    log_child_duration(St, Group, Id),
-    ejobman_log:log_job_result(St, Res, Id),
-    St.
+    Now = now(),
+    St_st = res_cmd_stat(St, Group, Dur, Id, Now),
+    log_child_duration(St_st, Group, Id, Now),
+    ejobman_log:log_job_result(St_st, Res, Id),
+    St_st.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -119,7 +123,7 @@ remove_child(St, Pid, Group) ->
 %%
 %% @doc logs duration for children
 %%
-log_child_duration(St, Group, Id) ->
+log_child_duration(St, Group, Id, Now) ->
     Ch = fetch_spawned_children(St, Group),
     F = fun(#chi{id=X}) when X == Id ->
             true;
@@ -127,7 +131,6 @@ log_child_duration(St, Group, Id) ->
             false
     end,
     Term = lists:filter(F, Ch),
-    Now = now(),
     F2 = fun(#chi{id=Id2, start=T}) ->
         Dur = timer:now_diff(Now, T),
         mpln_p_debug:pr({?MODULE, 'log_child_duration', ?LINE, Group, Id2, Dur},
@@ -251,6 +254,96 @@ get_group_max(Groups, Gid, Default) ->
         _ ->
             Default
     end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc adds job to the last jobs statistic
+%%
+-spec add_cmd_stat(#ejm{}, #job{}) -> #ejm{}.
+
+add_cmd_stat(#ejm{stat_r=Stat} = St, #job{id=Id} = Job_src) ->
+    Job = Job_src#job{auth=undefined},
+    Now = now(),
+    Info = #jst{job=Job, status=queued, start=Now, time=Now},
+    New = dict:store(Id, Info, Stat),
+    St#ejm{stat_r=New}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc marks job as "request done" in the last jobs
+%%
+res_cmd_stat(#ejm{stat_r=Stat} = St, Group, Dur, Id, Now) ->
+    New = 
+        case dict:find(Id, Stat) of
+            {ok, Info} ->
+                %Time = fetch_start_time(St, Group, Id),
+                Time = Info#jst.start,
+                New_info = Info#jst{status=done, time=Now,
+                    dur_req=Dur, dur_all=timer:now_diff(Now, Time)},
+                dict:store(Id, New_info, Stat);
+            error ->
+                Stat
+        end,
+    St#ejm{stat_r=New}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fetches start time for the given job id and group
+%%
+fetch_start_time(St, Group, Id) ->
+    Ch = fetch_spawned_children(St, Group),
+    Res = [T || #chi{id=X, start=T} <- Ch, X == Id],
+    case Res of
+        [] ->
+            mpln_p_debug:pr({?MODULE, 'fetch_start_time', ?LINE,
+                'no start time', Group, Id}, St#ejm.debug, run, 0),
+            {0,0,0};
+        [Start | _] ->
+            Start
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks whether the stat size above the limit and cleans it
+%% if necessary
+%%
+check_cmd_stat(#ejm{stat_r=Stat, stat_limit_n=Limit} = St) ->
+    Size = dict:size(Stat),
+    if  Size > Limit ->
+            clean_ext_cmd_stat(St);
+        true ->
+            St
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc cleans extra jobs (cut the list up to limit, -10% - 10) from the last
+%% jobs statistic
+%%
+-spec clean_ext_cmd_stat(#ejm{}) -> #ejm{}.
+
+clean_ext_cmd_stat(#ejm{stat_r=Stat, stat_limit_n=Limit} = St) ->
+    Size = dict:size(Stat),
+    L1 = dict:fetch_keys(Stat),
+    L2 = lists:reverse(lists:sort(L1)),
+    Num = abs(Size - trunc(Limit/10) - 10),
+    L3 =
+        if  Num =< Size ->
+                {_, Tmp} = lists:split(Num, L2), % get list to delete
+                Tmp;
+            true ->
+                L2
+        end,
+    mpln_p_debug:pr({?MODULE, clean_ext_cmd_stat, ?LINE, Size, Num, Limit},
+        St#ejm.debug, stat, 4),
+    mpln_p_debug:pr({?MODULE, clean_ext_cmd_stat, ?LINE, L3},
+        St#ejm.debug, stat, 5),
+    New = lists:foldl(
+        fun(X, Acc) ->
+            dict:erase(X, Acc)
+        end,
+        Stat, L3),
+    St#ejm{stat_r=New}.
 
 %%-----------------------------------------------------------------------------
 %%

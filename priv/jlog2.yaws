@@ -1,0 +1,30 @@
+<erl>
+
+% show ejobman last N jobs
+
+out(A) ->
+    {Ip, _} = A#arg.client_ip_port,
+    case Ip of
+        {127,_,_,_} ->
+            make_resp(A);
+        {192,168,_,_} ->
+            make_resp(A);
+        _ ->
+            Str = io_lib:format("forbidden ip address: ~p", [Ip]),
+            {content, "text/plain", Str}
+    end.
+
+make_resp(A) ->
+    Q = yaws_api:parse_query(A),
+    error_logger:info_report({?MODULE, make_resp, ?LINE, Q}),
+    Size =
+        case proplists:get_value("n", Q) of
+            N when is_integer(N) andalso N > 0 ->
+                N;
+            _ ->
+                1000
+        end,
+    Text = ejobman_log:get_last_jobs(Size),
+    {content, "text/html", Text}.
+
+</erl>

@@ -31,6 +31,7 @@
 -module(ejobman_log).
 -export([log_job/2, log_job_result/3]).
 -export([make_jlog_xml/1, make_jlog_xml/2]).
+-export([get_last_jobs/0, get_last_jobs/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -47,6 +48,8 @@
 %%% Defines
 %%%----------------------------------------------------------------------------
 
+-define(TABC, "border=1 cellspacing=4 cellpadding=4 frame=border rules=all").
+-define(NJOBS, 100).
 -define(BLOCK, 4096).
 -define(QRY, request).
 -define(RES, result).
@@ -60,6 +63,18 @@
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
+%%
+%% @doc creates a html page with last jobs
+%%
+get_last_jobs() ->
+    get_last_jobs(?NJOBS).
+
+get_last_jobs(N) ->
+    List = get_job_list(N),
+    make_job_html(List)
+.
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc reads last N bytes from job log file and creates the xml (rss) output
 %% @since 2011-10-21 14:07
@@ -576,5 +591,93 @@ create_item_title(I) ->
     " - ",
     I#item.ref,
     "]]></title>\n"].
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fetches last job statistic from ejobman_handler
+%%
+-spec get_job_list(non_neg_integer()) -> [{reference(), #jst{}}].
+
+get_job_list(N) ->
+    Stat = ejobman_handler:stat_r(),
+    Size = dict:size(Stat),
+    L = dict:to_list(Stat),
+    L2 = lists:keysort(1, L),
+    L3 =
+        if  N =< Size ->
+                lists:sublist(L2, Size - N + 1, Size);
+            true ->
+                L2
+        end,
+    %lists:reverse(L3)
+    L3.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates text from list of jobs
+%%
+-spec make_job_html([{reference(), #jst{}}]) -> string().
+
+make_job_html(List) ->
+    L2 = [make_one_jst_html(X) || X <- List],
+    Head = "<html><body>\n",
+    Foot = "</body></html>\n",
+    Body =
+        case L2 of
+            [] ->
+                "no jobs\n";
+            _ ->
+                ["<p><table ", ?TABC, ">", L2, "</table>\n</p>\n"]
+        end,
+    lists:flatten([Head, Body, Foot]).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates text from list of jobs
+%%
+-spec make_job_text([{reference(), #jst{}}]) -> string().
+
+make_job_text(List) ->
+    L2 = [make_one_jst_text(X) || X <- List],
+    lists:flatten(L2).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates a html row from a data item of type {reference(), #jst{}}.
+%% Input durations are in microseconds, output durations are in milliseconds
+%%
+-spec make_one_jst_html({reference(), #jst{}}) -> string().
+
+make_one_jst_html({Id, #jst{job=J, status=St, dur_all=Dall, dur_req=Dreq,
+        start=Start, time=T}}) ->
+    J_str = make_short_info(J),
+    Start_str = mpln_misc_time:get_time_str_us(Start),
+    Time_str = mpln_misc_time:get_time_str_us(T),
+    io_lib:format(
+        "<tr>~n"
+        "<td>~p</td>~n"
+        "<td>~s</td>~n"
+        "<td>~s</td>~n"
+        "<td>~p</td>~n"
+        "<td>~.3f</td>~n"
+        "<td>~.3f</td>~n"
+        "<td><pre>~s</pre></td>~n"
+        "</tr>~n",
+        [Id, Start_str, Time_str, St, Dall/1000.0, Dreq/1000.0, J_str]).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates a string from a data item of type {reference(), #jst{}}.
+%% Input durations are in microseconds, output durations are in milliseconds
+%%
+-spec make_one_jst_text({reference(), #jst{}}) -> string().
+
+make_one_jst_text({Id, #jst{job=J, status=St, dur_all=Dall, dur_req=Dreq,
+        start=Start, time=T}}) ->
+    J_str = make_short_info(J),
+    Start_str = mpln_misc_time:get_time_str_us(Start),
+    Time_str = mpln_misc_time:get_time_str_us(T),
+    io_lib:format("~p, ~s, ~s, ~p, ~.3f, ~.3f, ~s~n",
+        [Id, Start_str, Time_str, St, Dall/1000.0, Dreq/1000.0, J_str]).
 
 %%-----------------------------------------------------------------------------

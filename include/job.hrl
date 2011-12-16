@@ -25,6 +25,16 @@
     data % headers ([{key, val}]) supplied by user
 }).
 
+% job status used in statistic of last N jobs
+-record(jst, {
+    job     :: #job{},
+    status  :: 'queued' | 'sent' | 'done',
+    dur_all :: non_neg_integer(), % the whole duration
+    dur_req :: non_neg_integer(), % duration of http request
+    start, % start time
+    time   % last change time
+}).
+
 -record(rt, {
     type = 'now' :: 'now' | 'at' | 'in',
     at,

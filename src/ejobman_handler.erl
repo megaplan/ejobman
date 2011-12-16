@@ -42,6 +42,7 @@
 -export([cmd/1, remove_child/2]).
 -export([cmd_result/4]).
 -export([get_job_log_filename/0]).
+-export([stat_r/0]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -85,6 +86,10 @@ handle_call({set_debug_item, Facility, Level}, _From, St) ->
     % no api for this, use message passing
     New = mpln_misc_run:update_debug_level(St#ejm.debug, Facility, Level),
     {reply, St#ejm.debug, St#ejm{debug=New}, ?T};
+
+%% @doc returns statistic for the last running jobs
+handle_call(stat_r, _From, St) ->
+    {reply, St#ejm.stat_r, St, ?T};
 
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
@@ -237,6 +242,15 @@ get_job_log_filename() ->
 remove_child(Pid, Group) ->
     gen_server:cast(?MODULE, {remove_child, Pid, Group}).
 
+%%-----------------------------------------------------------------------------
+%%
+%% @doc asks ejobman_handler for statistic for the last jobs
+%%
+-spec stat_r() -> dict().
+
+stat_r() ->
+    gen_server:call(?MODULE, stat_r).
+
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -294,7 +308,18 @@ check_child(#chi{pid=Pid}) ->
 -spec prepare_all(#ejm{}) -> #ejm{}.
 
 prepare_all(St) ->
-    prepare_job_log(St).
+    St_st = prepare_stat(St),
+    prepare_job_log(St_st).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc prepares statistic
+%%
+prepare_stat(St) ->
+    St#ejm{
+        stat_t = dict:new(), % aggregated by time. Hash: time, status -> data
+        stat_r = dict:new()  % last N jobs. Hash: ref -> item
+    }.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -316,6 +341,10 @@ prepare_job_log(#ejm{job_log=Base} = St) ->
             St#ejm{jlog_f=undefined}
     end.
 
+%%-----------------------------------------------------------------------------
+%%
+%% @doc close log with jobs
+%%
 close_job_log(#ejm{jlog = undefined}) ->
     ok;
 close_job_log(#ejm{jlog = Fd}) ->
