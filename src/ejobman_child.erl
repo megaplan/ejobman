@@ -277,19 +277,34 @@ rewrite_scheme(#child{schema_rewrite=Rew_conf} = St, Url) ->
 rewrite_scheme2(_St, _Url, Data, error) ->
     Data;
 
-rewrite_scheme2(St, Url, {_Scheme, Auth, Host, Port, Path, Query} = Data,
+rewrite_scheme2(St, Url, {Scheme, Auth, Host, Port, Path, Query} = Data,
         {ok, Config}) ->
     mpln_p_debug:pr({?MODULE, 'rewrite_scheme2 pars', ?LINE, self(),
-        Config, Host, Url}, St#child.debug, rewrite, 4),
+        Config, Scheme, Host, Port, Url}, St#child.debug, rewrite, 4),
     case proplists:get_value(https, Config) of
         true ->
-            {'https', Auth, Host, Port, Path, Query};
+            New_port = rewrite_port(Scheme, Port, 'https'),
+            {'https', Auth, Host, New_port, Path, Query};
         false ->
-            {'http', Auth, Host, Port, Path, Query};
+            New_port = rewrite_port(Scheme, Port, 'http'),
+            {'http', Auth, Host, New_port, Path, Query};
         _ ->
             Data
     end.
 
+%%-----------------------------------------------------------------------------
+%%
+%% @doc rewrites port in according to the old scheme/port and new scheme
+%%
+-spec rewrite_port('https' | 'http', non_neg_integer(), 'https' | 'http') ->
+    non_neg_integer().
+
+rewrite_port('http', 80, 'https') ->
+    443;
+rewrite_port('https', 443, 'http') ->
+    80;
+rewrite_port(_, Port, _) ->
+    Port.
 %%-----------------------------------------------------------------------------
 %%
 %% @doc rewrites host part of an url according to the config, adds
@@ -611,6 +626,11 @@ process_cmd_test() ->
 make_schema_rewrite_conf() ->
     [
             [
+                {src_host_part, "test.megaplan.kulikov"},
+                % true - on, false - off, other - don't change
+                {https, true}
+            ],
+            [
                 {src_host_part, "promo.megaplan.kulikov"},
                 % true - on, false - off, other - don't change
                 {https, false}
@@ -704,11 +724,11 @@ rewrite_scheme_test() ->
         {
         "192.168.9.183",
         % {'https', Auth, Host, Port, Path, Query}
-        {'https', "", "192.168.9.183", 80, "/new/order/send-messages", []}
+        {'https', "", "192.168.9.183", 443, "/new/order/send-messages", []}
         },
         {
         "promo.megaplan.kulikov",
-        {'https', "", "promo.megaplan.kulikov", 80,
+        {'https', "", "promo.megaplan.kulikov", 443,
             "/new/order/send-messages", []}
         }
         ],
@@ -746,6 +766,26 @@ rewrite_url_test() ->
         },
         {
             "http://promo.megaplan.kulikov/new/order/send-messages",
+            undefined,
+            undefined,
+            { "http://192.168.9.183:80/new/order/send-messages",
+                [{"Host", "promo.megaplan.kulikov"},
+                 {"User-Agent","Ejobman"}
+                ]
+            }
+        },
+        {
+            "http://test.megaplan.kulikov/new/order/send-messages",
+            undefined,
+            undefined,
+            { "https://test.megaplan.kulikov:443/new/order/send-messages",
+                [{"Host", "test.megaplan.kulikov"},
+                 {"User-Agent","Ejobman"}
+                ]
+            }
+        },
+        {
+            "https://promo.megaplan.kulikov/new/order/send-messages",
             undefined,
             undefined,
             { "http://192.168.9.183:80/new/order/send-messages",
