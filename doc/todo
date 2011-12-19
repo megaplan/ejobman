@@ -1,6 +1,6 @@
 TODO:
 
-- log hostname, pid
+- move job statistic to separate process
 - runtime stat: memory, etc
 - compile and store regexp in ejobman_handler config preparation
 - config reload:
@@ -25,3 +25,4 @@ DONE:
 - logrotate
 - save (to ets/dets/...) jobs that are fetched from rabbit but not yet
   processed because of job limits. Done by amqp:send_ack after job's finish
+- log hostname, pid

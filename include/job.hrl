@@ -29,6 +29,7 @@
 -record(jst, {
     job     :: #job{},
     status  :: 'queued' | 'sent' | 'done',
+    result  :: {ok, any()} | {error, any()}, % result of http request
     dur_all :: non_neg_integer(), % the whole duration
     dur_req :: non_neg_integer(), % duration of http request
     start, % start time

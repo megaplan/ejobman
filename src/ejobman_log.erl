@@ -649,21 +649,20 @@ make_job_text(List) ->
 -spec make_one_jst_html({reference(), #jst{}}) -> string().
 
 make_one_jst_html({Id, #jst{job=J, status=St, dur_all=Dall, dur_req=Dreq,
-        start=Start, time=T}}) ->
+        start=Start, result=Res}}) ->
     J_str = make_short_info(J),
     Start_str = mpln_misc_time:get_time_str_us(Start),
-    Time_str = mpln_misc_time:get_time_str_us(T),
     io_lib:format(
         "<tr>~n"
         "<td>~p</td>~n"
-        "<td>~s</td>~n"
+        "<td>~p</td>~n"
         "<td>~s</td>~n"
         "<td>~p</td>~n"
         "<td>~.3f</td>~n"
         "<td>~.3f</td>~n"
         "<td><pre>~s</pre></td>~n"
         "</tr>~n",
-        [Id, Start_str, Time_str, St, Dall/1000.0, Dreq/1000.0, J_str]).
+        [Res, Id, Start_str, St, Dall/1000.0, Dreq/1000.0, J_str]).
 
 %%-----------------------------------------------------------------------------
 %%

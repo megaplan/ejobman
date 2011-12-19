@@ -95,7 +95,7 @@ do_command_result(St, Res, Dur, Group, Id) ->
     mpln_p_debug:pr({?MODULE, 'do_command_result', ?LINE, Group, Id, Dur, Res},
         St#ejm.debug, run, 4),
     Now = now(),
-    St_st = res_cmd_stat(St, Group, Dur, Id, Now),
+    St_st = res_cmd_stat(St, Res, Dur, Id, Now),
     log_child_duration(St_st, Group, Id, Now),
     ejobman_log:log_job_result(St_st, Res, Id),
     St_st.
@@ -272,19 +272,30 @@ add_cmd_stat(#ejm{stat_r=Stat} = St, #job{id=Id} = Job_src) ->
 %%
 %% @doc marks job as "request done" in the last jobs
 %%
-res_cmd_stat(#ejm{stat_r=Stat} = St, Group, Dur, Id, Now) ->
+res_cmd_stat(#ejm{stat_r=Stat} = St, Res, Dur, Id, Now) ->
     New = 
         case dict:find(Id, Stat) of
             {ok, Info} ->
-                %Time = fetch_start_time(St, Group, Id),
                 Time = Info#jst.start,
-                New_info = Info#jst{status=done, time=Now,
+                Rc = make_title(Res),
+                New_info = Info#jst{result=Rc, status=done, time=Now,
                     dur_req=Dur, dur_all=timer:now_diff(Now, Time)},
                 dict:store(Id, New_info, Stat);
             error ->
                 Stat
         end,
     St#ejm{stat_r=New}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc extracts code and reason from a result tuple
+%%
+make_title({ok, {Scode, _Body}}) ->
+    {ok, Scode};
+make_title({ok, {Stline, _Hdr, _Body}}) ->
+    {ok, Stline};
+make_title({error, Reason}) ->
+    {error, Reason}.
 
 %%-----------------------------------------------------------------------------
 %%
