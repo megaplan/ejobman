@@ -264,7 +264,8 @@ get_group_max(Groups, Gid, Default) ->
 -spec add_cmd_stat(#ejm{}, #job{}) -> #ejm{}.
 
 add_cmd_stat(#ejm{stat_r=Stat} = St, #job{id=Id} = Job_src) ->
-    Job = Job_src#job{auth=undefined},
+    Path = make_path(Job_src),
+    Job = Job_src#job{auth=undefined, path=Path},
     Now = now(),
     Info = #jst{job=Job, status=queued, start=Now, time=Now},
     New = dict:store(Id, Info, Stat),
@@ -314,6 +315,19 @@ fetch_start_time(St, Group, Id) ->
             {0,0,0};
         [Item | _] ->
             Item#chi.start
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc extracts path from the full url
+%%
+make_path(#job{url=Url}) ->
+    Str = mpln_misc_web:make_string(Url),
+    case http_uri:parse(Str) of
+        {error, _Reason} ->
+            "";
+        {_Scheme, _Auth, _Host, _Port, Path, _Query} ->
+            Path
     end.
 
 %%-----------------------------------------------------------------------------

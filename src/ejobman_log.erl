@@ -72,16 +72,23 @@
 get_last_jobs() ->
     get_last_jobs('html').
 
--spec get_last_jobs(html | text | rss) -> string().
+-spec get_last_jobs('html' | 'text' | 'rss') -> string().
 
 get_last_jobs(Type) ->
     get_last_jobs(Type, ?NJOBS).
 
--spec get_last_jobs(html | text | rss, non_neg_integer()) -> string().
+-spec get_last_jobs('html' | 'text' | 'rss', non_neg_integer()) -> string().
 
-get_last_jobs(Type, N) ->
+get_last_jobs(Type, X) ->
+    Stype = mpln_misc_web:make_string(Type),
+    N = case X of
+            _ when is_integer(X) andalso X > 0 ->
+                X;
+            _ ->
+                ?NJOBS
+        end,
     List = get_job_list(N),
-    make_job_output(Type, List).
+    make_job_output(Stype, List).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -709,11 +716,11 @@ make_one_jst_text({Id, #jst{job=J, status=St, dur_all=Dall, dur_req=Dreq,
         [Id, Start_str, Time_str, St, Dall/1000.0, Dreq/1000.0, J_str]).
 
 %%-----------------------------------------------------------------------------
-make_job_output('html', List) ->
-    make_job_html(List);
-make_job_output('text', List) ->
+make_job_output("text", List) ->
     make_job_text(List);
-make_job_output('rss', List) ->
-    make_job_text(List).
+make_job_output("rss", List) ->
+    make_job_text(List);
+make_job_output(_, List) ->
+    make_job_html(List).
 
 %%-----------------------------------------------------------------------------

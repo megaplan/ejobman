@@ -13,6 +13,7 @@
     params,
     group,
     tag, % delivery tag for amqp
+    path :: string(),
     run_time
 }).
 

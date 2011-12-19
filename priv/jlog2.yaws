@@ -18,13 +18,24 @@ make_resp(A) ->
     Q = yaws_api:parse_query(A),
     error_logger:info_report({?MODULE, make_resp, ?LINE, Q}),
     Size =
-        case proplists:get_value("n", Q) of
+        case catch list_to_integer(proplists:get_value("n", Q)) of
             N when is_integer(N) andalso N > 0 ->
                 N;
             _ ->
                 1000
         end,
-    Text = ejobman_log:get_last_jobs(html, Size),
-    {content, "text/html", Text}.
+    {Ctype, Type} =
+        case proplists:get_value("t", Q) of
+            "html" ->
+                {"text/html", "html"};
+            "text" ->
+                {"text/plain", "text"};
+            "rss" ->
+                {"application/rss+xml", "rss"};
+            _ ->
+                {"text/html", "html"}
+        end,
+    Text = ejobman_log:get_last_jobs(Type, Size),
+    {content, Ctype, Text}.
 
 </erl>
