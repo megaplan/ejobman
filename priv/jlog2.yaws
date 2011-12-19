@@ -24,18 +24,16 @@ make_resp(A) ->
             _ ->
                 1000
         end,
-    {Ctype, Type} =
-        case proplists:get_value("t", Q) of
-            "html" ->
-                {"text/html", "html"};
-            "text" ->
-                {"text/plain", "text"};
-            "rss" ->
-                {"application/rss+xml", "rss"};
-            _ ->
-                {"text/html", "html"}
-        end,
-    Text = ejobman_log:get_last_jobs(Type, Size),
-    {content, Ctype, Text}.
+    case proplists:get_value("t", Q) of
+        "text" ->
+            Text = ejobman_log:get_last_jobs("text", Size),
+            {content, "text/plain", Text};
+        "rss" ->
+            Bin = ejobman_handler:stat_rss(Size),
+            {content, "application/rss+xml", Bin};
+        _ ->
+            Text = ejobman_log:get_last_jobs("html", Size),
+            {content, "text/html", Text}
+    end.
 
 </erl>

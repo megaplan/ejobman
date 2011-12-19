@@ -42,7 +42,13 @@
 -export([cmd/1, remove_child/2]).
 -export([cmd_result/5]).
 -export([get_job_log_filename/0]).
--export([stat_r/0]).
+-export([stat_r/0, stat_rss/1]).
+
+%%%----------------------------------------------------------------------------
+%%% Defines
+%%%----------------------------------------------------------------------------
+
+-define(DEAD_RIPPING_TIME, 5000000).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -90,6 +96,12 @@ handle_call({set_debug_item, Facility, Level}, _From, St) ->
 %% @doc returns statistic for the last running jobs
 handle_call(stat_r, _From, St) ->
     {reply, St#ejm.stat_r, St, ?T};
+
+%% @doc returns statistic for the last running jobs as an rss
+handle_call({stat_rss, N}, _From, St) ->
+    mpln_p_debug:pr({?MODULE, 'call stat_rss', ?LINE, N}, St#ejm.debug, run, 3),
+    Res = ejobman_log:get_last_jobs_rss(St, N),
+    {reply, Res, St, ?T};
 
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
@@ -252,6 +264,15 @@ remove_child(Pid, Group) ->
 stat_r() ->
     gen_server:call(?MODULE, stat_r).
 
+%%-----------------------------------------------------------------------------
+%%
+%% @doc asks ejobman_handler for statistic for the last jobs as rss
+%%
+-spec stat_rss(non_neg_integer()) -> binary().
+
+stat_rss(N) ->
+    gen_server:call(?MODULE, {stat_rss, N}).
+
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -279,14 +300,33 @@ check_queued_commands(St) ->
 %%-----------------------------------------------------------------------------
 %%
 %% @doc checks that all the children are alive. Returns new state with
-%% live children only
+%% live children and marked dead ones
+%% @todo rewrite it to use monitors
 %%
 check_children(#ejm{ch_data=Data} = St) ->
-    F = fun(_Gid, List) ->
+    F1 = fun(_Gid, List) ->
+        lists:map(fun mark_child/1, List)
+    end,
+    Data2 = dict:map(F1, Data),
+    F2 = fun(_Gid, List) ->
         lists:filter(fun check_child/1, List)
     end,
-    New_data = dict:map(F, Data),
+    New_data = dict:map(F2, Data2),
     St#ejm{ch_data=New_data}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc mark dead child to be ripped later
+%%
+-spec mark_child(#chi{}) -> #chi{}.
+
+mark_child(#chi{pid=Pid} = Info) ->
+    case process_info(Pid, reductions) of
+        {reductions, _N} ->
+            Info;
+        _ ->
+            Info#chi{alive=false, stop=now()}
+    end.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -294,13 +334,12 @@ check_children(#ejm{ch_data=Data} = St) ->
 %%
 -spec check_child(#chi{}) -> boolean().
 
-check_child(#chi{pid=Pid}) ->
-    case process_info(Pid, reductions) of
-        {reductions, _N} ->
-            true;
-        _ ->
-            false
-    end.
+check_child(#chi{alive=false, stop=T}) ->
+    Delta = timer:now_diff(now(), T),
+    Delta < ?DEAD_RIPPING_TIME;
+
+check_child(_) ->
+    true.
 
 %%-----------------------------------------------------------------------------
 %%

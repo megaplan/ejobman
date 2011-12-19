@@ -32,6 +32,7 @@
 -export([log_job/2, log_job_result/3]).
 -export([make_jlog_xml/1, make_jlog_xml/2]).
 -export([get_last_jobs/0, get_last_jobs/1, get_last_jobs/2]).
+-export([get_last_jobs_rss/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -63,6 +64,18 @@
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
+%%
+%% @doc creates rss with last jobs
+%% @since 2011-12-19 17:45
+%%
+-spec get_last_jobs_rss(#ejm{}, non_neg_integer()) -> binary().
+
+get_last_jobs_rss(#ejm{stat_r=Stat} = St, N) ->
+    List = cut_job_list(Stat, N),
+    make_job_rss(St, List)
+.
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc creates an output page with last jobs
 %% @since 2011-12-19 13:55
@@ -595,6 +608,39 @@ create_item_description(I) ->
     "</pre>]]></description>\n"].
 
 %%-----------------------------------------------------------------------------
+create_dur_item(Tag, T2, T1) ->
+    Dur = timer:now_diff(T2, T1),
+    Str = io_lib:format("~.3f", [Dur/1000.0]),
+    [
+        "<", Tag, ">",
+        Str,
+        "</", Tag, ">\n"
+    ].
+
+%%-----------------------------------------------------------------------------
+create_time_item(Tag, undefined) ->
+    [
+        "<", Tag, ">",
+        "</", Tag, ">\n"
+    ];
+
+create_time_item(Tag, Time) ->
+    Str = mpln_misc_time:get_time_str_us(Time),
+    [
+        "<", Tag, ">",
+        Str,
+        "</", Tag, ">\n"
+    ].
+
+%%-----------------------------------------------------------------------------
+create_path_item(Path) ->
+    [
+        "<author>",
+        Path,
+        "</author>\n"
+    ].
+
+%%-----------------------------------------------------------------------------
 create_item_date(I) ->
     ["<pubDate>",
     I#item.date,
@@ -616,6 +662,15 @@ create_item_title(I) ->
 
 get_job_list(N) ->
     Stat = ejobman_handler:stat_r(),
+    cut_job_list(Stat, N).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc cut the job list to N
+%%
+-spec cut_job_list(dict(), non_neg_integer()) -> [{reference(), #jst{}}].
+
+cut_job_list(Stat, N) ->
     Size = dict:size(Stat),
     L = dict:to_list(Stat),
     L2 = lists:keysort(1, L),
@@ -627,6 +682,18 @@ get_job_list(N) ->
         end,
     %lists:reverse(L3)
     L3.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates text from list of jobs
+%%
+-spec make_job_rss(#ejm{}, [{reference(), #jst{}}]) -> binary().
+
+make_job_rss(St, List) ->
+    Body = [make_one_jst_rss(St, X) || X <- List],
+    Head = get_jlog_head(),
+    Foot = get_jlog_foot(),
+    unicode:characters_to_binary([Head, Body, Foot]).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -659,6 +726,49 @@ make_job_text(List) ->
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc creates an rss item from a data item of type {reference(), #jst{}}.
+%% Output durations are in milliseconds
+%%
+-spec make_one_jst_rss(#ejm{}, {reference(), #jst{}}) -> list().
+
+make_one_jst_rss(St, {Id, #jst{job=J,
+        t_start_child=Start_c, t_stop_child=Stop_c,
+        t_start_req=Start_r, t_stop_req=Stop_r,
+        start=Start, result_full=Res}}) ->
+    mpln_p_debug:pr({?MODULE, 'make_one_jst_rss', ?LINE, Id},
+        St#ejm.debug, run, 4),
+    Path_str = create_path_item(J#job.path),
+    Start_str = create_time_item("start", Start),
+    Start_c_str = create_time_item("start_child", Start_c),
+    Stop_c_str = create_time_item("stop_child", Stop_c),
+    Start_r_str = create_time_item("start_request", Start_r),
+    Dur_all = create_dur_item("dur_all", Stop_c, Start),
+    Dur_child = create_dur_item("dur_child", Stop_c, Start_c),
+    Dur_req = create_dur_item("dur_request", Stop_r, Start_r),
+    Head = msg_head(),
+    Title = make_title(Res, Id),
+    Msg_title = msg_title(Title),
+    Date = msg_date(),
+    Body = msg_res_body(St, Res),
+    Foot = msg_foot(),
+    Out_item = [
+        Head, Msg_title, Date,
+        Start_str,
+        Start_c_str,
+        Stop_c_str,
+        Start_r_str,
+        Dur_all,
+        Dur_child,
+        Dur_req,
+        Path_str,
+        Body, Foot
+    ],
+    mpln_p_debug:pr({?MODULE, 'make_one_jst_rss item', ?LINE, Id, Out_item},
+        St#ejm.debug, run, 5),
+    Out_item.
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc creates a html row from a data item of type {reference(), #jst{}}.
 %% Input durations are in microseconds, output durations are in milliseconds
 %%
@@ -669,14 +779,14 @@ make_one_jst_html({Id, #jst{job=J, status=St,
         t_start_req=Start_r, t_stop_req=Stop_r,
         start=Start, result=Res}}) ->
     J_str = make_short_info(J),
-    Start_str = mpln_misc_time:get_time_str_us(Start),
-    Start_c_str = mpln_misc_time:get_time_str_us(Start_c),
-    Stop_c_str = mpln_misc_time:get_time_str_us(Stop_c),
-    Start_r_str = mpln_misc_time:get_time_str_us(Start_r),
-    %Stop_r_str = mpln_misc_time:get_time_str_us(Stop_r),
-    Dur_all = timer:now_diff(Stop_c, Start),
-    Dur_child = timer:now_diff(Stop_c, Start_c),
-    Dur_req = timer:now_diff(Stop_r, Start_r),
+    Start_str = create_time(Start),
+    Start_c_str = create_time(Start_c),
+    Stop_c_str = create_time(Stop_c),
+    Start_r_str = create_time(Start_r),
+    %Stop_r_str = create_time(Stop_r),
+    Dur_all = create_dur(Stop_c, Start),
+    Dur_child = create_dur(Stop_c, Start_c),
+    Dur_req = create_dur(Stop_r, Start_r),
     io_lib:format(
         "<tr>~n"
         "<td>~p</td>~n" % result
@@ -701,6 +811,18 @@ make_one_jst_html({Id, #jst{job=J, status=St,
             J_str]).
 
 %%-----------------------------------------------------------------------------
+create_dur({_, _, _} = T2, {_, _, _} = T1) ->
+    timer:now_diff(T2, T1);
+create_dur(_, _) ->
+    0.
+
+%%-----------------------------------------------------------------------------
+create_time({_, _, _} = X) ->
+    mpln_misc_time:get_time_str_us(X);
+create_time(_) ->
+    "".
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc creates a string from a data item of type {reference(), #jst{}}.
 %% Input durations are in microseconds, output durations are in milliseconds
@@ -716,9 +838,10 @@ make_one_jst_text({Id, #jst{job=J, status=St, dur_all=Dall, dur_req=Dreq,
         [Id, Start_str, Time_str, St, Dall/1000.0, Dreq/1000.0, J_str]).
 
 %%-----------------------------------------------------------------------------
+%%
+%% @doc creates output text (or html) with last jobs
+%%
 make_job_output("text", List) ->
-    make_job_text(List);
-make_job_output("rss", List) ->
     make_job_text(List);
 make_job_output(_, List) ->
     make_job_html(List).

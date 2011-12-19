@@ -282,7 +282,7 @@ res_cmd_stat(#ejm{stat_r=Stat} = St, Res, Start_c, Ht1, Ht2, Id, Now) ->
         case dict:find(Id, Stat) of
             {ok, Info} ->
                 Time = Info#jst.start,
-                Info#jst{result=Rc, status=done, time=Now,
+                Info#jst{result=Rc, result_full=Res, status=done, time=Now,
                     t_start_child=Start_c, t_stop_child=Now,
                     t_start_req=Ht1, t_stop_req=Ht2,
                     dur_req=Dur, dur_all=timer:now_diff(Now, Time)};
@@ -290,7 +290,7 @@ res_cmd_stat(#ejm{stat_r=Stat} = St, Res, Start_c, Ht1, Ht2, Id, Now) ->
                 mpln_p_debug:pr({?MODULE, 'res_cmd_stat', ?LINE, 'error',
                     Id, Dur, Res}, St#ejm.debug, run, 2),
                 Time = now(), % this gives negative duration, so keep an eye
-                #jst{result=Rc, status=done, time=Now,
+                #jst{result=Rc, result_full=Res, status=done, time=Now,
                     t_start_child=Start_c, t_stop_child=Now,
                     t_start_req=Ht1, t_stop_req=Ht2,
                     dur_req=Dur, dur_all=timer:now_diff(Now, Time)}
