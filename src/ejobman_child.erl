@@ -205,8 +205,7 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag,
         {version, "HTTP/1.0"}],
         []),
     T2 = now(),
-    Dur = timer:now_diff(T2, T1),
-    process_result(St, Res, Dur),
+    process_result(St, Res, T1, T2),
     mpln_p_debug:log_http_res({?MODULE, real_cmd, ?LINE, Id, self()},
         Res, St#child.debug).
 
@@ -215,8 +214,8 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag,
 %% @doc sends result to ejobman_handler, sends acknowledge signal to
 %% ejobman_receiver
 %%
-process_result(#child{id=Id, group=Group}, Res, Dur) ->
-    ejobman_handler:cmd_result(Res, Dur, Group, Id).
+process_result(#child{id=Id, group=Group}, Res, T1, T2) ->
+    ejobman_handler:cmd_result(Res, T1, T2, Group, Id).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -226,15 +225,17 @@ process_result(#child{id=Id, group=Group}, Res, Dur) ->
 -spec make_url(#child{}, string()) -> {string(), list()}.
 
 make_url(#child{url=Bin} = St, Method) ->
-    Url = ejobman_clean:get_url(Bin),
+    Url = mpln_misc_web:make_string(Bin),
     rewrite(St, Method, Url).
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc rewrites host and schema parts of an url according to the config, adds
-%% host header if necessary
+%% host header if necessary. Returns {new url, header}.
 %% @since 2011-12-13 19:24
 %%
+-spec rewrite(#child{}, string(), string()) -> {string(), list()}.
+
 rewrite(St, Method, Url) ->
     case rewrite_scheme(St, Url) of
         %{https,"l:p","host.localdomain",123,"/goo","?foo=baz"}

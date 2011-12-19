@@ -24,7 +24,7 @@ make_resp(A) ->
             _ ->
                 1000
         end,
-    Text = ejobman_log:get_last_jobs(Size),
+    Text = ejobman_log:get_last_jobs(html, Size),
     {content, "text/html", Text}.
 
 </erl>

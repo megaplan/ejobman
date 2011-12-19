@@ -35,7 +35,7 @@
 %%%----------------------------------------------------------------------------
 
 -export([do_command/3, do_short_commands/1]).
--export([do_command_result/5]).
+-export([do_command_result/6]).
 -export([remove_child/3]).
 
 %%%----------------------------------------------------------------------------
@@ -88,14 +88,16 @@ do_short_commands(#ejm{ch_queues=Data} = St) ->
 %% children, logs a command result to the job log
 %% @since 2011-10-19 18:00
 %%
--spec do_command_result(#ejm{}, tuple(), non_neg_integer(),
+-spec do_command_result(#ejm{}, tuple(), tuple(), tuple(),
     default | binary(), reference()) -> #ejm{}.
 
-do_command_result(St, Res, Dur, Group, Id) ->
+do_command_result(St, Res, T1, T2, Group, Id) ->
+    Dur = timer:now_diff(T2, T1),
     mpln_p_debug:pr({?MODULE, 'do_command_result', ?LINE, Group, Id, Dur, Res},
         St#ejm.debug, run, 4),
     Now = now(),
-    St_st = res_cmd_stat(St, Res, Dur, Id, Now),
+    Start_c = fetch_start_time(St, Group, Id),
+    St_st = res_cmd_stat(St, Res, Start_c, T1, T2, Id, Now),
     log_child_duration(St_st, Group, Id, Now),
     ejobman_log:log_job_result(St_st, Res, Id),
     St_st.
@@ -272,23 +274,47 @@ add_cmd_stat(#ejm{stat_r=Stat} = St, #job{id=Id} = Job_src) ->
 %%
 %% @doc marks job as "request done" in the last jobs
 %%
-res_cmd_stat(#ejm{stat_r=Stat} = St, Res, Dur, Id, Now) ->
+res_cmd_stat(#ejm{stat_r=Stat} = St, Res, Start_c, Ht1, Ht2, Id, Now) ->
+    Dur = timer:now_diff(Ht2, Ht1),
     Rc = make_title(Res),
     New_info = 
         case dict:find(Id, Stat) of
             {ok, Info} ->
                 Time = Info#jst.start,
                 Info#jst{result=Rc, status=done, time=Now,
+                    t_start_child=Start_c, t_stop_child=Now,
+                    t_start_req=Ht1, t_stop_req=Ht2,
                     dur_req=Dur, dur_all=timer:now_diff(Now, Time)};
             error ->
                 mpln_p_debug:pr({?MODULE, 'res_cmd_stat', ?LINE, 'error',
                     Id, Dur, Res}, St#ejm.debug, run, 2),
-                Time = now(), % this gives negative duration
+                Time = now(), % this gives negative duration, so keep an eye
                 #jst{result=Rc, status=done, time=Now,
+                    t_start_child=Start_c, t_stop_child=Now,
+                    t_start_req=Ht1, t_stop_req=Ht2,
                     dur_req=Dur, dur_all=timer:now_diff(Now, Time)}
         end,
     New_stat = dict:store(Id, New_info, Stat),
     St#ejm{stat_r=New_stat}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fetches start time for the given job id and group
+%%
+fetch_start_time(St, Group, Id) ->
+    Ch = fetch_spawned_children(St, Group),
+    F = fun(#chi{id=X}) ->
+            X =/= Id
+        end,
+    Res = lists:dropwhile(F, Ch),
+    case Res of
+        [] ->
+            mpln_p_debug:pr({?MODULE, 'fetch_start_time', ?LINE,
+                'no start time', Group, Id}, St#ejm.debug, run, 0),
+            {0,0,0};
+        [Item | _] ->
+            Item#chi.start
+    end.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -300,22 +326,6 @@ make_title({ok, {Stline, _Hdr, _Body}}) ->
     {ok, Stline};
 make_title({error, Reason}) ->
     {error, Reason}.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc fetches start time for the given job id and group
-%%
-fetch_start_time(St, Group, Id) ->
-    Ch = fetch_spawned_children(St, Group),
-    Res = [T || #chi{id=X, start=T} <- Ch, X == Id],
-    case Res of
-        [] ->
-            mpln_p_debug:pr({?MODULE, 'fetch_start_time', ?LINE,
-                'no start time', Group, Id}, St#ejm.debug, run, 0),
-            {0,0,0};
-        [Start | _] ->
-            Start
-    end.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -481,6 +491,10 @@ do_one_command(St, Ch, {From, J}) ->
         {ok, Pid, _Info} ->
             add_child(Ch, Pid, J#job.id, J#job.tag);
         _ ->
+            Now = now(),
+            ejobman_handler:cmd_result(Res, Now, Now, J#job.group, J#job.id),
+            mpln_p_debug:pr({?MODULE, 'do_one_command_res', ?LINE, 'error',
+                J#job.id, J#job.group, Res}, St#ejm.debug, handler_child, 1),
             Ch
     end.
 

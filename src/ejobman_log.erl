@@ -31,7 +31,7 @@
 -module(ejobman_log).
 -export([log_job/2, log_job_result/3]).
 -export([make_jlog_xml/1, make_jlog_xml/2]).
--export([get_last_jobs/0, get_last_jobs/1]).
+-export([get_last_jobs/0, get_last_jobs/1, get_last_jobs/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -64,15 +64,24 @@
 %%% API
 %%%----------------------------------------------------------------------------
 %%
-%% @doc creates a html page with last jobs
+%% @doc creates an output page with last jobs
+%% @since 2011-12-19 13:55
 %%
-get_last_jobs() ->
-    get_last_jobs(?NJOBS).
+-spec get_last_jobs() -> string().
 
-get_last_jobs(N) ->
+get_last_jobs() ->
+    get_last_jobs('html').
+
+-spec get_last_jobs(html | text | rss) -> string().
+
+get_last_jobs(Type) ->
+    get_last_jobs(Type, ?NJOBS).
+
+-spec get_last_jobs(html | text | rss, non_neg_integer()) -> string().
+
+get_last_jobs(Type, N) ->
     List = get_job_list(N),
-    make_job_html(List)
-.
+    make_job_output(Type, List).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -648,21 +657,41 @@ make_job_text(List) ->
 %%
 -spec make_one_jst_html({reference(), #jst{}}) -> string().
 
-make_one_jst_html({Id, #jst{job=J, status=St, dur_all=Dall, dur_req=Dreq,
+make_one_jst_html({Id, #jst{job=J, status=St,
+        t_start_child=Start_c, t_stop_child=Stop_c,
+        t_start_req=Start_r, t_stop_req=Stop_r,
         start=Start, result=Res}}) ->
     J_str = make_short_info(J),
     Start_str = mpln_misc_time:get_time_str_us(Start),
+    Start_c_str = mpln_misc_time:get_time_str_us(Start_c),
+    Stop_c_str = mpln_misc_time:get_time_str_us(Stop_c),
+    Start_r_str = mpln_misc_time:get_time_str_us(Start_r),
+    %Stop_r_str = mpln_misc_time:get_time_str_us(Stop_r),
+    Dur_all = timer:now_diff(Stop_c, Start),
+    Dur_child = timer:now_diff(Stop_c, Start_c),
+    Dur_req = timer:now_diff(Stop_r, Start_r),
     io_lib:format(
         "<tr>~n"
-        "<td>~p</td>~n"
-        "<td>~p</td>~n"
-        "<td>~s</td>~n"
-        "<td>~p</td>~n"
-        "<td>~.3f</td>~n"
-        "<td>~.3f</td>~n"
-        "<td><pre>~s</pre></td>~n"
+        "<td>~p</td>~n" % result
+        "<td>~p</td>~n" % id
+        "<td>~.3f</td>~n" % dur all
+        "<td>~.3f</td>~n" % dur child
+        "<td>~.3f</td>~n" % dur req
+        "<td>~p</td>~n" % status
+        "<td>~s</td>~n" % job receive time
+        %"<td>~s</td>~n" % fetch from queue time
+        "<td>~s</td>~n" % start child time
+        "<td>~s</td>~n" % start http request time
+        "<td>~s</td>~n" % stop child time
+        "<td><pre>~s</pre></td>~n" % job info
         "</tr>~n",
-        [Res, Id, Start_str, St, Dall/1000.0, Dreq/1000.0, J_str]).
+        %[Res, Id, Start_str, St, Dall/1000.0, Dreq/1000.0, J_str]).
+        [Res, Id, Dur_all/1000.0, Dur_child/1000.0, Dur_req/1000.0, St,
+            Start_str,
+            Start_c_str,
+            Start_r_str,
+            Stop_c_str,
+            J_str]).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -678,5 +707,13 @@ make_one_jst_text({Id, #jst{job=J, status=St, dur_all=Dall, dur_req=Dreq,
     Time_str = mpln_misc_time:get_time_str_us(T),
     io_lib:format("~p, ~s, ~s, ~p, ~.3f, ~.3f, ~s~n",
         [Id, Start_str, Time_str, St, Dall/1000.0, Dreq/1000.0, J_str]).
+
+%%-----------------------------------------------------------------------------
+make_job_output('html', List) ->
+    make_job_html(List);
+make_job_output('text', List) ->
+    make_job_text(List);
+make_job_output('rss', List) ->
+    make_job_text(List).
 
 %%-----------------------------------------------------------------------------

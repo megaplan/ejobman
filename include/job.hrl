@@ -32,8 +32,12 @@
     result  :: {ok, any()} | {error, any()}, % result of http request
     dur_all :: non_neg_integer(), % the whole duration
     dur_req :: non_neg_integer(), % duration of http request
-    start, % start time
-    time   % last change time
+    start,         % start time (fetch from internal queue)
+    t_start_child, % start child time
+    t_stop_child,  % stop child time
+    t_start_req,   % start http request time
+    t_stop_req,    % stop http request time
+    time           % last change time
 }).
 
 -record(rt, {
