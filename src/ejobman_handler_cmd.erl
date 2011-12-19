@@ -273,18 +273,22 @@ add_cmd_stat(#ejm{stat_r=Stat} = St, #job{id=Id} = Job_src) ->
 %% @doc marks job as "request done" in the last jobs
 %%
 res_cmd_stat(#ejm{stat_r=Stat} = St, Res, Dur, Id, Now) ->
-    New = 
+    Rc = make_title(Res),
+    New_info = 
         case dict:find(Id, Stat) of
             {ok, Info} ->
                 Time = Info#jst.start,
-                Rc = make_title(Res),
-                New_info = Info#jst{result=Rc, status=done, time=Now,
-                    dur_req=Dur, dur_all=timer:now_diff(Now, Time)},
-                dict:store(Id, New_info, Stat);
+                Info#jst{result=Rc, status=done, time=Now,
+                    dur_req=Dur, dur_all=timer:now_diff(Now, Time)};
             error ->
-                Stat
+                mpln_p_debug:pr({?MODULE, 'res_cmd_stat', ?LINE, 'error',
+                    Id, Dur, Res}, St#ejm.debug, run, 2),
+                Time = now(), % this gives negative duration
+                #jst{result=Rc, status=done, time=Now,
+                    dur_req=Dur, dur_all=timer:now_diff(Now, Time)}
         end,
-    St#ejm{stat_r=New}.
+    New_stat = dict:store(Id, New_info, Stat),
+    St#ejm{stat_r=New_stat}.
 
 %%-----------------------------------------------------------------------------
 %%
