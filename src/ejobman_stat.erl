@@ -38,7 +38,7 @@
 -export([start/0, start_link/0, stop/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
--export([add/2, add/3]).
+-export([add/2, add/3, add/4]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -176,10 +176,13 @@ stop() ->
 %% @doc sends input id, time, data to the server to store them in the storage
 %%
 add(Id, Data) ->
-    add(Id, get_time(), Data).
+    add(Id, undefined, Data).
 
-add(Id, Time, Data) ->
-    gen_server:cast(?MODULE, {add, Id, Time, Data}).
+add(Id1, Id2, Data) ->
+    add(Id1, Id2, get_time(), Data).
+
+add(Id1, Id2, Time, Data) ->
+    gen_server:cast(?MODULE, {add, {Id1, Id2}, Time, Data}).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions

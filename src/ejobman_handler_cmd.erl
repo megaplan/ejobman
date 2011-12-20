@@ -496,6 +496,7 @@ do_one_command(St, Ch, {From, J}) ->
         ],
     mpln_p_debug:pr({?MODULE, 'do_one_command child params', ?LINE,
         Child_params}, St#ejm.debug, handler_child, 4),
+    ejobman_stat:add(J#job.id, 'from_queue', undefined),
     Res = supervisor:start_child(ejobman_child_supervisor, [Child_params]),
     mpln_p_debug:pr({?MODULE, 'do_one_command_res', ?LINE, Res},
         St#ejm.debug, handler_child, 5),
