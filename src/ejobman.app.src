@@ -1,7 +1,7 @@
 {application, ejobman, [
     {description, "ejobman"},
     {id, "ejobman"},
-    {vsn, "1.5"},
+    {vsn, "1.6"},
     {modules, [
         ejobman_app,
         ejobman_child,

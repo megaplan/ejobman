@@ -36,6 +36,7 @@
 -export([get_config_hdl/0]).
 -export([get_config_child/1]).
 -export([get_config_receiver/0]).
+-export([get_config_stat/0]).
 -export([fill_one_pool_config/1]).
 
 %%%----------------------------------------------------------------------------
@@ -46,6 +47,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include("estat.hrl").
 -include("ejobman.hrl").
 -include("receiver.hrl").
 
@@ -93,13 +95,25 @@ get_config_hdl() ->
 %%
 %% @doc reads config file for receiver, fills in ejm record with configured
 %% values
-%% @since 2011-07-15
+%% @since 2011-07-15 13:19
 %%
 -spec get_config_receiver() -> #ejr{}.
 
 get_config_receiver() ->
     List = get_config_list(),
     fill_config_receiver(List).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc reads config file for stat, fills in est record with configured
+%% values
+%% @since 2011-12-20 13:19
+%%
+-spec get_config_stat() -> #est{}.
+
+get_config_stat() ->
+    List = get_config_list(),
+    fill_config_stat(List).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -157,6 +171,24 @@ fill_config_receiver(List) ->
         debug = proplists:get_value(debug, List, []),
         log = proplists:get_value(log, List),
         pid_file = proplists:get_value(pid_file, List)
+    }.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc gets data from the list of key-value tuples and stores it into
+%% ejr record
+%% @since 2011-12-20 13:22
+%%
+-spec fill_config_stat(list()) -> #est{}.
+
+fill_config_stat(All_list) ->
+    List = proplists:get_value(estat, All_list, []),
+    #est{
+        debug = proplists:get_value(debug, List, []),
+        storage = proplists:get_value(storage, List, ?STAT_STORAGE),
+        keep_time = 60 * proplists:get_value(keep_time, List, ?STAT_KEEP_TIME),
+        flush_interval = proplists:get_value(flush_interval, List,
+                                             ?STAT_FLUSH_INTERVAL)
     }.
 
 %%-----------------------------------------------------------------------------

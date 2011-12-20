@@ -47,6 +47,10 @@
 %%% supervisor callbacks
 %%%----------------------------------------------------------------------------
 init(_Args) ->
+    Stat = {
+        ejobman_stat, {ejobman_stat, start_link, []},
+        permanent, 10000, worker, [ejobman_stat]
+        },
     Receiver = {
         ejobman_receiver, {ejobman_receiver, start_link, []},
         permanent, 1000, worker, [ejobman_receiver]
@@ -60,7 +64,7 @@ init(_Args) ->
         transient, infinity, supervisor, [ejobman_child_sup]
         },
     {ok, {{one_for_one, ?RESTARTS, ?SECONDS},
-        [Sup, Receiver, Handler]}}.
+        [Stat, Sup, Receiver, Handler]}}.
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
