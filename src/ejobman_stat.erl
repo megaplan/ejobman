@@ -38,7 +38,8 @@
 -export([start/0, start_link/0, stop/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
--export([add/2, add/3, add/4]).
+-export([add/2, add/3, add/5]).
+-export([get/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -76,6 +77,11 @@ handle_call(stop, _From, St) ->
 handle_call(status, _From, St) ->
     {reply, St, St};
 
+handle_call({get, Start, Stop}, _From, St) ->
+    mpln_p_debug:pr({?MODULE, get1, ?LINE, Start, Stop}, St#est.debug, run, 2),
+    Res = get_items(St, Start, Stop),
+    {reply, Res, St};
+
 handle_call(_N, _From, St) ->
     mpln_p_debug:pr({?MODULE, other, ?LINE, _N}, St#est.debug, run, 2),
     {reply, {error, unknown_request}, St}.
@@ -89,10 +95,10 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 
-handle_cast({add, Id, Time, Data}, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast add', ?LINE, Id, Time},
+handle_cast({add, Id, Time_info, Data}, St) ->
+    mpln_p_debug:pr({?MODULE, 'cast add', ?LINE, Id, Time_info},
         St#est.debug, run, 3),
-    New = add_item(St, Id, Time, Data),
+    New = add_item(St, Id, Time_info, Data),
     {noreply, New};
 
 handle_cast(_Other, St) ->
@@ -174,26 +180,39 @@ stop() ->
 %%-----------------------------------------------------------------------------
 %%
 %% @doc sends input id, time, data to the server to store them in the storage
+%% @since 2011-12-20 19:00
 %%
+-spec add(any(), any()) -> ok.
+
 add(Id, Data) ->
     add(Id, undefined, Data).
 
-add(Id1, Id2, Data) ->
-    add(Id1, Id2, get_time(), Data).
+-spec add(any(), any(), any()) -> ok.
 
-add(Id1, Id2, Time, Data) ->
-    gen_server:cast(?MODULE, {add, {Id1, Id2}, Time, Data}).
+add(Id1, Id2, Data) ->
+    Now = now(),
+    add(Id1, Id2, mpln_misc_time:get_gmt_time(Now), Now, Data).
+
+-spec add(any(), any(), non_neg_integer(), tuple(), any()) -> ok.
+
+add(Id1, Id2, Time, Now, Data) ->
+    List = make_list(Data),
+    gen_server:cast(?MODULE, {add, {Id1, Id2}, {Time, Now}, List}).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc receives start/stop times and returns json binary with stat items
+%% for this interval. Times are unix times, namely seconds from 1970-01-01
+%% @since 2011-12-20 19:03
+%%
+-spec get(string(), string()) -> binary().
+
+get(Start, Stop) ->
+    gen_server:call(?MODULE, {get, Start, Stop}).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
-%%
-%% @doc creates gregorian seconds for current time
-%%
-get_time() ->
-    calendar:datetime_to_gregorian_seconds(calendar:local_time()).
-
-%%-----------------------------------------------------------------------------
 %%
 %% @doc does all necessary preparations: [re]opens log file.
 %% @since 2011-07-15
@@ -275,10 +294,9 @@ rename_tabs(#est{storage=File} = St, Tname) ->
 -spec clean_storage(#est{}) -> ok.
 
 clean_storage(#est{tid=Tab, keep_time=Time} = St) ->
-    % item: {ref, stage}, time (gregorian seconds), data
-    Now = get_time(),
-    Mhead = {'_', '$1', '_'},
-    % Guards = [{'>', {'-', Now, '$1'}, Time}],
+    % item: {ref, stage}, time (gregorian seconds), time (now), data
+    Now = mpln_misc_time:get_gmt_time(),
+    Mhead = {'_', '$1', '_', '_'},
     T2 = Now - Time,
     Guards = [{'<', '$1', T2}],
     Mres = [true],
@@ -313,9 +331,88 @@ periodic_check(#est{timer=Ref, flush_interval=T} = St) ->
 %%
 %% @doc stores id, time, data in the storage
 %%
-add_item(#est{tid=Tid} = St, Id, Time, Data) ->
-    ets:insert(Tid, {Id, Time, Data}),
+-spec add_item(#est{}, any(), {non_neg_integer(), tuple()}, any()) -> #est{}.
+
+add_item(#est{tid=Tid} = St, Id, {Time, Now}, Data) ->
+    ets:insert(Tid, {Id, Time, Now, Data}),
     St.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc tries to maintain a proper list containing {key, value} tuples. This
+%% list is to be stored in a storage.
+%%
+make_list(undefined) ->
+    undefined;
+
+make_list({_, _} = Data) ->
+    [Data];
+
+make_list(Data) ->
+    Data.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc receives start/stop times and returns json binary with stat items
+%% for this interval. Times are unix times, namely seconds from 1970-01-01,
+%% local time zone.
+%%
+-spec get_items(#est{}, non_neg_integer(), non_neg_integer()) -> binary().
+
+get_items(#est{tid=Tab} = St, Start, Stop) ->
+    T1 = mpln_misc_time:make_gmt_gregorian_seconds(Start),
+    T2 = mpln_misc_time:make_gmt_gregorian_seconds(Stop),
+    % item: {ref, stage}, time (gregorian seconds), time (now), data
+    Mhead = {'_', '$1', '_', '_'},
+    Guards = [{'>', '$1', T1}, {'<', '$1', T2}],
+    Mres = ['$_'],
+    Mfun = {Mhead, Guards, Mres},
+    Mspec = [Mfun],
+    List = ets:select(Tab, Mspec),
+    mpln_p_debug:pr({?MODULE, 'get_items', ?LINE, Start, Stop, T1, T2,
+                     length(List)}, St#est.debug, run, 3),
+    create_binary_response(St, List).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates json binary from the fetched item list
+%%
+-spec create_binary_response(#est{}, list()) -> binary().
+
+create_binary_response(St, List) ->
+    mpln_p_debug:pr({?MODULE, 'create_binary_response', ?LINE, List},
+                    St#est.debug, run, 5),
+    L2 = lists:map(fun(X) -> create_binary_item(St, X) end, List),
+    mpln_p_debug:pr({?MODULE, 'create_binary_response', ?LINE, L2},
+                    St#est.debug, run, 6),
+    Json = mochijson2:encode(L2),
+    unicode:characters_to_binary(Json).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates json binary from the fetched item list
+%%
+-spec create_binary_item(#est{}, tuple()) -> list().
+
+create_binary_item(_St, {{Ref, Stage}, _Time, Now, undefined}) ->
+    [
+     {<<"ref">>, mpln_misc_web:make_binary(Ref)},
+     {<<"stage">>, Stage},
+     {<<"time">>, list_to_binary(mpln_misc_time:get_time_str_us(Now))}
+    ];
+
+create_binary_item(_St, {{Ref, Stage}, _Time, Now, List}) ->
+    [
+     {<<"ref">>, mpln_misc_web:make_binary(Ref)},
+     {<<"stage">>, Stage},
+     {<<"time">>, list_to_binary(mpln_misc_time:get_time_str_us(Now))},
+     {<<"params">>, List}
+    ];
+
+create_binary_item(St, _Item) ->
+    mpln_p_debug:pr({?MODULE, 'create_binary_item unknown', ?LINE, _Item},
+                    St#est.debug, run, 4),
+    [].
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
@@ -361,7 +458,7 @@ fill_test_storage(St, Delay) ->
         ],
     F = fun({Id, Stage, Data}) ->
                 rand_delay(Delay),
-                Time = get_time(),
+                Time = mpln_misc_time:get_gmt_time(),
                 add_item(St, {Id, Stage}, Time, Data)
         end,
     lists:foreach(F, L).

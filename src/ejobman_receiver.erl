@@ -121,7 +121,7 @@ handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req, State) ->
     mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Ref, _Req},
                     State#ejr.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
-    ejobman_stat:add(Ref, 'from_rabbit', Payload),
+    ejobman_stat:add(Ref, 'from_rabbit', {'payload', Payload}),
     New = ejobman_receiver_cmd:store_rabbit_cmd(State, Tag, Ref, Payload),
     {noreply, New, ?T};
 handle_info(#'basic.consume_ok'{consumer_tag = Tag}, State) ->
