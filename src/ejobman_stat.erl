@@ -108,7 +108,8 @@ handle_cast(_Other, St) ->
 
 %------------------------------------------------------------------------------
 terminate(_, State) ->
-    flush_storage(State),
+    New = do_flush(State),
+    stop_storage(New),
     mpln_p_debug:pr({?MODULE, terminate, ?LINE}, State#est.debug, run, 1),
     ok.
 
@@ -214,100 +215,35 @@ get(Start, Stop) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------------
 %%
-%% @doc does all necessary preparations: [re]opens log file.
-%% @since 2011-07-15
+%% @doc does all necessary preparations
 %%
 -spec prepare_all(#est{}) -> #est{}.
 
 prepare_all(C) ->
     prepare_storage(C).
-
+    
 %%-----------------------------------------------------------------------------
 %%
-%% @doc prepares storage by reading existing table or creating new table.
-%% @since 2011-07-15
+%% @doc opens storage file
 %%
--spec prepare_storage(#est{}) -> #est{}.
-
-prepare_storage(#est{storage=File} = C) ->
-    case file:read_file_info(File) of
+prepare_storage(#est{storage_base=Base} = C) ->
+    Name = mpln_misc_log:get_fname(Base),
+    case file:open(Name, [append, raw, binary]) of
+        {ok, Fd} ->
+            C#est{storage_fd=Fd, storage_start=now()};
         {error, Reason} ->
-            mpln_p_debug:pr({?MODULE, 'prepare_storage', ?LINE, 'error',
-                             Reason}, C#est.debug, run, 1),
-            Tid = ets:new(ejobman_stat, [set, protected, named_table,
-                                         {keypos, 1}]),
-            C#est{tid=Tid};
-        {ok, _Info} ->
-            read_storage(C)
+            mpln_p_debug:pr({?MODULE, 'prepare_all open error', ?LINE, Reason},
+                            C#est.debug, run, 0),
+            C
     end.
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc reads an existing storage file or create a new storage in case
-%% of an error
+%% @doc flushes current data to file and closes current storage file
 %%
--spec read_storage(#est{}) -> #est{}.
-
-read_storage(#est{storage=File} = C) ->
-    case ets:file2tab(File, [{verify, false}]) of
-        {ok, Tab} ->
-            C#est{tid=Tab};
-        {error, Reason} ->
-            mpln_p_debug:pr({?MODULE, 'read_storage', ?LINE, 'error', Reason},
-                            C#est.debug, run, 1),
-            Tid = ets:new(ejobman_stat, [set, protected, named_table,
-                                         {keypos, 1}]),
-            C#est{tid=Tid}
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc saves storage to disk
-%%
--spec flush_storage(#est{}) -> ok.
-
-flush_storage(#est{storage=File, tid=Tab} = St) ->
-    Tname = File ++ ".tmp",
-    case ets:tab2file(Tab, Tname) of
-        ok ->
-            rename_tabs(St, Tname);
-        {error, Reason} ->
-            mpln_p_debug:pr({?MODULE, 'flush_storage', ?LINE, 'error', Reason},
-                            St#est.debug, run, 0)
-    end.
-
-%%-----------------------------------------------------------------------------
-rename_tabs(#est{storage=File} = St, Tname) ->
-    case file:rename(Tname, File) of
-        ok ->
-            ok;
-        {error, Reason} ->
-            mpln_p_debug:pr({?MODULE, 'rename_tabs', ?LINE, 'error', Reason},
-                            St#est.debug, run, 0),
-            file:delete(Tname)
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc deletes old entries from the storage
-%%
--spec clean_storage(#est{}) -> ok.
-
-clean_storage(#est{tid=Tab, keep_time=Time} = St) ->
-    % item: {ref, stage}, time (gregorian seconds), time (now), data
-    Now = mpln_misc_time:get_gmt_time(),
-    Mhead = {'_', '$1', '_', '_'},
-    T2 = Now - Time,
-    Guards = [{'<', '$1', T2}],
-    Mres = [true],
-    Mfun = {Mhead, Guards, Mres},
-    Mspec = [Mfun],
-    mpln_p_debug:pr({?MODULE, 'clean_storage before', ?LINE, ets:info(Tab)},
-                    St#est.debug, storage, 4),
-    Del = ets:select_delete(Tab, Mspec),
-    mpln_p_debug:pr({?MODULE, 'clean_storage after', ?LINE, Del, ets:info(Tab)},
-                    St#est.debug, storage, 3),
-    ok.
+stop_storage(#est{storage_fd=Fd} = St) ->
+    do_flush(St),
+    file:close(Fd).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -322,10 +258,10 @@ periodic_check(#est{timer=Ref, flush_interval=T} = St) ->
         _ ->
             erlang:cancel_timer(Ref)
     end,
-    clean_storage(St),
-    flush_storage(St),
+    St_f = do_flush(St),
+    New = check_rotate(St_f),
     Nref = erlang:send_after(T * 1000, self(), periodic_check),
-    St#est{timer=Nref}.
+    New#est{timer=Nref}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -333,9 +269,74 @@ periodic_check(#est{timer=Ref, flush_interval=T} = St) ->
 %%
 -spec add_item(#est{}, any(), {non_neg_integer(), tuple()}, any()) -> #est{}.
 
-add_item(#est{tid=Tid} = St, Id, {Time, Now}, Data) ->
-    ets:insert(Tid, {Id, Time, Now, Data}),
-    St.
+add_item(#est{storage=S} = St, Id, {Time, Now}, Data) ->
+    Item = {Id, Time, Now, Data},
+    New = St#est{storage = [Item | S]},
+    check_flush(New).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks whether the storage file need to be changed
+%%
+-spec check_rotate(#est{}) -> #est{}.
+
+check_rotate(#est{storage_start=Start, rotate_interval=Rotate} = St) ->
+    T = calendar:now_to_local_time(Start),
+    case mpln_misc_log:need_rotate(T, Rotate) of
+        true ->
+            stop_storage(St),
+            prepare_storage(St);
+        false ->
+            St
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks storage limits and flush it to disk
+%%
+-spec check_flush(#est{}) -> #est{}.
+
+check_flush(#est{storage=S, flush_interval=T, flush_last=Last,
+                 flush_number=N} = St) ->
+    Len = length(S),
+    Delta = timer:now_diff(now(), Last),
+    if (Delta > T * 1000000) or (Len >= N) ->
+            do_flush(St);
+       true ->
+            St
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc does the flushing of accumulated info to storage
+%%
+-spec do_flush(#est{}) -> #est{}.
+
+do_flush(#est{storage=S} = St) ->
+    List = lists:reverse(S),
+    L2 = lists:map(fun(X) -> create_binary_item(St, X) end, List),
+    mpln_p_debug:pr({?MODULE, 'do_flush', ?LINE, L2},
+                    St#est.debug, run, 6),
+    proceed_flush(St, L2).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc proceeds with flushing
+%%
+proceed_flush(St, []) ->
+    St#est{storage=[], flush_last=now()};
+
+proceed_flush(#est{storage_fd=Fd} = St, List) ->
+    Json = mochijson2:encode(List),
+    Bin = unicode:characters_to_binary(Json),
+    case file:write(Fd, Bin) of
+        ok ->
+            ok;
+        {error, Reason} ->
+            mpln_p_debug:pr({?MODULE, 'proceed_flush error', ?LINE, Reason},
+                            St#est.debug, run, 0)
+    end,
+    St#est{storage=[], flush_last=now()}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -419,17 +420,6 @@ create_binary_item(St, _Item) ->
 %%%----------------------------------------------------------------------------
 -ifdef(TEST).
 
-create_test_storage() ->
-    Tab = ejobman_stat_test,
-    catch ets:delete(Tab),
-    ets:new(Tab, [set, protected, named_table, {keypos, 1}]),
-    ets:delete_all_objects(Tab),
-    Tab.
-
-export_storage(#est{tid=Tid}) ->
-    L = ets:tab2list(Tid),
-    lists:keysort(1, L).
-
 rand_delay(N) when is_integer(N) andalso N >= 1 ->
     R = random:uniform(N),
     timer:sleep(R);
@@ -463,45 +453,11 @@ fill_test_storage(St, Delay) ->
         end,
     lists:foreach(F, L).
 
-% @doc test for flush_storage and read_storage
-flush_read_storage_test() ->
-    Tid = create_test_storage(),
-    File = "/tmp/ejobman_stat_test.dat",
-    St = #est{tid=Tid, keep_time=1, debug=[], storage=File},
-    fill_test_storage(St),
-    D0 = export_storage(St),
-    flush_storage(St),
-    ets:delete(Tid),
-    read_storage(St),
-    D1 = export_storage(St),
-    %?debugFmt("flush_storage_test:~n~p~n~p~n", [D0, D1]),
-    file:delete(File),
-    ?assert(D0 =:= D1).
-
-% @doc test for clean_storage
-clean_storage_test() ->
-    Tid = create_test_storage(),
-    St = #est{tid=Tid, keep_time=1, debug=[]},
-    D0 = export_storage(St),
-    fill_test_storage(St),
-    timer:sleep(2100),
-    clean_storage(St),
-    D2 = export_storage(St),
-    %?debugFmt("clean_storage_test cleaned:~n~p~n", [D2]),
-    ?assert(D0 =:= D2).
-
-% @doc test for clean_storage
-clean2_storage_test() ->
-    Tid = create_test_storage(),
-    St = #est{tid=Tid, keep_time=2, debug=[]},
-    fill_test_storage(St),
-    D0 = export_storage(St),
+add_items_test() ->
+    St = #est{debug=[]},
     fill2_test_storage(St),
-    export_storage(St),
-    clean_storage(St),
-    D2 = export_storage(St),
-    %?debugFmt("clean_storage_test:~n~p~n~p~n~p~n", [D0, D1, D2]),
-    ?assert(D0 =:= D2).
+    fill_test_storage(St)
+    .
 
 -endif.
 %%-----------------------------------------------------------------------------
