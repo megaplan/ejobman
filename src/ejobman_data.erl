@@ -39,6 +39,7 @@
 -export([get_auth_type/1, get_auth_data_list/1]).
 -export([get_auth_keys/1]).
 -export([get_group/1]).
+-export([del_auth_info/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Public API
@@ -120,6 +121,27 @@ get_params(Data) ->
 
 get_time(Data) ->
     get_value(Data, <<"run_time">>).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc cleans the data from the "auth_info" item
+%% @since 2011-12-21 18:42
+%%
+-spec del_auth_info(any()) -> any().
+
+del_auth_info({struct, Data}) ->
+    del_auth_info(Data);
+
+del_auth_info(Data) when is_list(Data) ->
+    F = fun({<<"auth_info">>, _}) ->
+                false;
+           (_) ->
+                true
+        end,
+    lists:filter(F, Data);
+
+del_auth_info(_Data) ->
+    undefined.
 
 %%-----------------------------------------------------------------------------
 %%

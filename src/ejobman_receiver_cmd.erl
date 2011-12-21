@@ -94,6 +94,7 @@ store_rabbit_cmd(State, Tag, Ref, Bin) ->
             mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json dat',
                 ?LINE, Ref, Data}, State#ejr.debug, json, 3),
             Type = ejobman_data:get_type(Data),
+            send_to_estat(Ref, Data),
             proceed_cmd_type(State, Type, Tag, Ref, Data)
     end,
     State.
@@ -101,6 +102,15 @@ store_rabbit_cmd(State, Tag, Ref, Bin) ->
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
+%%
+%% @doc removes auth data from data and sends the rest to ejobman_stat
+%%
+send_to_estat(Ref, Data) ->
+    Info = ejobman_data:get_rest_info(Data),
+    Clean = ejobman_data:del_auth_info(Info),
+    ejobman_stat:add(Ref, 'from_rabbit', {'rest_info', Clean}).
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc calls ejobman_handler with received command info
 %%
