@@ -348,12 +348,11 @@ proceed_flush(#est{storage_fd=Fd} = St, List) ->
 %% @doc checks whether the json field separator need to be written
 %%
 check_separator(#est{storage_cur_name=Name} = St) ->
-    case file:read_file_info(Name) of
-        {ok, Info} ->
-            add_separator(St, Info#file_info.size);
-        {error, Reason} ->
-            mpln_p_debug:pr({?MODULE, 'check_separator error', ?LINE, Reason},
-                            St#est.debug, run, 0)
+    case filelib:file_size(Name) of
+        0 ->
+            ok;
+        _ ->
+            add_separator(St)
     end.
 
 %%-----------------------------------------------------------------------------
@@ -361,9 +360,7 @@ check_separator(#est{storage_cur_name=Name} = St) ->
 %% @doc adds the json field separator to the storage file if this file has
 %% some data
 %%
-add_separator(_St, 0) ->
-    ok;
-add_separator(#est{storage_fd=Fd} = St, _N) ->
+add_separator(#est{storage_fd=Fd} = St) ->
     case file:write(Fd, <<",\n">>) of
         ok ->
             ok;
@@ -385,43 +382,6 @@ make_list({_, _} = Data) ->
 
 make_list(Data) ->
     Data.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc receives start/stop times and returns json binary with stat items
-%% for this interval. Times are unix times, namely seconds from 1970-01-01,
-%% local time zone.
-%%
--spec get_items(#est{}, non_neg_integer(), non_neg_integer()) -> binary().
-
-get_items(#est{tid=Tab} = St, Start, Stop) ->
-    T1 = mpln_misc_time:make_gmt_gregorian_seconds(Start),
-    T2 = mpln_misc_time:make_gmt_gregorian_seconds(Stop),
-    % item: {ref, stage}, time (gregorian seconds), time (now), data
-    Mhead = {'_', '$1', '_', '_'},
-    Guards = [{'>', '$1', T1}, {'<', '$1', T2}],
-    Mres = ['$_'],
-    Mfun = {Mhead, Guards, Mres},
-    Mspec = [Mfun],
-    List = ets:select(Tab, Mspec),
-    mpln_p_debug:pr({?MODULE, 'get_items', ?LINE, Start, Stop, T1, T2,
-                     length(List)}, St#est.debug, run, 3),
-    create_binary_response(St, List).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates json binary from the fetched item list
-%%
--spec create_binary_response(#est{}, list()) -> binary().
-
-create_binary_response(St, List) ->
-    mpln_p_debug:pr({?MODULE, 'create_binary_response', ?LINE, List},
-                    St#est.debug, run, 5),
-    L2 = lists:map(fun(X) -> create_binary_item(St, X) end, List),
-    mpln_p_debug:pr({?MODULE, 'create_binary_response', ?LINE, L2},
-                    St#est.debug, run, 6),
-    Json = mochijson2:encode(L2),
-    unicode:characters_to_binary(Json).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -448,6 +408,92 @@ create_binary_item(St, _Item) ->
     mpln_p_debug:pr({?MODULE, 'create_binary_item unknown', ?LINE, _Item},
                     St#est.debug, run, 4),
     [].
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc receives start/stop times and returns json binary with stat items
+%% for this interval. Times are unix times, namely seconds from 1970-01-01,
+%% local time zone.
+%%
+-spec get_items(#est{}, non_neg_integer(), non_neg_integer()) -> binary().
+
+get_items(St, Start, Stop) ->
+    T1 = mpln_misc_time:make_gregorian_seconds(Start),
+    T2 = mpln_misc_time:make_gregorian_seconds(Stop + 3600 - 1),
+    List = get_files(St, T1, T2),
+    mpln_p_debug:pr({?MODULE, 'get_items', ?LINE, Start, Stop, T1, T2, List},
+                    St#est.debug, run, 3),
+    create_binary_response(St, List).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc returns list of files matched to the interval
+%%
+get_files(#est{storage_base=Full_base} = St, T1, T2) ->
+    Tstr1 = mpln_misc_time:make_short_str2(
+              calendar:gregorian_seconds_to_datetime(T1), hour),
+    Tstr2 = mpln_misc_time:make_short_str2(
+              calendar:gregorian_seconds_to_datetime(T2), hour),
+    mpln_p_debug:pr({?MODULE, 'get_files', ?LINE, Tstr1, Tstr2},
+                    St#est.debug, run, 3),
+    List = filelib:wildcard(Full_base ++ "*"),
+    Base = filename:basename(Full_base),
+    Blen = length(Base) + 2,
+    lists:filter(
+      fun(X) ->
+              check_one_filename(Blen, Tstr1, Tstr2, X)
+      end,
+      List).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks if the filename is between T1 and T2 time stamps.
+%% Comparison is made on string.
+%%
+check_one_filename(Blen, T1, T2, File) ->
+    Fbase = filename:basename(File),
+    Fdate = string:substr(Fbase, Blen),
+    (Fdate >= T1) andalso (Fdate =< T2).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates json binary for the fetched file list
+%%
+-spec create_binary_response(#est{}, [string()]) -> binary().
+
+create_binary_response(St, List) ->
+    {Data, _Sum_size} = lists:mapfoldl(
+             fun(X, Acc) ->
+                     create_binary_data_item(St, X, Acc)
+             end,
+             0, List),
+    unicode:characters_to_binary(Data).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates json binary for the file
+%%
+-spec create_binary_data_item(#est{}, string(), non_neg_integer()) ->
+                                     {binary(), non_neg_integer()}
+                                         | {iolist(), non_neg_integer()}.
+
+create_binary_data_item(St, File, Sum_size) ->
+    Size = filelib:file_size(File),
+    mpln_p_debug:pr({?MODULE, 'create_binary_data_item size', ?LINE,
+                     File, Size}, St#est.debug, run, 2),
+    case file:read_file(File) of
+        {ok, Bin} when byte_size(Bin) == 0 ->
+            {<<>>, Sum_size};
+        {ok, Bin} when Sum_size > 0 ->
+            Sep = <<",\n">>,
+            {[Sep, Bin], Sum_size + byte_size(Bin) + byte_size(Sep)};
+        {ok, Bin} ->
+            {Bin, byte_size(Bin)};
+        {error, Reason} ->
+            mpln_p_debug:pr({?MODULE, 'create_binary_data_item error', ?LINE,
+                             File, Reason}, St#est.debug, run, 0),
+            {<<>>, Sum_size}
+    end.
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
