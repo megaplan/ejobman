@@ -99,7 +99,7 @@ handle_cast(stop, St) ->
 
 handle_cast({add, Id, Time_info, Data}, St) ->
     mpln_p_debug:pr({?MODULE, 'cast add', ?LINE, Id, Time_info},
-        St#est.debug, run, 3),
+        St#est.debug, run, 4),
     New = add_item(St, Id, Time_info, Data),
     {noreply, New};
 
@@ -480,7 +480,7 @@ create_binary_response(St, List) ->
 create_binary_data_item(St, File, Sum_size) ->
     Size = filelib:file_size(File),
     mpln_p_debug:pr({?MODULE, 'create_binary_data_item size', ?LINE,
-                     File, Size}, St#est.debug, run, 2),
+                     File, Size}, St#est.debug, run, 3),
     case file:read_file(File) of
         {ok, Bin} when byte_size(Bin) == 0 ->
             {<<>>, Sum_size};
