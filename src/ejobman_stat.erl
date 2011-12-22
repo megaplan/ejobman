@@ -49,6 +49,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include_lib("kernel/include/file.hrl").
+
 -include("estat.hrl").
 -include("job.hrl").
 -include("amqp_client.hrl").
@@ -228,9 +230,11 @@ prepare_all(C) ->
 %%
 prepare_storage(#est{storage_base=Base} = C) ->
     Name = mpln_misc_log:get_fname(Base),
+    mpln_p_debug:pr({?MODULE, 'prepare_storage', ?LINE, Name},
+                    C#est.debug, file, 2),
     case file:open(Name, [append, raw, binary]) of
         {ok, Fd} ->
-            C#est{storage_fd=Fd, storage_start=now()};
+            C#est{storage_fd=Fd, storage_start=now(), storage_cur_name=Name};
         {error, Reason} ->
             mpln_p_debug:pr({?MODULE, 'prepare_all open error', ?LINE, Reason},
                             C#est.debug, run, 0),
@@ -327,6 +331,7 @@ proceed_flush(St, []) ->
     St#est{storage=[], flush_last=now()};
 
 proceed_flush(#est{storage_fd=Fd} = St, List) ->
+    check_separator(St),
     Json = mochijson2:encode(List),
     Bin = unicode:characters_to_binary(Json),
     case file:write(Fd, Bin) of
@@ -337,6 +342,35 @@ proceed_flush(#est{storage_fd=Fd} = St, List) ->
                             St#est.debug, run, 0)
     end,
     St#est{storage=[], flush_last=now()}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks whether the json field separator need to be written
+%%
+check_separator(#est{storage_cur_name=Name} = St) ->
+    case file:read_file_info(Name) of
+        {ok, Info} ->
+            add_separator(St, Info#file_info.size);
+        {error, Reason} ->
+            mpln_p_debug:pr({?MODULE, 'check_separator error', ?LINE, Reason},
+                            St#est.debug, run, 0)
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc adds the json field separator to the storage file if this file has
+%% some data
+%%
+add_separator(_St, 0) ->
+    ok;
+add_separator(#est{storage_fd=Fd} = St, _N) ->
+    case file:write(Fd, <<",\n">>) of
+        ok ->
+            ok;
+        {error, Reason} ->
+            mpln_p_debug:pr({?MODULE, 'add_separator error', ?LINE, Reason},
+                            St#est.debug, run, 0)
+    end.
 
 %%-----------------------------------------------------------------------------
 %%
