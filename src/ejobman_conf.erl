@@ -187,7 +187,7 @@ fill_config_stat(All_list) ->
         rotate_interval = proplists:get_value(rotate_interval, List, 'hour'),
         debug = proplists:get_value(debug, List, []),
         storage_base = proplists:get_value(storage_base, List, ?STAT_STORAGE),
-        keep_time = 60 * proplists:get_value(keep_time, List, ?STAT_KEEP_TIME),
+        keep_time = proplists:get_value(keep_time, List, ?STAT_KEEP_TIME),
         flush_interval = proplists:get_value(flush_interval, List,
                                              ?STAT_FLUSH_INTERVAL),
         flush_number = proplists:get_value(flush_number, List,

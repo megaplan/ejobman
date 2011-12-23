@@ -197,27 +197,56 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag,
         St#child.debug, run, 2),
     ejobman_receiver:send_ack(Id, Tag),
     T1 = now(),
-    ejobman_stat:add(Id, 'http_start', undefined),
+    ejobman_stat:add(Id, 'http_start',
+                     [{'header', mpln_misc_web:make_proplist_binary(Hdr)},
+                      {'url', mpln_misc_web:make_binary(Url)}]),
     Res = httpc:request(Method, Req,
         [{timeout, Http_t}, {connect_timeout, Conn_t},
          % http/1.0 is necessary, because for some rare cases a http/1.1
          % request to nginx leads to duplicated requests. Nginx logs 
          % result codes 299 and 200 in this case.
         {version, "HTTP/1.0"}],
-        []),
+        [{body_format, binary}]),
     T2 = now(),
-    ejobman_stat:add(Id, 'http_stop', undefined),
     process_result(St, Res, T1, T2),
     mpln_p_debug:log_http_res({?MODULE, real_cmd, ?LINE, Id, self()},
         Res, St#child.debug).
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc sends result to ejobman_handler, sends acknowledge signal to
-%% ejobman_receiver
+%% @doc sends result to ejobman_handler and ejobman_stat
 %%
 process_result(#child{id=Id, group=Group}, Res, T1, T2) ->
+    send_stat(Id, Res),
     ejobman_handler:cmd_result(Res, T1, T2, Group, Id).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc sends result to ejobman_stat
+%%
+send_stat(Id, Res) ->
+    Params = make_send_stat_params(Res),
+    ejobman_stat:add(Id, 'http_stop', Params).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc prepares parameters for sending to ejobman_stat
+%%
+make_send_stat_params({ok, {{Ver, St_code, Reason} = _St_line, Hdr, Body}}) ->
+                     [{'status', 'ok'},
+                      {'http_version', mpln_misc_web:make_binary(Ver)},
+                      {'status_code', St_code},
+                      {'reason', mpln_misc_web:make_binary(Reason)},
+                      {'header', mpln_misc_web:make_proplist_binary(Hdr)},
+                      {'body', mpln_misc_web:make_binary(Body)}];
+
+make_send_stat_params({ok, {St_code, Body}}) ->
+                     [{'status', 'ok'}, {'status_code', St_code},
+                      {'body', mpln_misc_web:make_binary(Body)}];
+
+make_send_stat_params({error, Reason}) ->
+                     [{'status', 'error'},
+                      {'reason', mpln_misc_web:make_term_binary(Reason)}].
 
 %%-----------------------------------------------------------------------------
 %%

@@ -108,7 +108,7 @@ store_rabbit_cmd(State, Tag, Ref, Bin) ->
 send_to_estat(Ref, Data) ->
     Info = ejobman_data:get_rest_info(Data),
     Clean = ejobman_data:del_auth_info(Info),
-    ejobman_stat:add(Ref, 'from_rabbit', {'rest_info', Clean}).
+    ejobman_stat:add(Ref, 'message', {'rest_info', Clean}).
 
 %%-----------------------------------------------------------------------------
 %%

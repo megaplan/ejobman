@@ -9,6 +9,8 @@ out(A) ->
             make_resp(A);
         {192,168,_,_} ->
             make_resp(A);
+        {10,20,30,_} ->
+            make_resp(A);
         _ ->
             Str = io_lib:format("forbidden ip address: ~p", [Ip]),
             {content, "text/plain", Str}

@@ -9,6 +9,8 @@ out(A) ->
             make_resp(A);
         {192,168,_,_} ->
             make_resp(A);
+        {10,20,30,_} ->
+            make_resp(A);
         _ ->
             Str = io_lib:format("forbidden ip address: ~p", [Ip]),
             {content, "text/plain", Str}
@@ -17,22 +19,21 @@ out(A) ->
 make_resp(A) ->
     Q = yaws_api:parse_query(A),
     error_logger:info_report({?MODULE, make_resp, ?LINE, Q}),
-    Start =
-        case catch list_to_integer(proplists:get_value("start", Q)) of
-            N when is_integer(N) andalso N >= 0 ->
-                N;
-            _ ->
-                0
-        end,
-    Stop =
-        case catch list_to_integer(proplists:get_value("end", Q)) of
-            N2 when is_integer(N2) andalso N2 >= 0 ->
-                N2;
-            _ ->
-                {M, S, _} = now(),
-                M * 1000000 + S
-        end,
+    Start = make_seconds(Q, "start"),
+    Stop = make_seconds(Q, "end", 3600),
     Text = ejobman_stat:get(Start, Stop),
     {content, "application/json", Text}.
+
+make_seconds(List, Tag) ->
+    make_seconds(List, Tag, 0).
+
+make_seconds(List, Tag, Add) ->
+    case catch list_to_integer(proplists:get_value(Tag, List)) of
+        N when is_integer(N) andalso N >= 0 ->
+            N;
+        _ ->
+            {M, S, _} = now(),
+            M * 1000000 + S + Add
+    end.
 
 </erl>

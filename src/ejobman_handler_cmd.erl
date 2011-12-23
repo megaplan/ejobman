@@ -227,7 +227,7 @@ do_short_command_queue(St, {Q, Ch}, Gid, Max) ->
         Gid, Q, Ch}, St#ejm.debug, job_queue, 5),
     case queue:is_empty(Q) of
         false when Len < Max ->
-            New_dat = check_one_command(St, {Q, Ch}),
+            New_dat = check_one_command(St, {Q, Ch}, {Gid, Len, Max}),
             do_short_command_queue(St, New_dat, Gid, Max);
         false ->
             Qlen = queue:len(Q),
@@ -450,13 +450,17 @@ get_allowed_group(#ejm{job_groups=L}, Gid) ->
 %% if any. Otherwise returns old queue and spawned children.
 %% @since 2011-07-22 10:00
 %%
--spec check_one_command(#ejm{}, {Q, L}) -> {Q, L}.
+-spec check_one_command(#ejm{}, {Q, L}, tuple()) -> {Q, L}.
 
-check_one_command(St, {Q, Ch}) ->
+check_one_command(St, {Q, Ch}, {Gid, Len, Max}) ->
     mpln_p_debug:pr({?MODULE, 'check_one_command', ?LINE},
-        St#ejm.debug, handler_run, 4),
+                    St#ejm.debug, handler_run, 4),
     case queue:out(Q) of
         {{value, Item}, Q2} ->
+            {_, J} = Item,
+            ejobman_stat:add(J#job.id, 'from_queue',
+                             [{max, Max}, {running, Len},
+                              {queued, queue:len(Q)}, {group, Gid}]),
             New_ch = do_one_command(St, Ch, Item),
             {Q2, New_ch};
         _ ->
@@ -496,7 +500,6 @@ do_one_command(St, Ch, {From, J}) ->
         ],
     mpln_p_debug:pr({?MODULE, 'do_one_command child params', ?LINE,
         Child_params}, St#ejm.debug, handler_child, 4),
-    ejobman_stat:add(J#job.id, 'from_queue', undefined),
     Res = supervisor:start_child(ejobman_child_supervisor, [Child_params]),
     mpln_p_debug:pr({?MODULE, 'do_one_command_res', ?LINE, Res},
         St#ejm.debug, handler_child, 5),

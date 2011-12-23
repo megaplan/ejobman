@@ -2,7 +2,7 @@
 -define(ejobman_nums, true).
 
 -define(STAT_T, 1000).
--define(STAT_KEEP_TIME, 4320). % minutes
+-define(STAT_KEEP_TIME, 72). % hours
 -define(STAT_FLUSH_INTERVAL, 60). % seconds
 -define(STAT_FLUSH_NUMBER, 100). % seconds
 -define(STAT_STORAGE, "/var/lib/erpher/estat").

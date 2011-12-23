@@ -62,6 +62,7 @@ init(_) ->
     C = ejobman_conf:get_config_stat(),
     New = prepare_all(C),
     process_flag(trap_exit, true), % to save storage
+    erlang:send_after(?STAT_T, self(), periodic_check), % for redundancy
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, New#est.debug, run, 1),
     {ok, New, ?STAT_T}.
 
@@ -262,8 +263,10 @@ periodic_check(#est{timer=Ref, flush_interval=T} = St) ->
         _ ->
             erlang:cancel_timer(Ref)
     end,
-    St_f = do_flush(St),
-    New = check_rotate(St_f),
+    St_e = check_existing_file(St),
+    St_f = do_flush(St_e),
+    St_r = check_rotate(St_f),
+    New = clean_old(St_r),
     Nref = erlang:send_after(T * 1000, self(), periodic_check),
     New#est{timer=Nref}.
 
@@ -277,6 +280,50 @@ add_item(#est{storage=S} = St, Id, {Time, Now}, Data) ->
     Item = {Id, Time, Now, Data},
     New = St#est{storage = [Item | S]},
     check_flush(New).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc cleans old job info files
+%%
+-spec clean_old(#est{}) -> #est{}.
+
+clean_old(#est{keep_time=Keep} = St) ->
+    T1 = mpln_misc_time:make_gregorian_seconds(0),
+    T2a = mpln_misc_time:make_gregorian_seconds(),
+    T2 = T2a - (3600 * (Keep+1)),
+    List = get_files(St, T1, T2),
+    [clean_one_file(St, X) || X <- List],
+    St.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc cleans one old job info file
+%%
+clean_one_file(St, File) ->
+    mpln_p_debug:pr({?MODULE, 'clean_one_file', ?LINE, File},
+                    St#est.debug, file, 3),
+    case file:delete(File) of
+        ok ->
+            ok;
+        {error, Reason} ->
+            mpln_p_debug:pr({?MODULE, 'clean_one_file error', ?LINE,
+                             File, Reason}, St#est.debug, file, 0)
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks if the current file is still here and reopens it if not
+%%
+-spec check_existing_file(#est{}) -> #est{}.
+
+check_existing_file(#est{storage_cur_name=File} = St) ->
+    case file:read_file_info(File) of
+        {ok, _Info} ->
+            St;
+        {error, _} ->
+            stop_storage(St),
+            prepare_storage(St)
+    end.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -302,12 +349,13 @@ check_rotate(#est{storage_start=Start, rotate_interval=Rotate} = St) ->
 
 check_flush(#est{storage=S, flush_interval=T, flush_last=Last,
                  flush_number=N} = St) ->
+    St_f = check_existing_file(St),
     Len = length(S),
     Delta = timer:now_diff(now(), Last),
     if (Delta > T * 1000000) or (Len >= N) ->
-            do_flush(St);
+            do_flush(St_f);
        true ->
-            St
+            St_f
     end.
 
 %%-----------------------------------------------------------------------------
@@ -422,7 +470,7 @@ get_items(St, Start, Stop) ->
     T2 = mpln_misc_time:make_gregorian_seconds(Stop + 3600 - 1),
     List = get_files(St, T1, T2),
     mpln_p_debug:pr({?MODULE, 'get_items', ?LINE, Start, Stop, T1, T2, List},
-                    St#est.debug, run, 3),
+                    St#est.debug, file, 4),
     create_binary_response(St, List).
 
 %%-----------------------------------------------------------------------------
@@ -435,13 +483,17 @@ get_files(#est{storage_base=Full_base} = St, T1, T2) ->
     Tstr2 = mpln_misc_time:make_short_str2(
               calendar:gregorian_seconds_to_datetime(T2), hour),
     mpln_p_debug:pr({?MODULE, 'get_files', ?LINE, Tstr1, Tstr2},
-                    St#est.debug, run, 3),
+                    St#est.debug, file, 3),
     List = filelib:wildcard(Full_base ++ "*"),
+    mpln_p_debug:pr({?MODULE, 'get_files', ?LINE, List},
+                    St#est.debug, file, 5),
     Base = filename:basename(Full_base),
     Blen = length(Base) + 2,
     lists:filter(
       fun(X) ->
-              check_one_filename(Blen, Tstr1, Tstr2, X)
+              mpln_p_debug:pr({?MODULE, 'get_files', ?LINE, Blen, X},
+                              St#est.debug, file, 6),
+              check_one_filename(St, Blen, Tstr1, Tstr2, X)
       end,
       List).
 
@@ -450,9 +502,12 @@ get_files(#est{storage_base=Full_base} = St, T1, T2) ->
 %% @doc checks if the filename is between T1 and T2 time stamps.
 %% Comparison is made on string.
 %%
-check_one_filename(Blen, T1, T2, File) ->
+check_one_filename(St, Blen, T1, T2, File) ->
     Fbase = filename:basename(File),
     Fdate = string:substr(Fbase, Blen),
+    mpln_p_debug:pr({?MODULE, 'check_one_filename', ?LINE,
+                     T1, T2, (Fdate >= T1), (Fdate =< T2), Fbase, Fdate},
+                    St#est.debug, file, 7),
     (Fdate >= T1) andalso (Fdate =< T2).
 
 %%-----------------------------------------------------------------------------
@@ -480,7 +535,7 @@ create_binary_response(St, List) ->
 create_binary_data_item(St, File, Sum_size) ->
     Size = filelib:file_size(File),
     mpln_p_debug:pr({?MODULE, 'create_binary_data_item size', ?LINE,
-                     File, Size}, St#est.debug, run, 3),
+                     File, Size, Sum_size}, St#est.debug, run, 3),
     case file:read_file(File) of
         {ok, Bin} when byte_size(Bin) == 0 ->
             {<<>>, Sum_size};
@@ -491,7 +546,7 @@ create_binary_data_item(St, File, Sum_size) ->
             {Bin, byte_size(Bin)};
         {error, Reason} ->
             mpln_p_debug:pr({?MODULE, 'create_binary_data_item error', ?LINE,
-                             File, Reason}, St#est.debug, run, 0),
+                             File, Reason, Sum_size}, St#est.debug, run, 0),
             {<<>>, Sum_size}
     end.
 
