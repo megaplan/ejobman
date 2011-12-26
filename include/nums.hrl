@@ -4,7 +4,7 @@
 -define(STAT_T, 1000).
 -define(STAT_KEEP_TIME, 72). % hours
 -define(STAT_FLUSH_INTERVAL, 60). % seconds
--define(STAT_FLUSH_NUMBER, 100). % seconds
+-define(STAT_FLUSH_NUMBER, 100). % amount
 -define(STAT_STORAGE, "/var/lib/erpher/estat").
 -define(STAT_LIMIT_N, 100). % amount
 -define(STAT_LIMIT_T, 100). % seconds

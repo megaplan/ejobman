@@ -233,20 +233,26 @@ send_stat(Id, Res) ->
 %% @doc prepares parameters for sending to ejobman_stat
 %%
 make_send_stat_params({ok, {{Ver, St_code, Reason} = _St_line, Hdr, Body}}) ->
-                     [{'status', 'ok'},
-                      {'http_version', mpln_misc_web:make_binary(Ver)},
-                      {'status_code', St_code},
-                      {'reason', mpln_misc_web:make_binary(Reason)},
-                      {'header', mpln_misc_web:make_proplist_binary(Hdr)},
-                      {'body', mpln_misc_web:make_binary(Body)}];
+    Bin = mpln_misc_web:make_binary(Body),
+    Short = mpln_misc_web:sub_bin(Bin),
+    [{'status', 'ok'},
+     {'http_version', mpln_misc_web:make_binary(Ver)},
+     {'status_code', St_code},
+     {'reason', mpln_misc_web:make_binary(Reason)},
+     {'header', mpln_misc_web:make_proplist_binary(Hdr)},
+     {'body', Short}];
 
 make_send_stat_params({ok, {St_code, Body}}) ->
-                     [{'status', 'ok'}, {'status_code', St_code},
-                      {'body', mpln_misc_web:make_binary(Body)}];
+    Bin = mpln_misc_web:make_binary(Body),
+    Short = mpln_misc_web:sub_bin(Bin),
+    [{'status', 'ok'}, {'status_code', St_code},
+     {'body', Short}];
 
 make_send_stat_params({error, Reason}) ->
-                     [{'status', 'error'},
-                      {'reason', mpln_misc_web:make_term_binary(Reason)}].
+    Bin = mpln_misc_web:make_term_binary(Reason),
+    Short = mpln_misc_web:sub_bin(Bin),
+    [{'status', 'error'},
+     {'reason', Short}].
 
 %%-----------------------------------------------------------------------------
 %%
@@ -371,8 +377,8 @@ compose_headers(St, Config, Method, Url_host, Path, Query) ->
 %%-----------------------------------------------------------------------------
 compose_ext_header() ->
     [
-     {"User-Agent", "Ejobman"}
-     ].
+     {"User-Agent", "erpher"}
+    ].
 
 %%-----------------------------------------------------------------------------
 %%
