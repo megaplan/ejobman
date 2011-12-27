@@ -37,6 +37,7 @@
 -export([do_command/3, do_short_commands/1]).
 -export([do_command_result/6]).
 -export([remove_child/3]).
+-export([make_stat_queue_info/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -52,6 +53,20 @@
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
+%%
+%% @doc returns state of queues: name, length
+%% @since 2011-12-27 18:09
+%%
+-spec make_stat_queue_info(#ejm{}) -> [string()].
+
+make_stat_queue_info(St) ->
+    List = get_stat_queue_info(St),
+    F = fun({K, V}) ->
+                io_lib:format("~p: ~p~n", [K, V])
+        end,
+    lists:flatten(lists:map(F, List)).
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc stores the command into a queue and goes to command processing
 %% @since 2011-07-15 10:00
@@ -122,6 +137,19 @@ remove_child(St, Pid, Group) ->
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
+%%
+%% @doc fetches queue names and sizes
+%%
+-spec get_stat_queue_info(#ejm{}) -> [{any(), non_neg_integer()}].
+
+get_stat_queue_info(#ejm{ch_queues=Data}) ->
+    F = fun(Gid, Cur, Acc) ->
+                Len = queue:len(Cur),
+                [{Gid, Len} | Acc]
+        end,
+    dict:fold(F, [], Data).
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc logs duration for children
 %%

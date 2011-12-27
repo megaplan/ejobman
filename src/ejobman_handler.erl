@@ -42,7 +42,7 @@
 -export([cmd/1, remove_child/2]).
 -export([cmd_result/5]).
 -export([get_job_log_filename/0]).
--export([stat_r/0, stat_rss/1]).
+-export([stat_r/0, stat_rss/1, stat_q/0]).
 
 %%%----------------------------------------------------------------------------
 %%% Defines
@@ -96,6 +96,11 @@ handle_call({set_debug_item, Facility, Level}, _From, St) ->
 %% @doc returns statistic for the last running jobs
 handle_call(stat_r, _From, St) ->
     {reply, St#ejm.stat_r, St, ?T};
+
+%% @doc returns state of queues
+handle_call(stat_q, _From, St) ->
+    Res = ejobman_handler_cmd:make_stat_queue_info(St),
+    {reply, Res, St, ?T};
 
 %% @doc returns statistic for the last running jobs as an rss
 handle_call({stat_rss, N}, _From, St) ->
@@ -254,6 +259,15 @@ get_job_log_filename() ->
 
 remove_child(Pid, Group) ->
     gen_server:cast(?MODULE, {remove_child, Pid, Group}).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc asks ejobman_handler for state of queues
+%%
+-spec stat_q() -> dict().
+
+stat_q() ->
+    gen_server:call(?MODULE, stat_q).
 
 %%-----------------------------------------------------------------------------
 %%

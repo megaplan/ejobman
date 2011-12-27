@@ -30,6 +30,9 @@ make_resp(A) ->
         "text" ->
             Text = ejobman_log:get_last_jobs("text", Size),
             {content, "text/plain", Text};
+        "qlen" ->
+            Text = ejobman_handler:stat_q(),
+            {content, "text/plain", Text};
         "rss" ->
             Bin = ejobman_handler:stat_rss(Size),
             {content, "application/rss+xml", Bin};
