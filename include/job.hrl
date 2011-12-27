@@ -9,6 +9,7 @@
     method,
     url,
     host,
+    ip,
     auth,
     params,
     group,

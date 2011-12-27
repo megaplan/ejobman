@@ -40,6 +40,7 @@
 -export([get_auth_keys/1]).
 -export([get_group/1]).
 -export([del_auth_info/1]).
+-export([get_ip/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Public API
@@ -96,6 +97,15 @@ get_url(Data) ->
 %%
 get_host(Data) ->
     get_value(Data, <<"host">>).
+
+%%-----------------------------------------------------------------------------
+-spec get_ip(any()) -> any().
+%%
+%% @doc Extracts value for "ip" item from info json structure
+%% @since 2011-12-27 16:02
+%%
+get_ip(Data) ->
+    get_value(Data, <<"ip">>).
 
 %%-----------------------------------------------------------------------------
 %%

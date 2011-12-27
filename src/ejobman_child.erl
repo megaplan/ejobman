@@ -273,18 +273,25 @@ make_url(#child{url=Bin} = St, Method) ->
 %%
 -spec rewrite(#child{}, string(), string()) -> {string(), list()}.
 
-rewrite(St, Method, Url) ->
+rewrite(#child{ip=Ip} = St, Method, Url) ->
     case rewrite_scheme(St, Url) of
         %{https,"l:p","host.localdomain",123,"/goo","?foo=baz"}
         %{Scheme, Auth, Host, Port, Path, Query}
         {error, _Reason} ->
             H = compose_headers(St, [], "", "", "", ""),
             {Url, H};
-        Data_s ->
+        Data_s when Ip == undefined ->
             {Scheme, Auth, Host, Port, Path, Query} = Data_s,
             New_url = proceed_rewrite_host(St, Scheme, Auth, Host, Port,
                 Path, Query),
-            rewrite_addr(St, Method, New_url, Data_s)
+            rewrite_addr(St, Method, New_url, Data_s);
+        Data_s ->
+            Ip_s = mpln_misc_web:make_string(Ip),
+            {Scheme, Auth, Host, Port, Path, Query} = Data_s,
+            New_url = proceed_rewrite_host(St, Scheme, Auth, Ip_s, Port,
+                Path, Query),
+            H = compose_headers(St, [], Method, Host, Path, Query),
+            {New_url, H}
     end.
 
 %%-----------------------------------------------------------------------------

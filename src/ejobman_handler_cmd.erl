@@ -288,7 +288,7 @@ res_cmd_stat(#ejm{stat_r=Stat} = St, Res, Start_c, Ht1, Ht2, Id, Now) ->
                     dur_req=Dur, dur_all=timer:now_diff(Now, Time)};
             error ->
                 mpln_p_debug:pr({?MODULE, 'res_cmd_stat', ?LINE, 'error',
-                    Id, Dur, Res}, St#ejm.debug, run, 2),
+                    Id, Dur}, St#ejm.debug, run, 2),
                 Time = now(), % this gives negative duration, so keep an eye
                 #jst{result=Rc, result_full=Res, status=done, time=Now,
                     t_start_child=Start_c, t_stop_child=Now,
@@ -494,6 +494,7 @@ do_one_command(St, Ch, {From, J}) ->
         {method, J#job.method},
         {url, J#job.url},
         {host, J#job.host},
+        {ip, J#job.ip},
         {params, J#job.params},
         {auth, J#job.auth},
         {debug, St#ejm.debug}

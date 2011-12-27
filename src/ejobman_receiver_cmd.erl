@@ -143,6 +143,7 @@ make_job(Tag, Ref, Data) ->
     Method = ejobman_data:get_method(Info),
     Url = ejobman_data:get_url(Info),
     Host = ejobman_data:get_host(Info),
+    Ip = ejobman_data:get_ip(Info),
 
     Params = ejobman_data:get_params(Info),
     Flat_params = mpln_misc_web:flatten(Params, true),
@@ -156,6 +157,7 @@ make_job(Tag, Ref, Data) ->
         method = Method,
         url = Url,
         host = Host,
+        ip = Ip,
         params = Flat_params,
         group = Group,
         run_time = T

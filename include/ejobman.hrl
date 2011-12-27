@@ -16,6 +16,7 @@
     method,
     url,
     host,
+    ip,
     auth,
     schema_rewrite = [],
     url_rewrite,

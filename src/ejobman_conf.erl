@@ -75,6 +75,7 @@ get_config_child(List) ->
         method = proplists:get_value(method, List, <<>>),
         url = proplists:get_value(url, List, <<>>),
         host = proplists:get_value(host, List),
+        ip = proplists:get_value(ip, List),
         auth = proplists:get_value(auth, List),
         params = proplists:get_value(params, List, []),
         debug = proplists:get_value(debug, List, [])
