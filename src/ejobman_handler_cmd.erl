@@ -37,7 +37,6 @@
 -export([do_command/3, do_short_commands/1]).
 -export([do_command_result/6]).
 -export([remove_child/3]).
--export([make_stat_queue_info/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -53,20 +52,6 @@
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
-%%
-%% @doc returns state of queues: name, length
-%% @since 2011-12-27 18:09
-%%
--spec make_stat_queue_info(#ejm{}) -> [string()].
-
-make_stat_queue_info(St) ->
-    List = get_stat_queue_info(St),
-    F = fun({K, V}) ->
-                io_lib:format("~p: ~p~n", [K, V])
-        end,
-    lists:flatten(lists:map(F, List)).
-
-%%-----------------------------------------------------------------------------
 %%
 %% @doc stores the command into a queue and goes to command processing
 %% @since 2011-07-15 10:00
@@ -114,7 +99,6 @@ do_command_result(St, Res, T1, T2, Group, Id) ->
     Start_c = fetch_start_time(St, Group, Id),
     St_st = res_cmd_stat(St, Res, Start_c, T1, T2, Id, Now),
     log_child_duration(St_st, Group, Id, Now),
-    ejobman_log:log_job_result(St_st, Res, Id),
     St_st.
 
 %%-----------------------------------------------------------------------------
@@ -137,19 +121,6 @@ remove_child(St, Pid, Group) ->
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
-%%
-%% @doc fetches queue names and sizes
-%%
--spec get_stat_queue_info(#ejm{}) -> [{any(), non_neg_integer()}].
-
-get_stat_queue_info(#ejm{ch_queues=Data}) ->
-    F = fun(Gid, Cur, Acc) ->
-                Len = queue:len(Cur),
-                [{Gid, Len} | Acc]
-        end,
-    dict:fold(F, [], Data).
-
-%%-----------------------------------------------------------------------------
 %%
 %% @doc logs duration for children
 %%
@@ -193,11 +164,112 @@ short_command_step(#ejm{job_groups=Groups, max_children=Max} = St, Gid) ->
 
 store_job_queue(#ejm{ch_queues=Data} = St, Gid, undefined) ->
     New_dict = dict:erase(Gid, Data),
-    St#ejm{ch_queues=New_dict};
+    St_u = update_stat_t(St, Gid),
+    St_u#ejm{ch_queues=New_dict};
 
 store_job_queue(#ejm{ch_queues=Data} = St, Gid, Q) ->
     New_dict = dict:store(Gid, Q, Data),
-    St#ejm{ch_queues=New_dict}.
+    St_u = update_stat_t(St, Gid, Q),
+    St_u#ejm{ch_queues=New_dict}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc updates time statistic for the given group
+%%
+-spec update_stat_t(#ejm{}, any()) -> #ejm{}.
+
+update_stat_t(St, Group) ->
+    update_stat_t(St, Group, len, 0).
+
+-spec update_stat_t(#ejm{}, any(), queue()) -> #ejm{}.
+
+update_stat_t(St, Group, Q) ->
+    update_stat_t(St, Group, len, queue:len(Q)).
+
+-spec update_stat_t(#ejm{}, any(), len, non_neg_integer()) -> #ejm{}.
+
+update_stat_t(St, Group, len, N) ->
+    Now = now(),
+    St_m = update_stat_t_minute(St, Group, N, Now),
+    St_h = update_stat_t_hour(St_m, Group, N, Now),
+    clean_stat_t(St_h).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc cleans old time statistic data
+%%
+-spec clean_stat_t(#ejm{}) -> #ejm{}.
+
+clean_stat_t(St) ->
+    St_m = clean_stat_t(St, minute),
+    clean_stat_t(St_m, hour).
+
+-spec clean_stat_t(#ejm{}, minute | hour) -> #ejm{}.
+
+clean_stat_t(#ejm{stat_t=Stat} = St, minute) ->
+    New_data = proceed_clean_stat_t(Stat#stat_t.m, ?STAT_T_KEEP_MINUTES),
+    New_stat = Stat#stat_t{m=New_data},
+    St#ejm{stat_t = New_stat};
+
+clean_stat_t(#ejm{stat_t=Stat} = St, hour) ->
+    New_data = proceed_clean_stat_t(Stat#stat_t.h, ?STAT_T_KEEP_HOURS),
+    New_stat = Stat#stat_t{h=New_data},
+    St#ejm{stat_t = New_stat}.
+
+-spec proceed_clean_stat_t(dict(), non_neg_integer()) -> dict().
+
+proceed_clean_stat_t(Data, Keep) ->
+    Size = dict:size(Data),
+    L1 = dict:fetch_keys(Data),
+    L2 = lists:sort(L1),
+    Len_to_del = erlang:max(Size - Keep, 0),
+    List_to_del = lists:sublist(L2, 1, Len_to_del),
+    New_data = lists:foldl(
+                  fun(X, Acc) ->
+                          dict:erase(X, Acc)
+                  end,
+                  Data, List_to_del),
+    New_data.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc updates minute statistic for given group
+%%
+-spec update_stat_t_minute(#ejm{}, any(), non_neg_integer(), tuple()) -> #ejm{}.
+
+update_stat_t_minute(#ejm{stat_t=Stat} = St, Group, N, Now) ->
+    T = mpln_misc_time:short_time(Now, minute),
+    Key = {T, Group},
+    {_Cur, Max} =
+        case dict:find(Key, Stat#stat_t.m) of
+            {ok, Item} ->
+                Item;
+            _ ->
+                {0, 0}
+        end,
+    New_mdata = dict:store(Key, {N, erlang:max(Max, N)}, Stat#stat_t.m),
+    New_stat = Stat#stat_t{m=New_mdata},
+    St#ejm{stat_t = New_stat}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc updates hour statistic for given group
+%%
+-spec update_stat_t_hour(#ejm{}, any(), non_neg_integer(), tuple()) -> #ejm{}.
+
+update_stat_t_hour(#ejm{stat_t=Stat} = St, Group, N, Now) ->
+    T = mpln_misc_time:short_time(Now, hour),
+    Key = {T, Group},
+    {_Cur, Max} =
+        case dict:find(Key, Stat#stat_t.h) of
+            {ok, Item} ->
+                Item;
+            _ ->
+                {0, 0}
+        end,
+    New_hdata = dict:store(Key, {N, erlang:max(Max, N)}, Stat#stat_t.h),
+    New_stat = Stat#stat_t{h=New_hdata},
+    St#ejm{stat_t = New_stat}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -315,8 +387,9 @@ res_cmd_stat(#ejm{stat_r=Stat} = St, Res, Start_c, Ht1, Ht2, Id, Now) ->
                     t_start_req=Ht1, t_stop_req=Ht2,
                     dur_req=Dur, dur_all=timer:now_diff(Now, Time)};
             error ->
+                % too old job was removed from stat_r
                 mpln_p_debug:pr({?MODULE, 'res_cmd_stat', ?LINE, 'error',
-                    Id, Dur}, St#ejm.debug, run, 2),
+                    Id, Dur}, St#ejm.debug, run, 3),
                 Time = now(), % this gives negative duration, so keep an eye
                 #jst{result=Rc, result_full=Res, status=done, time=Now,
                     t_start_child=Start_c, t_stop_child=Now,
@@ -508,7 +581,6 @@ do_one_command(St, Ch, {From, J}) ->
         St#ejm.debug, handler_child, 2),
     mpln_p_debug:pr({?MODULE, 'do_one_command_cmd', ?LINE, From, J},
         St#ejm.debug, handler_child, 3),
-    ejobman_log:log_job(St, J),
     % parameters for ejobman_child
     Child_params = [
         {http_connect_timeout, St#ejm.http_connect_timeout},

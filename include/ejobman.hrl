@@ -54,6 +54,11 @@
     min_workers = 5
 }).
 
+-record(stat_t, {
+          m :: dict(), % stat with 1 minute step. {time, group} -> {cur, max}
+          h :: dict()  % stat with 1 hour step. {time, group} -> {cur, max}
+         }).
+
 % state of a handler and a receiver gen_server
 -record(ejm, {
     ch_queues, % dict: group -> queue of jobs
@@ -73,8 +78,8 @@
     job_log_rotate :: never | minute | hour | day | {dow, 0..7} | month | year,
     jlog, % file descriptor
     jlog_f, % expanded file name
-    stat_t       :: dict(),
-    stat_r       :: dict(),
+    stat_t       :: #stat_t{}, % time series
+    stat_r       :: dict(), % last N job information
     stat_limit_n :: non_neg_integer(), % amount
     stat_limit_t :: non_neg_integer(), % time, seconds
     debug

@@ -42,7 +42,7 @@
 -export([cmd/1, remove_child/2]).
 -export([cmd_result/5]).
 -export([get_job_log_filename/0]).
--export([stat_r/0, stat_rss/1, stat_q/0]).
+-export([stat_r/0, stat_rss/1, stat_q/0, stat_t/0, stat_t/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Defines
@@ -99,7 +99,12 @@ handle_call(stat_r, _From, St) ->
 
 %% @doc returns state of queues
 handle_call(stat_q, _From, St) ->
-    Res = ejobman_handler_cmd:make_stat_queue_info(St),
+    Res = ejobman_print_stat:make_stat_queue_info(St),
+    {reply, Res, St, ?T};
+
+%% @doc returns time statistic
+handle_call({stat_t, Type}, _From, St) ->
+    Res = ejobman_print_stat:make_stat_t_info(St, Type),
     {reply, Res, St, ?T};
 
 %% @doc returns statistic for the last running jobs as an rss
@@ -262,9 +267,21 @@ remove_child(Pid, Group) ->
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc asks ejobman_handler for time statistic
+%%
+-spec stat_t() -> string().
+
+stat_t() ->
+    stat_t(raw).
+
+stat_t(Type) ->
+    gen_server:call(?MODULE, {stat_t, Type}).
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc asks ejobman_handler for state of queues
 %%
--spec stat_q() -> dict().
+-spec stat_q() -> string().
 
 stat_q() ->
     gen_server:call(?MODULE, stat_q).
@@ -370,8 +387,13 @@ prepare_all(St) ->
 %% @doc prepares statistic
 %%
 prepare_stat(St) ->
+    D = #stat_t{
+        % Hashes: {time, group} -> {cur, max}
+        m = dict:new(), % minute step
+        h = dict:new()  % hour step
+    },
     St#ejm{
-        stat_t = dict:new(), % aggregated by time. Hash: time, status -> data
+        stat_t = D,
         stat_r = dict:new()  % last N jobs. Hash: ref -> item
     }.
 

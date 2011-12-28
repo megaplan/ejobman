@@ -18,7 +18,8 @@ out(A) ->
 
 make_resp(A) ->
     Q = yaws_api:parse_query(A),
-    error_logger:info_report({?MODULE, make_resp, ?LINE, Q}),
+    error_logger:info_report({?MODULE, make_resp, ?LINE,
+        A#arg.client_ip_port, Q}),
     Start = make_seconds(Q, "start"),
     Stop = make_seconds(Q, "end", 3600),
     Text = ejobman_stat:get(Start, Stop),

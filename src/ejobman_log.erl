@@ -49,7 +49,6 @@
 %%% Defines
 %%%----------------------------------------------------------------------------
 
--define(TABC, "border=1 cellspacing=4 cellpadding=4 frame=border rules=all").
 -define(NJOBS, 100).
 -define(BLOCK, 4096).
 -define(QRY, request).

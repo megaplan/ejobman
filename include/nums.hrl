@@ -1,6 +1,8 @@
 -ifndef(ejobman_nums).
 -define(ejobman_nums, true).
 
+-define(STAT_T_KEEP_MINUTES, 62).
+-define(STAT_T_KEEP_HOURS, 26).
 -define(STAT_T, 1000).
 -define(STAT_KEEP_TIME, 72). % hours
 -define(STAT_FLUSH_INTERVAL, 60). % seconds
@@ -15,5 +17,7 @@
 -define(TC, 0).
 -define(LOG, "/var/log/erpher/ejm").
 -define(CONF, "ejobman.conf").
+
+-define(TABC, "border=1 cellspacing=4 cellpadding=4 frame=border rules=all").
 
 -endif.

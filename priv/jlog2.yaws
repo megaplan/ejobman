@@ -1,5 +1,5 @@
 <erl>
-
+-define(TABC, "border=1 cellspacing=4 cellpadding=4 frame=border rules=all").
 % show ejobman last N jobs
 
 out(A) ->
@@ -18,7 +18,8 @@ out(A) ->
 
 make_resp(A) ->
     Q = yaws_api:parse_query(A),
-    error_logger:info_report({?MODULE, make_resp, ?LINE, Q}),
+    error_logger:info_report({?MODULE, make_resp, ?LINE,
+        A#arg.client_ip_port, Q}),
     Size =
         case catch list_to_integer(proplists:get_value("n", Q)) of
             N when is_integer(N) andalso N > 0 ->
@@ -30,6 +31,12 @@ make_resp(A) ->
         "text" ->
             Text = ejobman_log:get_last_jobs("text", Size),
             {content, "text/plain", Text};
+        "stat_t_text" ->
+            Text = make_stat_t_info_text(),
+            {content, "text/plain", Text};
+        "stat_t" ->
+            Text = make_stat_t_info_html(),
+            {content, "text/html", Text};
         "qlen" ->
             Text = ejobman_handler:stat_q(),
             {content, "text/plain", Text};
@@ -40,5 +47,62 @@ make_resp(A) ->
             Text = ejobman_log:get_last_jobs("html", Size),
             {content, "text/html", Text}
     end.
+
+make_stat_t_info_html() ->
+    List = ejobman_handler:stat_t(),
+    F = fun({{Dt, Group}, {Cur, Max}}) ->
+                [
+                 "<tr>",
+                 "<td>", mpln_misc_time:make_str2_int(Dt), "</td>",
+                 "<td>", mpln_misc_web:make_string(Group), "</td>",
+                 "<td>", mpln_misc_web:make_string(Cur), "</td>",
+                 "<td>", mpln_misc_web:make_string(Max), "</td>",
+                 "</tr>\n"
+                ];
+           ({K, V}) ->
+                [
+                 "<tr>",
+                 "<td colspan=2>",
+                 mpln_misc_web:make_term_string(K),
+                 "</td>",
+                 "<td colspan=2>",
+                 mpln_misc_web:make_term_string(V),
+                 "</td>",
+                 "</tr>\n"
+                ]
+        end,
+    F_big = fun({Tag, L}) ->
+                    [
+                     "<html><body>\n<p>\n",
+                     "<table ", ?TABC, ">",
+                     "<tr><td colspan=4 bgcolor=\"#CCCCDA\">",
+                     mpln_misc_web:make_term_string(Tag),
+                     "</td></tr>\n",
+                     "<tr>",
+                     "<td>time</td>",
+                     "<td>group</td>",
+                     "<td>current</td>",
+                     "<td>max</td></tr>\n",
+                     lists:map(F, L),
+                     "<table>\n",
+                     "<p>\n",
+                     "</body></html>\n"
+                    ]
+            end,
+    lists:flatten(lists:map(F_big, List)).
+
+make_stat_t_info_text() ->
+    List = ejobman_handler:stat_t(),
+    F = fun({K, V}) ->
+                io_lib:format("~p: ~p~n", [K, V])
+        end,
+    F_big = fun({Tag, L}) ->
+                    [io_lib:format("~p~n~n", [Tag]),
+                     lists:map(F, L),
+                     io_lib:format("----------------------------------------"
+                                   "~n~n", [])
+                    ]
+            end,
+    lists:flatten(lists:map(F_big, List)).
 
 </erl>
