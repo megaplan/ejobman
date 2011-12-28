@@ -116,7 +116,8 @@ remove_child(St, Pid, Group) ->
             true
     end,
     New_ch = lists:filter(F, Ch),
-    store_spawned_children(St, Group, New_ch).
+    St_s = store_spawned_children(St, Group, New_ch),
+    update_stat_t_result(St_s, Group, New_ch).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions
@@ -151,7 +152,7 @@ short_command_step(#ejm{job_groups=Groups, max_children=Max} = St, Gid) ->
     Ch = fetch_spawned_children(St, Gid),
     G_max = get_group_max(Groups, Gid, Max),
     {New_q, New_ch} = do_short_command_queue(St, {Q, Ch}, Gid, G_max),
-    St_j = store_job_queue(St, Gid, New_q),
+    St_j = store_job_queue(St, Gid, New_q, New_ch),
     St_ch = store_spawned_children(St_j, Gid, New_ch),
     St_ch.
 
@@ -160,39 +161,80 @@ short_command_step(#ejm{job_groups=Groups, max_children=Max} = St, Gid) ->
 %% @doc stores a queue for the given group to a dictionary. If the queue is
 %% empty then erases it completely from the dictionary.
 %%
--spec store_job_queue(#ejm{}, any(), undefined | queue()) -> #ejm{}.
+-spec store_job_queue(#ejm{}, any(), undefined | queue(), list()) -> #ejm{}.
 
-store_job_queue(#ejm{ch_queues=Data} = St, Gid, undefined) ->
+store_job_queue(#ejm{ch_queues=Data} = St, Gid, undefined, Ch) ->
     New_dict = dict:erase(Gid, Data),
-    St_u = update_stat_t(St, Gid),
+    St_u = update_stat_t(St, Gid, Ch, 0),
     St_u#ejm{ch_queues=New_dict};
 
-store_job_queue(#ejm{ch_queues=Data} = St, Gid, Q) ->
+store_job_queue(#ejm{ch_queues=Data} = St, Gid, Q, Ch) ->
     New_dict = dict:store(Gid, Q, Data),
-    St_u = update_stat_t(St, Gid, Q),
+    St_u = update_stat_t(St, Gid, Ch, queue:len(Q)),
     St_u#ejm{ch_queues=New_dict}.
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc updates time statistic for the given group
 %%
--spec update_stat_t(#ejm{}, any()) -> #ejm{}.
+-spec update_stat_t(#ejm{}, any(), list(), non_neg_integer()) -> #ejm{}.
 
-update_stat_t(St, Group) ->
-    update_stat_t(St, Group, len, 0).
-
--spec update_stat_t(#ejm{}, any(), queue()) -> #ejm{}.
-
-update_stat_t(St, Group, Q) ->
-    update_stat_t(St, Group, len, queue:len(Q)).
-
--spec update_stat_t(#ejm{}, any(), len, non_neg_integer()) -> #ejm{}.
-
-update_stat_t(St, Group, len, N) ->
+update_stat_t(St, Group, Ch, N) ->
     Now = now(),
-    St_m = update_stat_t_minute(St, Group, N, Now),
-    St_h = update_stat_t_hour(St_m, Group, N, Now),
+    St_m = update_stat_t_minute(St, Group, Ch, N, Now),
+    St_h = update_stat_t_hour(St_m, Group, Ch, N, Now),
     clean_stat_t(St_h).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc updates time statistic for the given group on job termination
+%%
+-spec update_stat_t_result(#ejm{}, any(), list()) -> #ejm{}.
+
+update_stat_t_result(St, Group, Ch) ->
+    Now = now(),
+    St_m = update_stat_t_result_minute(St, Group, Ch, Now),
+    update_stat_t_result_hour(St_m, Group, Ch, Now).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc updates hour time statistic for the given group on job termination
+%%
+update_stat_t_result_hour(#ejm{stat_t=Stat} = St, Group, Ch, Now) ->
+    Len = length(Ch),
+    T = mpln_misc_time:short_time(Now, hour),
+    Key = {T, Group},
+    {_W_cur, W_max, Q_cur, Q_max} =
+        case dict:find(Key, Stat#stat_t.h) of
+            {ok, Item} ->
+                Item;
+            _ ->
+                {Len, Len, 0, 0}
+        end,
+    New_item = {Len, W_max, Q_cur, Q_max},
+    New_hdata = dict:store(Key, New_item, Stat#stat_t.h),
+    New_stat = Stat#stat_t{h=New_hdata},
+    St#ejm{stat_t = New_stat}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc updates minute time statistic for the given group on job termination
+%%
+update_stat_t_result_minute(#ejm{stat_t=Stat} = St, Group, Ch, Now) ->
+    Len = length(Ch),
+    T = mpln_misc_time:short_time(Now, minute),
+    Key = {T, Group},
+    {_W_cur, W_max, Q_cur, Q_max} =
+        case dict:find(Key, Stat#stat_t.m) of
+            {ok, Item} ->
+                Item;
+            _ ->
+                {Len, Len, 0, 0}
+        end,
+    New_item = {Len, W_max, Q_cur, Q_max},
+    New_mdata = dict:store(Key, New_item, Stat#stat_t.m),
+    New_stat = Stat#stat_t{m=New_mdata},
+    St#ejm{stat_t = New_stat}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -235,19 +277,22 @@ proceed_clean_stat_t(Data, Keep) ->
 %%
 %% @doc updates minute statistic for given group
 %%
--spec update_stat_t_minute(#ejm{}, any(), non_neg_integer(), tuple()) -> #ejm{}.
+-spec update_stat_t_minute(#ejm{}, any(), list(), non_neg_integer(), tuple())
+                          -> #ejm{}.
 
-update_stat_t_minute(#ejm{stat_t=Stat} = St, Group, N, Now) ->
+update_stat_t_minute(#ejm{stat_t=Stat} = St, Group, Ch, N, Now) ->
+    Len = length(Ch),
     T = mpln_misc_time:short_time(Now, minute),
     Key = {T, Group},
-    {_Cur, Max} =
+    {_W_cur, W_max, _Q_cur, Q_max} =
         case dict:find(Key, Stat#stat_t.m) of
             {ok, Item} ->
                 Item;
             _ ->
-                {0, 0}
+                {0, 0, 0, 0}
         end,
-    New_mdata = dict:store(Key, {N, erlang:max(Max, N)}, Stat#stat_t.m),
+    New_item = {Len, erlang:max(Len, W_max), N, erlang:max(N, Q_max)},
+    New_mdata = dict:store(Key, New_item, Stat#stat_t.m),
     New_stat = Stat#stat_t{m=New_mdata},
     St#ejm{stat_t = New_stat}.
 
@@ -255,19 +300,22 @@ update_stat_t_minute(#ejm{stat_t=Stat} = St, Group, N, Now) ->
 %%
 %% @doc updates hour statistic for given group
 %%
--spec update_stat_t_hour(#ejm{}, any(), non_neg_integer(), tuple()) -> #ejm{}.
+-spec update_stat_t_hour(#ejm{}, any(), list(), non_neg_integer(), tuple()) ->
+                                #ejm{}.
 
-update_stat_t_hour(#ejm{stat_t=Stat} = St, Group, N, Now) ->
+update_stat_t_hour(#ejm{stat_t=Stat} = St, Group, Ch, N, Now) ->
+    Len = length(Ch),
     T = mpln_misc_time:short_time(Now, hour),
     Key = {T, Group},
-    {_Cur, Max} =
+    {_W_cur, W_max, _Q_cur, Q_max} =
         case dict:find(Key, Stat#stat_t.h) of
             {ok, Item} ->
                 Item;
             _ ->
-                {0, 0}
+                {0, 0, 0, 0}
         end,
-    New_hdata = dict:store(Key, {N, erlang:max(Max, N)}, Stat#stat_t.h),
+    New_item = {Len, erlang:max(Len, W_max), N, erlang:max(N, Q_max)},
+    New_hdata = dict:store(Key, New_item, Stat#stat_t.h),
     New_stat = Stat#stat_t{h=New_hdata},
     St#ejm{stat_t = New_stat}.
 

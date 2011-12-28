@@ -87,13 +87,15 @@ make_stat_queue_info(St) ->
 %%
 make_stat_t_info_html(St) ->
     List = get_stat_t_info(St),
-    F = fun({{Dt, Group}, {Cur, Max}}) ->
+    F = fun({{Dt, Group}, {W_cur, W_max, Q_cur, Q_max}}) ->
                 [
                  "<tr>",
                  "<td>", mpln_misc_time:make_str2_int(Dt), "</td>",
                  "<td>", mpln_misc_web:make_string(Group), "</td>",
-                 "<td>", mpln_misc_web:make_string(Cur), "</td>",
-                 "<td>", mpln_misc_web:make_string(Max), "</td>",
+                 "<td>", mpln_misc_web:make_string(W_cur), "</td>",
+                 "<td>", mpln_misc_web:make_string(W_max), "</td>",
+                 "<td>", mpln_misc_web:make_string(Q_cur), "</td>",
+                 "<td>", mpln_misc_web:make_string(Q_max), "</td>",
                  "</tr>\n"
                 ];
            ({K, V}) ->
@@ -102,7 +104,7 @@ make_stat_t_info_html(St) ->
                  "<td colspan=2>",
                  mpln_misc_web:make_term_string(K),
                  "</td>",
-                 "<td colspan=2>",
+                 "<td colspan=4>",
                  mpln_misc_web:make_term_string(V),
                  "</td>",
                  "</tr>\n"
@@ -111,14 +113,19 @@ make_stat_t_info_html(St) ->
     F_big = fun({Tag, L}) ->
                     [
                      "<html><body>\n<p>\n",
-                     mpln_misc_web:make_term_string(Tag),
                      "<p>\n",
                      "<table ", ?TABC, ">",
-                     "<tr><td></td>",
+                     "<tr><td colspan=6 bgcolor=\"#CCCCDA\">",
+                     mpln_misc_web:make_term_string(Tag),
+                     "</td></tr>\n",
+                     "<tr>",
                      "<td>time</td>",
                      "<td>group</td>",
-                     "<td>current</td>",
-                     "<td>max</td></tr>\n",
+                     "<td>work current</td>",
+                     "<td>work max</td>\n",
+                     "<td>queue current</td>",
+                     "<td>queue max</td>",
+                     "</tr>\n",
                      lists:map(F, L),
                      "<table>\n",
                      "<p>\n",

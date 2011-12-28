@@ -304,7 +304,7 @@ make_msg_result_body(#ejm{debug=D}, {Status, Hdr, Body}) ->
 %%
 %% @doc creates short debug info from a job
 %%
-make_short_info(J) ->
+make_short_info(#job{} = J) ->
     io_lib:format("id=~p~ntype=~p~ngroup=~p~n"
         "method=~p~nurl=~p~nhost=~p~n", [
             J#job.id,
@@ -313,7 +313,11 @@ make_short_info(J) ->
             J#job.method,
             J#job.url,
             J#job.host
-        ]).
+        ]);
+
+make_short_info(J) ->
+    % happened once, so it was interesting to see - what had come...
+    io_lib:format("unknown record:~n~p~n", [J]).
 
 %%-----------------------------------------------------------------------------
 %%
