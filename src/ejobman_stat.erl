@@ -85,6 +85,12 @@ handle_call({get, Start, Stop}, _From, St) ->
     Res = get_items(St, Start, Stop),
     {reply, Res, St};
 
+%% @doc set new debug level for facility
+handle_call({set_debug_item, Facility, Level}, _From, St) ->
+    % no api for this, use message passing
+    New = mpln_misc_run:update_debug_level(St#est.debug, Facility, Level),
+    {reply, St#est.debug, St#est{debug=New}, ?T};
+
 handle_call(_N, _From, St) ->
     mpln_p_debug:pr({?MODULE, other, ?LINE, _N}, St#est.debug, run, 2),
     {reply, {error, unknown_request}, St}.
@@ -469,8 +475,9 @@ get_items(St, Start, Stop) ->
     T1 = mpln_misc_time:make_gregorian_seconds(Start),
     T2 = mpln_misc_time:make_gregorian_seconds(Stop + 3600 - 1),
     List = get_files(St, T1, T2),
-    mpln_p_debug:pr({?MODULE, 'get_items', ?LINE, Start, Stop, T1, T2, List},
-                    St#est.debug, file, 4),
+    mpln_p_debug:pr({?MODULE, 'get_items', ?LINE, Start, Stop, T1, T2,
+                    length(List)}, St#est.debug, file, 2),
+    mpln_p_debug:pr({?MODULE, 'get_items', ?LINE, List}, St#est.debug, file, 3),
     create_binary_response(St, List).
 
 %%-----------------------------------------------------------------------------
@@ -483,7 +490,7 @@ get_files(#est{storage_base=Full_base} = St, T1, T2) ->
     Tstr2 = mpln_misc_time:make_short_str2(
               calendar:gregorian_seconds_to_datetime(T2), hour),
     mpln_p_debug:pr({?MODULE, 'get_files', ?LINE, Tstr1, Tstr2},
-                    St#est.debug, file, 3),
+                    St#est.debug, file, 4),
     List = filelib:wildcard(Full_base ++ "*"),
     mpln_p_debug:pr({?MODULE, 'get_files', ?LINE, List},
                     St#est.debug, file, 5),
@@ -500,7 +507,7 @@ get_files(#est{storage_base=Full_base} = St, T1, T2) ->
 %%-----------------------------------------------------------------------------
 %%
 %% @doc checks if the filename is between T1 and T2 time stamps.
-%% Comparison is made on string.
+%% Comparison is made on strings.
 %%
 check_one_filename(St, Blen, T1, T2, File) ->
     Fbase = filename:basename(File),
