@@ -33,7 +33,7 @@
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([make_stat_queue_info/1]).
+-export([make_stat_cur_info/1]).
 -export([make_stat_t_info/2]).
 
 %%%----------------------------------------------------------------------------
@@ -70,13 +70,19 @@ make_stat_t_info(St, html) ->
 %% @doc returns state of queues: name, length
 %% @since 2011-12-27 18:09
 %%
--spec make_stat_queue_info(#ejm{}) -> string().
+-spec make_stat_cur_info(#ejm{}) -> string().
 
-make_stat_queue_info(St) ->
-    List = get_stat_queue_info(St),
-    F = fun({K, V}) ->
-                io_lib:format("~p: ~p~n", [K, V])
-        end,
+make_stat_cur_info(St) ->
+    Winfo = make_stat_work_info(St),
+    Qinfo = make_stat_queue_info(St),
+    List = [{"working", Winfo}, {"queued", Qinfo}],
+    F = fun({Tag, L}) ->
+                    [io_lib:format("~p~n~n", [Tag]),
+                     L,
+                     io_lib:format("----------------------------------------"
+                                   "~n~n", [])
+                    ]
+            end,
     lists:flatten(lists:map(F, List)).
 
 %%%----------------------------------------------------------------------------
@@ -168,15 +174,60 @@ get_stat_t_info2(Data) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc fetches queue names and sizes
+%% @doc fetches names and sizes from a queued stat dictionary
 %%
--spec get_stat_queue_info(#ejm{}) -> [{any(), non_neg_integer()}].
+-spec get_stat_queue_info(dict()) -> [{any(), non_neg_integer()}].
 
-get_stat_queue_info(#ejm{ch_queues=Data}) ->
+get_stat_queue_info(Data) ->
     F = fun(Gid, Cur, Acc) ->
                 Len = queue:len(Cur),
                 [{Gid, Len} | Acc]
         end,
     dict:fold(F, [], Data).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fetches names and sizes from a working stat dictionary
+%%
+-spec get_stat_work_info(dict()) -> [{any(), non_neg_integer()}].
+
+get_stat_work_info(Data) ->
+    F = fun(Gid, Cur, Acc) ->
+                Len = length(Cur),
+                [{Gid, Len} | Acc]
+        end,
+    dict:fold(F, [], Data).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates a {queued_group, length} list
+%%
+-spec make_stat_queue_info(#ejm{}) -> list().
+
+make_stat_queue_info(St) ->
+    List = get_stat_queue_info(St#ejm.ch_queues),
+    make_list(List).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates a {working_group, length} list
+%%
+-spec make_stat_work_info(#ejm{}) -> list().
+
+make_stat_work_info(St) ->
+    List = get_stat_work_info(St#ejm.ch_data),
+    make_list(List).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc makes a text representation of a {key, value} list
+%%
+-spec make_list(list()) -> list().
+
+make_list(List) ->
+    F = fun({K, V}) ->
+                io_lib:format("~p: ~p~n", [K, V])
+        end,
+    lists:map(F, List).
 
 %%-----------------------------------------------------------------------------

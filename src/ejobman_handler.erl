@@ -99,7 +99,7 @@ handle_call(stat_r, _From, St) ->
 
 %% @doc returns state of queues
 handle_call(stat_q, _From, St) ->
-    Res = ejobman_print_stat:make_stat_queue_info(St),
+    Res = ejobman_print_stat:make_stat_cur_info(St),
     {reply, Res, St, ?T};
 
 %% @doc returns time statistic

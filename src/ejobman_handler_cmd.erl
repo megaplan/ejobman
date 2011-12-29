@@ -339,6 +339,10 @@ fetch_job_queue(#ejm{ch_queues=Data}, Gid) ->
 %%
 -spec store_spawned_children(#ejm{}, any(), list()) -> #ejm{}.
 
+store_spawned_children(#ejm{ch_data=Data} = St, Gid, []) ->
+    New_dict = dict:erase(Gid, Data),
+    St#ejm{ch_data=New_dict};
+
 store_spawned_children(#ejm{ch_data=Data} = St, Gid, Ch) ->
     New_dict = dict:store(Gid, Ch, Data),
     St#ejm{ch_data=New_dict}.
