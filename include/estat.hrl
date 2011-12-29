@@ -7,6 +7,7 @@
 -record(est, {
     tid,
     timer          :: reference(), % timer ref
+    timer_log      :: reference(), % timer for log processes memory
     storage = []   :: list(),
     storage_fd     :: pid(),       % current opened storage file
     storage_base   :: string(),    % file name base
@@ -18,6 +19,7 @@
     flush_interval :: non_neg_integer(), % interval to flush storage. Seconds
     flush_number   :: non_neg_integer(), % number of messages to flush storage.
     flush_last = {0,0,0} :: tuple(),     % last time of flush. Now.
+    log_procs_interval   :: non_neg_integer(), % log processes memory
     debug
 }).
 

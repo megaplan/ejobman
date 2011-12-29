@@ -62,7 +62,6 @@ init(_) ->
     C = ejobman_conf:get_config_stat(),
     New = prepare_all(C),
     process_flag(trap_exit, true), % to save storage
-    erlang:send_after(?STAT_T, self(), periodic_check), % for redundancy
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, New#est.debug, run, 1),
     {ok, New, ?STAT_T}.
 
@@ -129,13 +128,19 @@ terminate(_, State) ->
 %%
 handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#est.debug, run, 3),
-    New = periodic_check(State),
+    St_p = log_procs(State),
+    New = periodic_check(St_p),
     {noreply, New};
 
 handle_info(periodic_check, State) ->
     mpln_p_debug:pr({?MODULE, 'info_periodic_check', ?LINE},
                     State#est.debug, run, 6),
     New = periodic_check(State),
+    {noreply, New};
+
+handle_info(log_procs, State) ->
+    mpln_p_debug:pr({?MODULE, 'log_procs', ?LINE}, State#est.debug, run, 6),
+    New = log_procs(State),
     {noreply, New};
 
 handle_info(_Req, State) ->
@@ -228,7 +233,9 @@ get(Start, Stop) ->
 %%
 -spec prepare_all(#est{}) -> #est{}.
 
-prepare_all(C) ->
+prepare_all(#est{log_procs_interval=T} = C) ->
+    erlang:send_after(T, self(), log_procs),
+    erlang:send_after(?STAT_T, self(), periodic_check), % for redundancy
     prepare_storage(C).
     
 %%-----------------------------------------------------------------------------
@@ -257,18 +264,56 @@ stop_storage(#est{storage_fd=Fd} = St) ->
     file:close(Fd).
 
 %%-----------------------------------------------------------------------------
+cancel_timer(undefined) ->
+    ok;
+
+cancel_timer(Ref) ->
+    erlang:cancel_timer(Ref).
+    
+%%-----------------------------------------------------------------------------
+%%
+%% @doc logs memory information, establishes a new timer for the next iteration
+%%
+log_procs(#est{timer_log=Ref, log_procs_interval=T} = St) ->
+    real_log_procs(St),
+    cancel_timer(Ref),
+    Nref = erlang:send_after(T * 1000, self(), log_procs),
+    St#est{timer_log=Nref}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc sends sum of memory to be written to storage
+%%
+real_log_procs(St) ->
+    Sum = get_procs_info(),
+    mpln_p_debug:pr({?MODULE, 'real_log_procs', ?LINE, Sum},
+                    St#est.debug, stat, 4),
+    add('memory', 'memory_sum', Sum).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc calculates sum of memories for processes
+%%
+get_procs_info() ->
+    F = fun(X, Acc) ->
+                L = process_info(X, [memory]),
+                case proplists:get_value(memory, L) of
+                    N when is_integer(N) ->
+                        Acc + N;
+                    _ ->
+                        Acc
+                end
+        end,
+    lists:foldl(F, 0, processes()).
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc performs periodic checks, triggers timer for next periodic check
 %%
 -spec periodic_check(#est{}) -> #est{}.
 
 periodic_check(#est{timer=Ref, flush_interval=T} = St) ->
-    case Ref of
-        undefined ->
-            ok;
-        _ ->
-            erlang:cancel_timer(Ref)
-    end,
+    cancel_timer(Ref),
     St_e = check_existing_file(St),
     St_f = do_flush(St_e),
     St_r = check_rotate(St_f),
