@@ -1,5 +1,5 @@
 %%%
-%%% ejobman_receiver: AMQP messages receiver
+%%% ejobman_receiver: job group handler
 %%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
@@ -24,43 +24,41 @@
 %%% @author arkdro <arkdro@gmail.com>
 %%% @since 2011-07-15 10:00
 %%% @license MIT
-%%% @doc Receive messages from a RabbitMQ queue and call ejobman_handler
-%%% for the rest of a job
+%%% @doc Receives messages from a RabbitMQ queue and creates a child to
+%%% handle a request
 %%% 
 
--module(ejobman_receiver).
+-module(ejobman_group_handler).
 -behaviour(gen_server).
 
 %%%----------------------------------------------------------------------------
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([start/0, start_link/0, stop/0]).
+-export([start/0, start_link/0, stop/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
--export([logrotate/0]).
 -export([send_ack/2]).
--export([tell_group/3]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
 %%%----------------------------------------------------------------------------
 
--include("receiver.hrl").
+-include("group_handler.hrl").
 -include("amqp_client.hrl").
 
 %%%----------------------------------------------------------------------------
 %%% gen_server callbacks
 %%%----------------------------------------------------------------------------
-init(_) ->
-    C = ejobman_conf:get_config_receiver(),
-    New = prepare_all(C),
-    process_flag(trap_exit, true), % to perform amqp teardown
-    mpln_p_debug:pr({'init done', ?MODULE, ?LINE}, New#ejr.debug, run, 1),
+init(List) ->
+    mpln_p_debug:pr({?MODULE, 'init', ?LINE, List}, [], run, 0),
+    New = prepare_all(List),
+    process_flag(trap_exit, true), % to perform amqp channel teardown
+    mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, New#egh.debug, run, 1),
     {ok, New, ?T}.
 
 %------------------------------------------------------------------------------
--spec handle_call(any(), any(), #ejr{}) -> {stop|reply, any(), any(), any()}.
+-spec handle_call(any(), any(), #egh{}) -> {stop|reply, any(), any(), any()}.
 %%
 %% Handling call messages
 %% @since 2011-07-15 11:00
@@ -71,70 +69,66 @@ handle_call(stop, _From, St) ->
 handle_call(status, _From, St) ->
     {reply, St, St, ?T};
 
-handle_call({tell_group, Gid, Exchange, Key}, _From, St) ->
-    New = store_group(St, Gid, Exchange, Key),
-    {reply, ok, New, ?T};
-
 handle_call({set_debug_item, Facility, Level}, _From, St) ->
     % no api for this, use message passing
-    New = mpln_misc_run:update_debug_level(St#ejr.debug, Facility, Level),
-    {reply, St#ejr.debug, St#ejr{debug=New}, ?T};
+    New = mpln_misc_run:update_debug_level(St#egh.debug, Facility, Level),
+    {reply, St#egh.debug, St#egh{debug=New}, ?T};
 
 handle_call(_N, _From, St) ->
-    mpln_p_debug:p("~p::~p other:~n~p~n",
-        [?MODULE, ?LINE, _N], St#ejr.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, 'call other', ?LINE, _N}, St#egh.debug, run, 2),
     {reply, {error, unknown_request}, St, ?T}.
 
 %------------------------------------------------------------------------------
--spec handle_cast(any(), #ejr{}) -> any().
+-spec handle_cast(any(), #egh{}) -> any().
 %%
 %% Handling cast messages
 %% @since 2011-07-15 11:00
 %%
 handle_cast(stop, St) ->
     {stop, normal, St};
-handle_cast(logrotate, St) ->
-    prepare_log(St),
-    {noreply, St, ?T};
-handle_cast({send_ack, Id, Tag}, #ejr{conn=Conn} = St) ->
+
+handle_cast({send_ack, Id, Tag}, #egh{conn=Conn} = St) ->
     Res = ejobman_rb:send_ack(Conn, Tag),
     mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res},
-        St#ejr.debug, msg, 2),
+        St#egh.debug, msg, 2),
     {noreply, St, ?T};
+
 handle_cast(_Other, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
-        St#ejr.debug, run, 2),
+        St#egh.debug, run, 2),
     {noreply, St, ?T}.
 
 %------------------------------------------------------------------------------
-terminate(_, #ejr{conn=Conn, pid_file=File} = State) ->
-    ejobman_rb:teardown(Conn),
-    mpln_misc_run:remove_pid(File),
-    mpln_p_debug:pr({?MODULE, terminate, ?LINE}, State#ejr.debug, run, 1),
+terminate(_, #egh{conn=Conn} = State) ->
+    ejobman_rb:teardown_channel(Conn),
+    mpln_p_debug:pr({?MODULE, terminate, ?LINE}, State#egh.debug, run, 1),
     ok.
 
 %------------------------------------------------------------------------------
--spec handle_info(any(), #ejr{}) -> any().
+-spec handle_info(any(), #egh{}) -> any().
 %%
 %% Handling all non call/cast messages
 %%
 handle_info(timeout, State) ->
-    mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#ejr.debug, run, 6),
+    mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#egh.debug, run, 6),
     {noreply, State, ?T};
+
 handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req, State) ->
     Ref = make_ref(),
     mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Ref, _Req},
-                    State#ejr.debug, msg, 3),
+                    State#egh.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
     Props = Content#amqp_msg.props,
     ejobman_stat:add(Ref, 'start', {'start', Props#'P_basic'.timestamp}),
     New = ejobman_receiver_cmd:store_rabbit_cmd(State, Tag, Ref, Payload),
     {noreply, New, ?T};
+
 handle_info(#'basic.consume_ok'{consumer_tag = Tag}, State) ->
     New = ejobman_receiver_cmd:store_consumer_tag(State, Tag),
     {noreply, New, ?T};
+
 handle_info(_Req, State) ->
-    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#ejr.debug, run, 2),
+    mpln_p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#egh.debug, run, 2),
     {noreply, State, ?T}.
 
 %------------------------------------------------------------------------------
@@ -163,37 +157,27 @@ start_link() ->
     start_link(?CONF).
 
 %%
-%% @doc starts receiver gen_server with given config
+%% @doc starts gen_server with given config
 %% @since 2011-07-15 10:00
 %%
--spec start_link(string()) -> any().
+-spec start_link(list()) -> any().
 
 start_link(Config) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
+    gen_server:start_link(?MODULE, [Config], []).
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc stops receiver gen_server
+%% @doc stops group handler
 %% @since 2011-07-15 10:00
 %%
--spec stop() -> any().
+-spec stop(pid()) -> any().
 
-stop() ->
-    gen_server:call(?MODULE, stop).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc sends message to receiver to rotate logs
-%% @since 2011-08-10 16:00
-%%
--spec logrotate() -> ok.
-
-logrotate() ->
-    gen_server:cast(?MODULE, logrotate).
+stop(Pid) ->
+    gen_server:call(Pid, stop).
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc sends a tag to receiver to send acknowledge to amqp. Id here is
+%% @doc sends request to send acknowledge to amqp. Id here is
 %% for message trace only.
 %% @since 2011-12-02 16:16
 %%
@@ -202,78 +186,42 @@ logrotate() ->
 send_ack(Id, Tag) ->
     gen_server:cast(?MODULE, {send_ack, Id, Tag}).
 
-%%-----------------------------------------------------------------------------
-tell_group(Gid, Exchange, Key) ->
-    gen_server:call(?MODULE, {tell_group, Gid, Exchange, Key}).
-
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
 %%
-%% @doc does all necessary preparations: [re]opens log file.
+%% @doc does all the necessary preparations
 %% @since 2011-07-15
 %%
--spec prepare_all(#ejr{}) -> #ejr{}.
+-spec prepare_all(list()) -> #egh{}.
 
-prepare_all(C) ->
-    prepare_log(C),
-    write_pid(C),
-    log_sys_info(C),
+prepare_all(List) ->
+    C = ejobman_conf:get_config_group_handler(List),
     prepare_q(C).
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc logs erlang vm pid and local host name
-%%
-log_sys_info(C) ->
-    mpln_p_debug:pr({?MODULE, 'prepare_all pid', ?LINE, os:getpid()},
-                    C#ejr.debug, run, 0),
-    mpln_p_debug:pr({?MODULE, 'prepare_all localhost', ?LINE,
-                     net_adm:localhost()}, C#ejr.debug, run, 0).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc Prepare RabbitMQ exchange, queue, consumer
+%% @doc prepares RabbitMQ: exchange, queue, consumer
 %% @since 2011-07-15
 %%
--spec prepare_q(#ejr{}) -> #ejr{}.
+-spec prepare_q(#egh{}) -> #egh{}.
 
-prepare_q(C) ->
-    {ok, Conn} = ejobman_rb:start(C#ejr.rses),
-    C#ejr{conn=Conn}.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc prepare log if it is defined
-%% @since 2011-09-01 17:14
-%%
--spec prepare_log(#ejr{}) -> ok.
-
-prepare_log(#ejr{log=undefined}) ->
-    ok;
-prepare_log(#ejr{log=Log}) ->
-    mpln_misc_log:prepare_log(Log).
+prepare_q(#egh{group=Gid} = C) ->
+    {ok, Conn} = ejobman_rb:start_channel(C#egh.conn, C#egh.vhost),
+    Exchange = Queue = Key = compose_group_name(Gid),
+    ejobman_receiver:tell_group(Gid, Exchange, Key),
+    ejobman_rb:create_exchange(Conn, Exchange, <<"direct">>),
+    ejobman_rb:create_queue(Conn, Queue),
+    ejobman_rb:bind_queue(Conn, Queue, Exchange, Key),
+    New_conn = ejobman_rb:setup_consumer(Conn, Queue),
+    C#egh{conn = New_conn, exchange=Exchange, queue=Queue}.
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc writes pid file
-%% @since 2011-11-11 14:17
+%% @doc composes a binary group name
 %%
--spec write_pid(#ejr{}) -> ok.
-
-write_pid(#ejr{pid_file=undefined}) ->
-    ok;
-write_pid(#ejr{pid_file=File}) ->
-    mpln_misc_run:write_pid(File).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc stores group info in the state
-%%
--spec store_group(#ejr{}, any(), binary(), binary()) -> #ejr{}.
-
-store_group(#ejr{groups=Groups} = St, Gid, Exchange, Key) ->
-    New = lists:keystore(Gid, 1, Groups, {Gid, Exchange, Key}),
-    St#ejr{groups=New}.
+compose_group_name(Gid) ->
+    Bin = mpln_misc_web:make_binary(Gid),
+    << <<"ejobman_group_">>/binary, Bin/binary>>.
 
 %%-----------------------------------------------------------------------------

@@ -38,6 +38,7 @@
 -export([get_config_receiver/0]).
 -export([get_config_stat/0]).
 -export([fill_one_pool_config/1]).
+-export([get_config_group_handler/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -49,11 +50,46 @@
 
 -include("estat.hrl").
 -include("ejobman.hrl").
+-include("group_handler.hrl").
 -include("receiver.hrl").
 
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
+%%
+%% @doc fills config for group handler for the particular group
+%% @since 2011-12-30 15:56
+%%
+-spec get_config_group_handler(list()) -> #egh{}.
+
+get_config_group_handler(List) ->
+    Gid =
+        case proplists:get_value(group, List) of
+            undefined ->
+                erlang:error(undefined_group, List);
+            Val ->
+                Val
+        end,
+    Groups = proplists:get_value(job_groups, List, []),
+    F = fun(X) ->
+                Gid == proplists:get_value(name, X)
+        end,
+    Max =
+        case lists:filter(F, Groups) of
+            [Item | _] ->
+                proplists:get_value(max_children, Item);
+            _ ->
+                proplists:get_value(max_children, List)
+        end,
+    #egh{
+          vhost = proplists:get_value(vhost, List),
+          conn = proplists:get_value(conn, List),
+          debug = proplists:get_value(debug, List, []),
+          group = Gid,
+          max = Max
+        }.
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc fills in the child config with values from input list.
 %% @since 2011-07-15
@@ -202,13 +238,15 @@ fill_config_stat(All_list) ->
 -spec fill_ejm_handler_config(list()) -> #ejm{}.
 
 fill_ejm_handler_config(List) ->
+    Gh_list = proplists:get_value(group_handler, List, []),
     Hdl_list = proplists:get_value(handler, List, []),
     #ejm{
         stat_limit_n = proplists:get_value(stat_limit_n, Hdl_list,
             ?STAT_LIMIT_N),
         stat_limit_t = proplists:get_value(stat_limit_t, Hdl_list,
             ?STAT_LIMIT_T),
-        job_groups = fill_job_groups(Hdl_list),
+        group_handler = Gh_list,
+        job_groups = fill_job_groups(Gh_list),
         ch_data = dict:new(),
         ch_queues = dict:new(),
         job_log = proplists:get_value(job_log, Hdl_list),
@@ -220,7 +258,7 @@ fill_ejm_handler_config(List) ->
             ?HTTP_TIMEOUT),
         schema_rewrite = proplists:get_value(schema_rewrite, Hdl_list, []),
         url_rewrite = proplists:get_value(url_rewrite, Hdl_list, []),
-        max_children = proplists:get_value(max_children, Hdl_list, 32767),
+        max_children = proplists:get_value(max_children, Gh_list, 3),
         debug = proplists:get_value(debug, Hdl_list, [])
     }.
 

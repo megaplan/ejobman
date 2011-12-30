@@ -41,8 +41,10 @@
 %%%----------------------------------------------------------------------------
 
 -export([start/1]).
--export([teardown/1, send_reply/4]).
+-export([teardown/1, teardown_channel/1, send_reply/4]).
 -export([send_ack/2]).
+-export([start_channel/2, create_queue/2, create_exchange/3, bind_queue/4]).
+-export([setup_consumer/2, cancel_consumer/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Defines
@@ -51,8 +53,71 @@
 -define(SETUP_CONSUMER_TIMEOUT, 10000).
 
 %%%----------------------------------------------------------------------------
-%%% api
+%%% API
 %%%----------------------------------------------------------------------------
+%%
+%% @doc starts new channel in the existing AMQP connection
+%% @since 2011-12-31 16:42
+%%
+-spec start_channel(#conn{}, binary()) -> {ok, #conn{}}.
+
+start_channel(#conn{connection=Connection} = Conn, Vhost) ->
+    {ok, Channel} = amqp_connection:open_channel(Connection),
+    Access = #'access.request'{realm = Vhost,
+        exclusive = false,
+        passive = true,
+        active = true,
+        write = true,
+        read = true},
+    #'access.request_ok'{ticket = Ticket} = amqp_channel:call(Channel, Access),
+    {ok, Conn#conn{channel=Channel, ticket=Ticket}}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc declares an amqp queue
+%% @since 2011-12-30 17:03
+%%
+-spec create_queue(#conn{}, binary()) -> binary().
+
+create_queue(#conn{channel=Channel, ticket=Ticket}, Q) ->
+    QueueDeclare = #'queue.declare'{ticket = Ticket, queue = Q,
+        passive = false, durable = true,
+        exclusive = false, auto_delete = false,
+        nowait = false, arguments = []},
+    #'queue.declare_ok'{queue = Q} = amqp_channel:call(Channel, QueueDeclare),
+    Q.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc declares an amqp exchange
+%% @since 2011-12-30 17:03
+%%
+-spec create_exchange(#conn{}, binary(), binary()) -> any().
+
+create_exchange(#conn{channel=Channel, ticket=Ticket}, X, Xtype) ->
+    ExchangeDeclare = #'exchange.declare'{ticket = Ticket,
+        exchange = X, type= Xtype,
+        passive = false, durable = true,
+        auto_delete=false, internal = false,
+        nowait = false, arguments = []},
+    #'exchange.declare_ok'{} = amqp_channel:call(Channel, ExchangeDeclare).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc binds queue to exchange
+%% @since 2011-12-30 17:13
+%%
+-spec bind_queue(#conn{}, binary(), binary(), false | binary()) -> any().
+
+bind_queue(#conn{channel=Channel, ticket=Ticket}, Q, X, Key) ->
+    QueueBind = #'queue.bind'{ticket = Ticket,
+        queue = Q,
+        exchange = X,
+        routing_key = Key,
+        nowait = false, arguments = []},
+    #'queue.bind_ok'{} = amqp_channel:call(Channel, QueueBind).
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc does all the AMQP client preparations, namely: connection, channel,
 %% queue, exchange, binding.
@@ -73,42 +138,31 @@ start(Rses) ->
         port = Port,
         virtual_host = Vhost
         }),
-    {ok, Channel} = amqp_connection:open_channel(Connection),
-    Access = #'access.request'{realm = Vhost,
-        exclusive = false,
-        passive = true,
-        active = true,
-        write = true,
-        read = true},
-    #'access.request_ok'{ticket = Ticket} = amqp_channel:call(Channel, Access),
+
+    {ok, Conn} = start_channel(#conn{connection=Connection}, Vhost),
 
     Q = Rses#rses.queue,
     X = Rses#rses.exchange,
     Xtype = Rses#rses.exchange_type,
     BindKey = Rses#rses.routing_key,
 
-    QueueDeclare = #'queue.declare'{ticket = Ticket, queue = Q,
-        passive = false, durable = true,
-        exclusive = false, auto_delete = false,
-        nowait = false, arguments = []},
-    #'queue.declare_ok'{queue = Q} = amqp_channel:call(Channel, QueueDeclare),
-    ExchangeDeclare = #'exchange.declare'{ticket = Ticket,
-        exchange = X, type= Xtype,
-        passive = false, durable = true,
-        auto_delete=false, internal = false,
-        nowait = false, arguments = []},
-    #'exchange.declare_ok'{} = amqp_channel:call(Channel, ExchangeDeclare),
-    QueueBind = #'queue.bind'{ticket = Ticket,
-        queue = Q,
-        exchange = X,
-        routing_key = BindKey,
-        nowait = false, arguments = []},
-    #'queue.bind_ok'{} = amqp_channel:call(Channel, QueueBind),
-    ConsumerTag = setup_consumer(Channel, Q),
-    {ok, #conn{channel=Channel,
-        connection=Connection,
-        consumer_tag = ConsumerTag}
-    }.
+    create_queue(Conn, Q),
+    create_exchange(Conn, X, Xtype),
+    bind_queue(Conn, Q, X, BindKey),
+    New_conn = setup_consumer(Conn, Q),
+    {ok, New_conn}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc stops amqp channel
+%% @since 2011-12-30 18:09
+%%
+-spec teardown_channel(#conn{}) -> ok.
+
+teardown_channel(#conn{channel = Channel, consumer_tag = ConsumerTag}) ->
+    cancel_consumer(Channel, ConsumerTag),
+    amqp_channel:close(Channel).
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc cancels consumer, closes channel, closes connection
@@ -140,6 +194,32 @@ send_reply(Channel, X, Rt_key, Payload) ->
 send_ack(Conn, Tag) ->
     Channel = Conn#conn.channel,
     amqp_channel:call(Channel, #'basic.ack'{delivery_tag = Tag}).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc setups consumer for given queue at given exchange
+%% @since 2011-07-15
+%%
+-spec setup_consumer(#conn{}, binary()) -> #conn{}.
+
+setup_consumer(#conn{channel=Channel} = Conn, Q) ->
+    BasicConsume = #'basic.consume'{queue = Q, no_ack = false },
+    #'basic.consume_ok'{consumer_tag = ConsumerTag}
+        = amqp_channel:subscribe(Channel, BasicConsume, self()),
+    Conn#conn{consumer_tag=ConsumerTag}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc cancels consumer
+%% @since 2011-07-15
+%%
+-spec cancel_consumer(any(), any()) -> any().
+
+cancel_consumer(Channel, ConsumerTag) ->
+    BasicCancel = #'basic.cancel'{consumer_tag = ConsumerTag, nowait = false},
+    #'basic.cancel_ok'{consumer_tag = ConsumerTag} =
+        amqp_channel:call(Channel,BasicCancel)
+.
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -152,28 +232,5 @@ send_ack(Conn, Tag) ->
 send_message(Channel, X, RoutingKey, Payload) ->
     Publish = #'basic.publish'{exchange = X, routing_key = RoutingKey},
     amqp_channel:cast(Channel, Publish, #amqp_msg{payload = Payload}).
-%%-----------------------------------------------------------------------------
-%%
-%% @doc setups consumer for given queue at given exchange
-%% @since 2011-07-15
-%%
-setup_consumer(Channel, Q) ->
-    BasicConsume = #'basic.consume'{queue = Q, no_ack = false },
-    #'basic.consume_ok'{consumer_tag = ConsumerTag}
-        = amqp_channel:subscribe(Channel, BasicConsume, self()),
-    ConsumerTag.
 
-%%-----------------------------------------------------------------------------
-%%
-%% @doc cancels consumer
-%% @since 2011-07-15
-%%
-cancel_consumer(Channel, ConsumerTag) ->
-    % After the consumer is finished interacting with the queue,
-    % it can deregister itself
-    BasicCancel = #'basic.cancel'{consumer_tag = ConsumerTag,
-        nowait = false},
-    #'basic.cancel_ok'{consumer_tag = ConsumerTag} =
-        amqp_channel:call(Channel,BasicCancel)
-.
 %%-----------------------------------------------------------------------------

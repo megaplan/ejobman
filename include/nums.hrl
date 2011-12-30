@@ -1,6 +1,8 @@
 -ifndef(ejobman_nums).
 -define(ejobman_nums, true).
 
+-define(GID_DEFAULT, default).
+
 -define(STAT_T_KEEP_MINUTES, 62).
 -define(STAT_T_KEEP_HOURS, 26).
 -define(STAT_T, 1000).

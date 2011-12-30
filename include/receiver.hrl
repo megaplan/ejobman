@@ -9,7 +9,8 @@
     conn,
     log,
     pid_file,
-    debug
+    groups = [] :: list(),
+    debug = [] :: list()
 }).
 
 -endif.

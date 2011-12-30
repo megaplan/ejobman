@@ -16,7 +16,8 @@
 -record(conn, {
     'channel' = false,
     'connection' = false,
-    'consumer_tag' = false
+    'consumer_tag' = false,
+    'ticket' = false
 }).
 
 -endif.
