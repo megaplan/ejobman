@@ -63,28 +63,22 @@
 -spec get_config_group_handler(list()) -> #egh{}.
 
 get_config_group_handler(List) ->
-    Gid =
-        case proplists:get_value(group, List) of
-            undefined ->
-                erlang:error(undefined_group, List);
-            Val ->
-                Val
-        end,
-    Groups = proplists:get_value(job_groups, List, []),
-    F = fun(X) ->
-                Gid == proplists:get_value(name, X)
-        end,
-    Max =
-        case lists:filter(F, Groups) of
-            [Item | _] ->
-                proplists:get_value(max_children, Item);
-            _ ->
-                proplists:get_value(max_children, List)
-        end,
+    Gh = proplists:get_value(group_handler, List, []),
+    Max = case proplists:get_value(max_children, List) of
+              N when is_integer(N) andalso N >= 0 ->
+                  N;
+              _ ->
+                  proplists:get_value(max_children, Gh)
+          end,
+    Gid = case proplists:get_value(group, List) of
+              undefined ->
+                  erlang:error(undefined_group, List);
+              Val ->
+                  Val
+          end,
     #egh{
-          vhost = proplists:get_value(vhost, List),
-          conn = proplists:get_value(conn, List),
-          debug = proplists:get_value(debug, List, []),
+          id = proplists:get_value(id, List),
+          debug = proplists:get_value(debug, Gh, []),
           group = Gid,
           max = Max
         }.

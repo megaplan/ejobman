@@ -73,6 +73,7 @@
     log,
     pid_file,
     group_handler = [], % config for group handlers
+    group_handler_run = [], % started group handlers. Unnecessary, in fact
     job_groups = [], % configured job groups
     job_log, % filename for job log
     job_log_last,

@@ -35,6 +35,8 @@
 
 -export([store_rabbit_cmd/4]).
 -export([store_consumer_tag/2]).
+-export([get_conn_params/1]).
+-export([push_message/4]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -77,6 +79,24 @@ store_consumer_tag(State, _Tag) ->
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc pushes the received message to an appropriate exchange
+%% @since 2012-01-10 18:01
+%%
+-spec push_message(#ejr{}, binary(), reference(), binary()) -> ok.
+
+push_message(#ejr{conn=Conn} = St, Rkey, Ref, Payload) ->
+    case find_exchange(St, Rkey) of
+        undefined ->
+            % receiver got a message, but group handlers have not appeared
+            % in receiver's state yet
+            ok;
+        Ex ->
+            Bref = mpln_misc_web:make_term_binary(Ref),
+            ejobman_rb:send_message(Conn#conn.channel, Ex, Rkey, Payload, Bref)
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc sends received command to a command handler. Returns nothing actually.
 %% @since 2011-07-15
 %%
@@ -98,6 +118,16 @@ store_rabbit_cmd(State, Tag, Ref, Bin) ->
             proceed_cmd_type(State, Type, Tag, Ref, Data)
     end,
     State.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc returns vhost and connection parameters
+%% @since 2012-01-10 14:55
+%%
+-spec get_conn_params(#ejr{}) -> {binary(), #conn{}}.
+
+get_conn_params(#ejr{conn=Conn, rses=Rses} = St) ->
+    {Rses#rses.vhost, Conn}.
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions
@@ -207,4 +237,22 @@ fill_auth_data(_, Auth) ->
 make_time(Data) ->
     #rt{}
 .
+%%-----------------------------------------------------------------------------
+%%
+%% @doc returns either an exchange for the given routing key or
+%% an exchange for the default key, or undefined if anything else fails
+%%
+find_exchange(St, Key) ->
+    find_exchange(St, Key, false).
+
+find_exchange(#ejr{groups=Groups} = St, Key, Last) ->
+    case lists:keyfind(Key, 1, Groups) of
+        false when Last == true ->
+            undefined;
+        false ->
+            find_exchange(St, ?GID_DEFAULT, true);
+        {_Key, Exchange, _Queue} ->
+            Exchange
+    end.
+
 %%-----------------------------------------------------------------------------

@@ -5,6 +5,7 @@
 
 % state of a group_handler gen_server
 -record(egh, {
+    id         :: reference(), % id that is used by supervisor
     group, % group id
     max        :: non_neg_integer(), % max children for the group
     vhost      :: binary(), % amqp virtual host

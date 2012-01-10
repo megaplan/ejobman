@@ -24,8 +24,8 @@
 %%% @author arkdro <arkdro@gmail.com>
 %%% @since 2011-07-15 10:00
 %%% @license MIT
-%%% @doc Receives messages from a RabbitMQ queue and creates a child to
-%%% handle a request
+%%% @doc Receives messages from a RabbitMQ queue for one group,
+%%% creates children to handle requests
 %%% 
 
 -module(ejobman_group_handler).
@@ -35,7 +35,7 @@
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([start/0, start_link/0, stop/1]).
+-export([start/0, start_link/0, start_link/1, stop/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 -export([send_ack/2]).
@@ -50,11 +50,12 @@
 %%%----------------------------------------------------------------------------
 %%% gen_server callbacks
 %%%----------------------------------------------------------------------------
-init(List) ->
+init([List]) ->
     mpln_p_debug:pr({?MODULE, 'init', ?LINE, List}, [], run, 0),
     New = prepare_all(List),
     process_flag(trap_exit, true), % to perform amqp channel teardown
-    mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, New#egh.debug, run, 1),
+    mpln_p_debug:pr({?MODULE, 'init done', ?LINE, New#egh.id, New#egh.group},
+                    New#egh.debug, run, 1),
     {ok, New, ?T}.
 
 %------------------------------------------------------------------------------
@@ -113,19 +114,21 @@ handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#egh.debug, run, 6),
     {noreply, State, ?T};
 
-handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req, State) ->
+handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
+            #egh{id=Id} = State) ->
     Ref = make_ref(),
-    mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Ref, _Req},
+    mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Id, Ref, _Req},
                     State#egh.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
     Props = Content#amqp_msg.props,
     ejobman_stat:add(Ref, 'start', {'start', Props#'P_basic'.timestamp}),
-    New = ejobman_receiver_cmd:store_rabbit_cmd(State, Tag, Ref, Payload),
-    {noreply, New, ?T};
+    %New = ejobman_receiver_cmd:store_rabbit_cmd(State, Tag, Ref, Payload),
+    %{noreply, New, ?T};
+    {noreply, State, ?T};
 
 handle_info(#'basic.consume_ok'{consumer_tag = Tag}, State) ->
-    New = ejobman_receiver_cmd:store_consumer_tag(State, Tag),
-    {noreply, New, ?T};
+    %New = ejobman_receiver_cmd:store_consumer_tag(State, Tag),
+    {noreply, State, ?T};
 
 handle_info(_Req, State) ->
     mpln_p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#egh.debug, run, 2),
@@ -197,7 +200,18 @@ send_ack(Id, Tag) ->
 
 prepare_all(List) ->
     C = ejobman_conf:get_config_group_handler(List),
-    prepare_q(C).
+    C_conn = get_connection(C),
+    prepare_q(C_conn).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc asks ejobman_receiver for vhost and connection
+%%
+-spec get_connection(#egh{}) -> #egh{}.
+
+get_connection(C) ->
+    {Vhost, Conn} = ejobman_receiver:get_conn_params(),
+    C#egh{vhost=Vhost, conn=Conn}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -209,11 +223,11 @@ prepare_all(List) ->
 prepare_q(#egh{group=Gid} = C) ->
     {ok, Conn} = ejobman_rb:start_channel(C#egh.conn, C#egh.vhost),
     Exchange = Queue = Key = compose_group_name(Gid),
-    ejobman_receiver:tell_group(Gid, Exchange, Key),
     ejobman_rb:create_exchange(Conn, Exchange, <<"direct">>),
     ejobman_rb:create_queue(Conn, Queue),
     ejobman_rb:bind_queue(Conn, Queue, Exchange, Key),
     New_conn = ejobman_rb:setup_consumer(Conn, Queue),
+    ejobman_receiver:tell_group(Gid, Exchange, Key),
     C#egh{conn = New_conn, exchange=Exchange, queue=Queue}.
 
 %%-----------------------------------------------------------------------------

@@ -45,6 +45,8 @@
 -export([send_ack/2]).
 -export([start_channel/2, create_queue/2, create_exchange/3, bind_queue/4]).
 -export([setup_consumer/2, cancel_consumer/2]).
+-export([start_receiver/1, make_prop_id/1, get_prop_id/1]).
+-export([send_message/4, send_message/5, send_message2/4]).
 
 %%%----------------------------------------------------------------------------
 %%% Defines
@@ -55,6 +57,17 @@
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
+%%
+%% @doc starts full amqp receiver:
+%% connection, channel, fanout exchange, queue, binding
+%% @since 2011-01-10 17:15
+%%
+-spec start_receiver(#rses{}) -> {ok, #conn{}}.
+
+start_receiver(Rses) ->
+    start(Rses#rses{exchange_type= <<"fanout">>}).
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc starts new channel in the existing AMQP connection
 %% @since 2011-12-31 16:42
@@ -220,17 +233,47 @@ cancel_consumer(Channel, ConsumerTag) ->
     #'basic.cancel_ok'{consumer_tag = ConsumerTag} =
         amqp_channel:call(Channel,BasicCancel)
 .
-%%%----------------------------------------------------------------------------
-%%% Internal functions
-%%%----------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
+%%
+%% @doc creates amqp basic property with given id
+%%
+-spec make_prop_id(binary()) -> #'P_basic'{}.
+
+make_prop_id(Id) ->
+    #'P_basic'{message_id = Id}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc extracts id from amqp basic property
+%%
+-spec get_prop_id(#'P_basic'{}) -> binary().
+
+get_prop_id(Props) ->
+    Props#'P_basic'.message_id.
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc publishes AMQP message with given payload to exchange
 %% @since 2011-07-15
 %%
--spec send_message(any(), any(), any(), any()) -> ok.
+-spec send_message(binary(), binary(), binary(), binary()) -> ok.
+
+send_message(Channel, X, RoutingKey, Payload, Id) ->
+    Props = make_prop_id(Id),
+    Msg = #amqp_msg{payload = Payload, props = Props},
+    send_message2(Channel, X, RoutingKey, Msg).
 
 send_message(Channel, X, RoutingKey, Payload) ->
+    Msg = #amqp_msg{payload = Payload},
+    send_message2(Channel, X, RoutingKey, Msg).
+
+%%
+%% @doc publishes given AMQP message to exchange
+%%
+-spec send_message2(binary(), binary(), binary(), #amqp_msg{}) -> ok.
+
+send_message2(Channel, X, RoutingKey, Msg) ->
     Publish = #'basic.publish'{exchange = X, routing_key = RoutingKey},
-    amqp_channel:cast(Channel, Publish, #amqp_msg{payload = Payload}).
+    amqp_channel:cast(Channel, Publish, Msg).
 
 %%-----------------------------------------------------------------------------

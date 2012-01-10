@@ -47,12 +47,8 @@
 %%% supervisor callbacks
 %%%----------------------------------------------------------------------------
 init(_Args) ->
-    Worker = {
-        ejobman_group_handler, {ejobman_group_handler, start_link, []},
-        permanent, 1000, worker, [ejobman_group_handler]
-        },
     {ok, {{one_for_one, ?RESTARTS, ?SECONDS},
-        [Worker]}}.
+        []}}.
 
 %%%----------------------------------------------------------------------------
 %%% api

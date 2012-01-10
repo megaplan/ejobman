@@ -40,7 +40,7 @@
 -export([terminate/2, code_change/3]).
 -export([logrotate/0]).
 -export([send_ack/2]).
--export([tell_group/3]).
+-export([tell_group/3, get_conn_params/0]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -71,9 +71,9 @@ handle_call(stop, _From, St) ->
 handle_call(status, _From, St) ->
     {reply, St, St, ?T};
 
-handle_call({tell_group, Gid, Exchange, Key}, _From, St) ->
-    New = store_group(St, Gid, Exchange, Key),
-    {reply, ok, New, ?T};
+handle_call(get_conn_params, _From, St) ->
+    Res = ejobman_receiver_cmd:get_conn_params(St),
+    {reply, Res, St, ?T};
 
 handle_call({set_debug_item, Facility, Level}, _From, St) ->
     % no api for this, use message passing
@@ -93,14 +93,23 @@ handle_call(_N, _From, St) ->
 %%
 handle_cast(stop, St) ->
     {stop, normal, St};
+
 handle_cast(logrotate, St) ->
     prepare_log(St),
     {noreply, St, ?T};
+
+handle_cast({tell_group, Gid, Exchange, Key}, St) ->
+    mpln_p_debug:pr({?MODULE, 'tell_group', ?LINE, Gid, Exchange, Key},
+        St#ejr.debug, run, 3),
+    New = store_group(St, Gid, Exchange, Key),
+    {noreply, New, ?T};
+
 handle_cast({send_ack, Id, Tag}, #ejr{conn=Conn} = St) ->
     Res = ejobman_rb:send_ack(Conn, Tag),
     mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res},
         St#ejr.debug, msg, 2),
     {noreply, St, ?T};
+
 handle_cast(_Other, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
         St#ejr.debug, run, 2),
@@ -121,18 +130,24 @@ terminate(_, #ejr{conn=Conn, pid_file=File} = State) ->
 handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#ejr.debug, run, 6),
     {noreply, State, ?T};
-handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req, State) ->
+
+handle_info({#'basic.deliver'{delivery_tag=Tag, routing_key=Rkey}, Content} =
+            _Req, #ejr{conn=Conn} = State) ->
     Ref = make_ref(),
     mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Ref, _Req},
                     State#ejr.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
     Props = Content#amqp_msg.props,
     ejobman_stat:add(Ref, 'start', {'start', Props#'P_basic'.timestamp}),
-    New = ejobman_receiver_cmd:store_rabbit_cmd(State, Tag, Ref, Payload),
-    {noreply, New, ?T};
+    %New = ejobman_receiver_cmd:store_rabbit_cmd(State, Tag, Ref, Payload),
+    ejobman_receiver_cmd:push_message(State, Rkey, Ref, Payload),
+    ejobman_rb:send_ack(Conn, Tag),
+    {noreply, State, ?T};
+
 handle_info(#'basic.consume_ok'{consumer_tag = Tag}, State) ->
     New = ejobman_receiver_cmd:store_consumer_tag(State, Tag),
     {noreply, New, ?T};
+
 handle_info(_Req, State) ->
     mpln_p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#ejr.debug, run, 2),
     {noreply, State, ?T}.
@@ -203,9 +218,24 @@ send_ack(Id, Tag) ->
     gen_server:cast(?MODULE, {send_ack, Id, Tag}).
 
 %%-----------------------------------------------------------------------------
-tell_group(Gid, Exchange, Key) ->
-    gen_server:call(?MODULE, {tell_group, Gid, Exchange, Key}).
+%%
+%% @doc forwards group info (id, exchange, routing key) to the server
+%% @since 2012-01-10 15:12
+%%
+-spec tell_group(default | binary(), binary(), binary()) -> ok.
 
+tell_group(Gid, Exchange, Key) ->
+    gen_server:cast(?MODULE, {tell_group, Gid, Exchange, Key}).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc returns vhost and connection parameters
+%% @since 2012-01-10 14:55
+%%
+-spec get_conn_params() -> {binary(), any()}.
+
+get_conn_params() ->
+    gen_server:call(?MODULE, get_conn_params).
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -239,7 +269,7 @@ log_sys_info(C) ->
 -spec prepare_q(#ejr{}) -> #ejr{}.
 
 prepare_q(C) ->
-    {ok, Conn} = ejobman_rb:start(C#ejr.rses),
+    {ok, Conn} = ejobman_rb:start_receiver(C#ejr.rses),
     C#ejr{conn=Conn}.
 
 %%-----------------------------------------------------------------------------
