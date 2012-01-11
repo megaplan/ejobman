@@ -116,15 +116,14 @@ handle_info(timeout, State) ->
 
 handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
             #egh{id=Id} = State) ->
-    Ref = make_ref(),
-    mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Id, Ref, _Req},
+    mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Id, _Req},
                     State#egh.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
     Props = Content#amqp_msg.props,
-    ejobman_stat:add(Ref, 'start', {'start', Props#'P_basic'.timestamp}),
-    %New = ejobman_receiver_cmd:store_rabbit_cmd(State, Tag, Ref, Payload),
-    %{noreply, New, ?T};
-    {noreply, State, ?T};
+    Sid = ejobman_rb:get_prop_id(Props),
+    ejobman_stat:add(Sid, 'group_queue', undefined),
+    New = ejobman_group_handler_cmd:store_rabbit_cmd(State, Tag, Sid, Payload),
+    {noreply, New, ?T};
 
 handle_info(#'basic.consume_ok'{consumer_tag = Tag}, State) ->
     %New = ejobman_receiver_cmd:store_consumer_tag(State, Tag),
@@ -201,7 +200,17 @@ send_ack(Id, Tag) ->
 prepare_all(List) ->
     C = ejobman_conf:get_config_group_handler(List),
     C_conn = get_connection(C),
-    prepare_q(C_conn).
+    C_st = prepare_storage(C_conn),
+    prepare_q(C_st).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc prepares internal queue
+%%
+-spec prepare_storage(#egh{}) -> #egh{}.
+
+prepare_storage(C) ->
+    C#egh{ch_queue=queue:new()}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -222,6 +231,7 @@ get_connection(C) ->
 
 prepare_q(#egh{group=Gid} = C) ->
     {ok, Conn} = ejobman_rb:start_channel(C#egh.conn, C#egh.vhost),
+    ejobman_rb:channel_qos(Conn, 0, 1),
     Exchange = Queue = Key = compose_group_name(Gid),
     ejobman_rb:create_exchange(Conn, Exchange, <<"direct">>),
     ejobman_rb:create_queue(Conn, Queue),

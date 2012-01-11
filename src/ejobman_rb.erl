@@ -47,6 +47,7 @@
 -export([setup_consumer/2, cancel_consumer/2]).
 -export([start_receiver/1, make_prop_id/1, get_prop_id/1]).
 -export([send_message/4, send_message/5, send_message2/4]).
+-export([channel_qos/3]).
 
 %%%----------------------------------------------------------------------------
 %%% Defines
@@ -275,5 +276,14 @@ send_message(Channel, X, RoutingKey, Payload) ->
 send_message2(Channel, X, RoutingKey, Msg) ->
     Publish = #'basic.publish'{exchange = X, routing_key = RoutingKey},
     amqp_channel:cast(Channel, Publish, Msg).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc sets qos parameters for the channel
+%% @since 2012-01-11 13:52
+%%
+channel_qos(#conn{channel=Channel}, Size, Cnt) ->
+    Q = #'basic.qos'{prefetch_size=Size, prefetch_count=Cnt, global=false},
+    #'basic.qos_ok'{} = amqp_channel:call(Channel, Q).
 
 %%-----------------------------------------------------------------------------

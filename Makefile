@@ -11,7 +11,7 @@ HTML_DOC_DIR = doc/html
 ERLC_OPTS = +debug_info -DTEST
 #ERLC_OPTS = +debug_info -DTEST -DPROPER -pa ../proper/ebin
 ERLC := erlc $(ERLC_OPTS)
-VSN=2.0
+VSN=2.1
 APP_NAME=ejobman
 LICENSE=MIT
 

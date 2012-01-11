@@ -68,7 +68,7 @@ init(_Args) ->
         transient, infinity, supervisor, [ejobman_group_sup]
         },
     {ok, {{one_for_one, ?RESTARTS, ?SECONDS},
-        [Stat, Sup, Gr_sup, Receiver, Handler]}}.
+        [Stat, Sup, Receiver, Gr_sup, Handler]}}.
 
 %%%----------------------------------------------------------------------------
 %%% API

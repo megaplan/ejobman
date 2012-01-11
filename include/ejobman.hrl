@@ -2,6 +2,7 @@
 -define(ejobman_params, true).
 
 -include("nums.hrl").
+-include("chi.hrl").
 
 % state of a worker gen_server
 -record(child, {
@@ -29,17 +30,6 @@
 -record(jgroup, {
     id,
     max_children
-}).
-
--record(chi, {
-    pid,
-    id,
-    mon,
-    os_pid,
-    tag,
-    alive=true,
-    stop={0,0,0}, % time of marking dead
-    start={0,0,0} % time in now() format
 }).
 
 -record(pool, {

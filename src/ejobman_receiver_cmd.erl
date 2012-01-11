@@ -84,14 +84,19 @@ store_consumer_tag(State, _Tag) ->
 %%
 -spec push_message(#ejr{}, binary(), reference(), binary()) -> ok.
 
-push_message(#ejr{conn=Conn} = St, Rkey, Ref, Payload) ->
-    case find_exchange(St, Rkey) of
+push_message(#ejr{conn=Conn} = St, Gid, Ref, Payload) ->
+    case find_exchange(St, Gid) of
         undefined ->
             % receiver got a message, but group handlers have not appeared
             % in receiver's state yet
+            mpln_p_debug:pr({?MODULE, 'push_message undefined', ?LINE,
+                             Ref, Gid, Payload}, St#ejr.debug, msg, 1),
             ok;
-        Ex ->
+        {Ex, Rkey} ->
             Bref = mpln_misc_web:make_term_binary(Ref),
+            mpln_p_debug:pr({?MODULE, 'push_message', ?LINE,
+                             Conn#conn.channel, Gid, Ex, Rkey, Payload, Bref},
+                            St#ejr.debug, msg, 4),
             ejobman_rb:send_message(Conn#conn.channel, Ex, Rkey, Payload, Bref)
     end.
 
@@ -240,7 +245,7 @@ make_time(Data) ->
 %%-----------------------------------------------------------------------------
 %%
 %% @doc returns either an exchange for the given routing key or
-%% an exchange for the default key, or undefined if anything else fails
+%% an exchange for the default key, or undefined otherwise
 %%
 find_exchange(St, Key) ->
     find_exchange(St, Key, false).
@@ -251,8 +256,8 @@ find_exchange(#ejr{groups=Groups} = St, Key, Last) ->
             undefined;
         false ->
             find_exchange(St, ?GID_DEFAULT, true);
-        {_Key, Exchange, _Queue} ->
-            Exchange
+        {_Key, Exchange, Bind_key} ->
+            {Exchange, Bind_key}
     end.
 
 %%-----------------------------------------------------------------------------

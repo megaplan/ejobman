@@ -77,6 +77,11 @@ get_config_group_handler(List) ->
                   Val
           end,
     #egh{
+          http_connect_timeout = proplists:get_value(http_connect_timeout,
+                                                     Gh, ?HTTP_CONNECT_TIMEOUT),
+          http_timeout = proplists:get_value(http_timeout, Gh, ?HTTP_TIMEOUT),
+          schema_rewrite = proplists:get_value(schema_rewrite, Gh, []),
+          url_rewrite = proplists:get_value(url_rewrite, Gh, []),
           id = proplists:get_value(id, List),
           debug = proplists:get_value(debug, Gh, []),
           group = Gid,
