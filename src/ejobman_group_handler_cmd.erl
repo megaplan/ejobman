@@ -71,7 +71,7 @@ store_rabbit_cmd(State, Tag, Ref, Bin) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc
+%% @doc removes terminated jobs from a list of running children
 %% @since 2012-01-12 15:15
 %%
 -spec process_cmd_result(#egh{}, binary() | reference()) -> #egh{}.
