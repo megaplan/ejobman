@@ -39,7 +39,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 -export([send_ack/3]).
--export([cmd_result/2]).
+-export([cmd_result/5]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -89,9 +89,13 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 
-handle_cast({cmd_result, Id}, St) ->
-    mpln_p_debug:pr({?MODULE, 'cmd_result', ?LINE, Id}, St#egh.debug, job, 2),
-    {noreply, St, ?T};
+handle_cast({cmd_result, _Res, T1, T2, Id}, St) ->
+    Dur = timer:now_diff(T2, T1),
+    mpln_p_debug:pr({?MODULE, 'cmd_result', ?LINE, Id, Dur},
+                    St#egh.debug, job, 2),
+    St_r = ejobman_group_handler_cmd:process_cmd_result(St, Id),
+    New = ejobman_group_handler_cmd:do_waiting_jobs(St_r),
+    {noreply, New, ?T};
 
 handle_cast({send_ack, Id, Tag}, #egh{conn=Conn} = St) ->
     Res = ejobman_rb:send_ack(Conn, Tag),
@@ -197,10 +201,11 @@ send_ack(Pid, Id, Tag) ->
 %% @doc sends result id to the server
 %% @since 2012-01-12 12:39
 %%
--spec cmd_result(pid(), reference() | binary()) -> ok.
+-spec cmd_result(pid(), tuple(), tuple(), tuple(), reference() | binary()) ->
+                        ok.
 
-cmd_result(Pid, Id) ->
-    gen_server:cast(Pid, {cmd_result, Id}).
+cmd_result(Pid, Res, T1, T2, Id) ->
+    gen_server:cast(Pid, {cmd_result, Res, T1, T2, Id}).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions

@@ -215,7 +215,7 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
 %% @doc sends result to ejobman_handler and ejobman_stat
 %%
 process_result(#child{id=Id, gh_pid=Pid, group=Group}, Res, T1, T2) ->
-    ejobman_group_handler:cmd_result(Pid, Id),
+    ejobman_group_handler:cmd_result(Pid, Res, T1, T2, Id),
     send_stat(Id, Res),
     ejobman_handler:cmd_result(Res, T1, T2, Group, Id).
 

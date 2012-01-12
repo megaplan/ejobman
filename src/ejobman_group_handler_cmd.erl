@@ -33,7 +33,7 @@
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([store_rabbit_cmd/4]).
+-export([store_rabbit_cmd/4, process_cmd_result/2, do_waiting_jobs/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -68,6 +68,34 @@ store_rabbit_cmd(State, Tag, Ref, Bin) ->
             send_to_estat(Ref, Data),
             proceed_cmd_type(State, Type, Tag, Ref, Data)
     end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc
+%% @since 2012-01-12 15:15
+%%
+-spec process_cmd_result(#egh{}, binary() | reference()) -> #egh{}.
+
+process_cmd_result(#egh{ch_run=Ch} = St, Id) ->
+    F = fun(#chi{id=X}) ->
+                X == Id
+        end,
+    {Done, Cont} = lists:partition(F, Ch),
+    mpln_p_debug:pr({?MODULE, 'process_cmd_result done', ?LINE, Id, Done},
+                    St#egh.debug, handler_job, 3),
+    mpln_p_debug:pr({?MODULE, 'process_cmd_result continue', ?LINE, Id, Cont},
+                    St#egh.debug, handler_job, 5),
+    St#egh{ch_run=Cont}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc checks if there are waiting jobs and starts them if yes
+%% @since 2012-01-12 15:15
+%%
+-spec do_waiting_jobs(#egh{}) -> #egh{}.
+
+do_waiting_jobs(St) ->
+    do_commands_proceed(St).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions
@@ -201,7 +229,7 @@ do_commands_proceed(#egh{ch_queue=Q, max=Max, ch_run=Ch, id=Id, group=Gid} =
                             St#egh.debug, run, 2),
             St;
         _ ->
-            mpln_p_debug:pr({?MODULE, 'do_command_proceed empty queue',
+            mpln_p_debug:pr({?MODULE, 'do_command_proceed empty internal queue',
                              ?LINE, Id, Gid, Len, Max},
                             St#egh.debug, run, 4),
             St
