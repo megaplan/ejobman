@@ -238,6 +238,7 @@ do_one_command_real(St, Ch, J) ->
         St#egh.debug, handler_child, 3),
     % parameters for ejobman_child
     Child_params = [
+        {gh_pid, self()},
         {http_connect_timeout, St#egh.http_connect_timeout},
         {http_timeout, St#egh.http_timeout},
         {schema_rewrite, St#egh.schema_rewrite},

@@ -84,7 +84,7 @@ do_short_commands(#ejm{ch_queues=Data} = St) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc sends ack for job to amqp, removes the child from the list of
+%% @doc removes the child from the list of
 %% children, logs a command result to the job log
 %% @since 2011-10-19 18:00
 %%

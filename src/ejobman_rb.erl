@@ -207,7 +207,7 @@ send_reply(Channel, X, Rt_key, Payload) ->
 
 send_ack(Conn, Tag) ->
     Channel = Conn#conn.channel,
-    amqp_channel:call(Channel, #'basic.ack'{delivery_tag = Tag}).
+    ok = amqp_channel:call(Channel, #'basic.ack'{delivery_tag = Tag}).
 
 %%-----------------------------------------------------------------------------
 %%

@@ -38,7 +38,8 @@
 -export([start/0, start_link/0, start_link/1, stop/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
--export([send_ack/2]).
+-export([send_ack/3]).
+-export([cmd_result/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -88,6 +89,10 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 
+handle_cast({cmd_result, Id}, St) ->
+    mpln_p_debug:pr({?MODULE, 'cmd_result', ?LINE, Id}, St#egh.debug, job, 2),
+    {noreply, St, ?T};
+
 handle_cast({send_ack, Id, Tag}, #egh{conn=Conn} = St) ->
     Res = ejobman_rb:send_ack(Conn, Tag),
     mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res},
@@ -125,7 +130,7 @@ handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
     New = ejobman_group_handler_cmd:store_rabbit_cmd(State, Tag, Sid, Payload),
     {noreply, New, ?T};
 
-handle_info(#'basic.consume_ok'{consumer_tag = Tag}, State) ->
+handle_info(#'basic.consume_ok'{consumer_tag = _Tag}, State) ->
     %New = ejobman_receiver_cmd:store_consumer_tag(State, Tag),
     {noreply, State, ?T};
 
@@ -179,14 +184,23 @@ stop(Pid) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc sends request to send acknowledge to amqp. Id here is
-%% for message trace only.
+%% @doc sends request to send acknowledge to amqp.
 %% @since 2011-12-02 16:16
 %%
--spec send_ack(reference(), any()) -> ok.
+-spec send_ack(pid(), reference() | binary(), any()) -> ok.
 
-send_ack(Id, Tag) ->
-    gen_server:cast(?MODULE, {send_ack, Id, Tag}).
+send_ack(Pid, Id, Tag) ->
+    gen_server:cast(Pid, {send_ack, Id, Tag}).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc sends result id to the server
+%% @since 2012-01-12 12:39
+%%
+-spec cmd_result(pid(), reference() | binary()) -> ok.
+
+cmd_result(Pid, Id) ->
+    gen_server:cast(Pid, {cmd_result, Id}).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions

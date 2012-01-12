@@ -104,6 +104,7 @@ get_config_child(List) ->
         url_rewrite = proplists:get_value(url_rewrite, List, []),
         name = proplists:get_value(name, List),
         id = proplists:get_value(id, List),
+        gh_pid = proplists:get_value(gh_pid, List),
         tag = proplists:get_value(tag, List),
         group = proplists:get_value(group, List),
         from = proplists:get_value(from, List),

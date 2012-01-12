@@ -10,6 +10,7 @@
     port,
     id,
     os_pid,
+    gh_pid,
     group,
     tag,
     duration,
