@@ -16,6 +16,7 @@
 -define(VSN, 6).
 -define(EXCHANGE, <<"ejobman">>).
 -define(RT_KEY, <<"new">>).
+-define(PORT, <<"8143">>).
 
 vsn() ->
     ?VSN.
@@ -76,7 +77,8 @@ make_job() ->
     s(R).
 
 make_url(N) ->
-    Base = <<"http://localhost:8184/test_group_limit.yaws?new_id=">>,
+    Base = << <<"http://localhost:">>/binary, ?PORT/binary,
+        <<"/test_group_limit.yaws?new_id=">>/binary>>,
     Url_n = list_to_binary(integer_to_list(N)),
     Url = <<Base/binary, Url_n/binary>>,
     Url.

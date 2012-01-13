@@ -1,5 +1,5 @@
 %%%
-%%% ejobman_conf_rabbit: AMQP client config functions
+%%% ejobman_group_handler_spawn: spawns one group handler
 %%%
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
@@ -22,46 +22,59 @@
 %%% SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 %%%
 %%% @author arkdro <arkdro@gmail.com>
-%%% @since 2011-07-15 10:00
+%%% @since 2012-01-10 13:16
 %%% @license MIT
-%%% @doc AMQP client config functions
+%%% @doc functions for creating a child that handles one job group
 %%%
 
--module(ejobman_conf_rabbit).
+-module(ejobman_group_handler_spawn).
 
 %%%----------------------------------------------------------------------------
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([stuff_rabbit_with/1]).
+-export([prepare_group_handlers/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
 %%%----------------------------------------------------------------------------
 
--include("rabbit_session.hrl").
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
 
-%%%----------------------------------------------------------------------------
-%%% API
-%%%----------------------------------------------------------------------------
-%%
-%% @doc fills in an rses record with rabbit connection parameters.
-%% @since 2011-07-15
-%%
--spec stuff_rabbit_with(list()) -> #rses{}.
+-include("ejobman.hrl").
 
-stuff_rabbit_with(List) ->
-    R = proplists:get_value(rabbit, List, []),
-    #rses{
-        'host' = proplists:get_value(host, R, '127.0.0.1'),
-        'port' = proplists:get_value(port, R, 5672),
-        'user' = proplists:get_value(user, R, <<"guest">>),
-        'password' = proplists:get_value(password, R, <<"guest">>),
-        'vhost' = proplists:get_value(vhost, R, <<"/">>),
-        'exchange' = proplists:get_value(exchange, R, <<"test_exch">>),
-        'exchange_type' = proplists:get_value(exchange_type, R, <<"fanout">>),
-        'queue' = proplists:get_value(queue, R, <<"test_queue">>),
-        'routing_key' = proplists:get_value(routing_key, R, <<"test_rt_key">>)
-    }
-.
+%%-----------------------------------------------------------------------------
+%%
+%% @doc starts group handlers for configured groups and one for default group
+%%
+-spec prepare_group_handlers(#ejm{}) -> #ejm{}.
+
+prepare_group_handlers(#ejm{group_handler=Gh, job_groups=Groups,
+                            max_children=Max} = St) ->
+    Def_group = #jgroup{id=?GID_DEFAULT, max_children=Max},
+    List = [Def_group | Groups],
+    Res = lists:map(fun(X) -> start_group_handler(Gh, X) end, List),
+    mpln_p_debug:pr({?MODULE, 'prepare_group_handlers', ?LINE, Res},
+                    St#ejm.debug, run, 3),
+    St#ejm{group_handler_run=Res}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc starts one group handler with given parameters. Returned value
+%% unnecessary in fact, just for runtime debugging
+%%
+start_group_handler(Gh_params, #jgroup{id=Gid, max_children=Max}) ->
+    Id = make_ref(),
+    Ch_params = [{group_handler, Gh_params},
+                 {id, Id},
+                 {group, Gid},
+                 {max_children, Max}
+                ],
+    StartFunc = {ejobman_group_handler, start_link, [Ch_params]},
+    Child = {Id, StartFunc, permanent, 1000, worker, [ejobman_group_handler]},
+    Res = supervisor:start_child(ejobman_group_supervisor, Child),
+    {Ch_params, Res}.
+
 %%-----------------------------------------------------------------------------

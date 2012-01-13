@@ -1,6 +1,6 @@
-%%%
-%%% ejobman_conf_rabbit: AMQP client config functions
-%%%
+%%% 
+%%% ejobman_group_sup: supervisor for group handlers
+%%% 
 %%% Copyright (c) 2011 Megaplan Ltd. (Russia)
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,46 +22,40 @@
 %%% SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 %%%
 %%% @author arkdro <arkdro@gmail.com>
-%%% @since 2011-07-15 10:00
+%%% @since 2011-12-30 14:21
 %%% @license MIT
-%%% @doc AMQP client config functions
-%%%
+%%% @doc a supervisor that spawns group handlers
+%%% 
 
--module(ejobman_conf_rabbit).
+-module(ejobman_group_sup).
+-behaviour(supervisor).
 
 %%%----------------------------------------------------------------------------
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([stuff_rabbit_with/1]).
+-export([start_link/0, init/1]).
 
 %%%----------------------------------------------------------------------------
-%%% Includes
+%%% Defines
 %%%----------------------------------------------------------------------------
 
--include("rabbit_session.hrl").
+-define(RESTARTS, 25).
+-define(SECONDS, 5).
 
 %%%----------------------------------------------------------------------------
-%%% API
+%%% supervisor callbacks
 %%%----------------------------------------------------------------------------
-%%
-%% @doc fills in an rses record with rabbit connection parameters.
-%% @since 2011-07-15
-%%
--spec stuff_rabbit_with(list()) -> #rses{}.
+init(_Args) ->
+    {ok, {{one_for_one, ?RESTARTS, ?SECONDS},
+        []}}.
 
-stuff_rabbit_with(List) ->
-    R = proplists:get_value(rabbit, List, []),
-    #rses{
-        'host' = proplists:get_value(host, R, '127.0.0.1'),
-        'port' = proplists:get_value(port, R, 5672),
-        'user' = proplists:get_value(user, R, <<"guest">>),
-        'password' = proplists:get_value(password, R, <<"guest">>),
-        'vhost' = proplists:get_value(vhost, R, <<"/">>),
-        'exchange' = proplists:get_value(exchange, R, <<"test_exch">>),
-        'exchange_type' = proplists:get_value(exchange_type, R, <<"fanout">>),
-        'queue' = proplists:get_value(queue, R, <<"test_queue">>),
-        'routing_key' = proplists:get_value(routing_key, R, <<"test_rt_key">>)
-    }
-.
+%%%----------------------------------------------------------------------------
+%%% api
+%%%----------------------------------------------------------------------------
+start_link() ->
+    supervisor:start_link({local, ejobman_group_supervisor},
+        ejobman_group_sup,
+        []).
+
 %%-----------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 -define(ejobman_nums, true).
 
 -define(LOG_PROCS_INTERVAL, 60). % seconds
+-define(GID_DEFAULT, default).
 
 -define(STAT_T_KEEP_MINUTES, 62).
 -define(STAT_T_KEEP_HOURS, 26).

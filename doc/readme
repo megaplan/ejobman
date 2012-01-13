@@ -70,6 +70,8 @@ Version 1
 Version 2 (current)
 -------------------
 
+amqp routing key is a job group
+
 {type: rest},
 {info:
   {method: xxx,
@@ -81,7 +83,7 @@ Version 2 (current)
     {key2: val2}
     ]
   },
-  {group, xxx}
+  {group, xxx} % will be eliminated in future versions
 },
 
 Supported kinds of auth_info:

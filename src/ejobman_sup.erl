@@ -63,8 +63,13 @@ init(_Args) ->
         ejobman_child_sup, {ejobman_child_sup, start_link, []},
         transient, infinity, supervisor, [ejobman_child_sup]
         },
+    Gr_sup = {
+        ejobman_group_sup, {ejobman_group_sup, start_link, []},
+        transient, infinity, supervisor, [ejobman_group_sup]
+        },
     {ok, {{one_for_one, ?RESTARTS, ?SECONDS},
-        [Stat, Sup, Receiver, Handler]}}.
+        [Stat, Sup, Receiver, Gr_sup, Handler]}}.
+
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------

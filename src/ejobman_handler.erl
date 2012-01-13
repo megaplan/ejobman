@@ -379,7 +379,8 @@ check_child(_) ->
 -spec prepare_all(#ejm{}) -> #ejm{}.
 
 prepare_all(St) ->
-    St_st = prepare_stat(St),
+    St_gh = ejobman_group_handler_spawn:prepare_group_handlers(St),
+    St_st = prepare_stat(St_gh),
     prepare_job_log(St_st).
 
 %%-----------------------------------------------------------------------------

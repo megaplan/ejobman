@@ -62,6 +62,7 @@ init(_) ->
     C = ejobman_conf:get_config_stat(),
     New = prepare_all(C),
     process_flag(trap_exit, true), % to save storage
+    erlang:send_after(?STAT_T, self(), periodic_check), % for redundancy
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE}, New#est.debug, run, 1),
     {ok, New, ?STAT_T}.
 

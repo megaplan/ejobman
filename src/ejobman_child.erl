@@ -160,8 +160,6 @@ main_action(State) ->
 %%
 -spec process_cmd(#child{}) -> ok.
 
-process_cmd(#child{from = 'undefined'}) ->
-    ok;
 process_cmd(#child{url = <<>>}) ->
     ok;
 process_cmd(#child{url = [_ | _]} = St) ->
@@ -181,7 +179,7 @@ process_cmd(_) ->
 %% https://github.com/cmullaparthi/ibrowse
 %% @since 2011-07-18
 %%
-real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag,
+real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
         http_connect_timeout=Conn_t, http_timeout=Http_t} = St) ->
     mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, params, Id, self(),
         St}, St#child.debug, run, 4),
@@ -195,7 +193,7 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag,
         Req}, St#child.debug, http, 5),
     mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, start, Id, self()},
         St#child.debug, run, 2),
-    ejobman_receiver:send_ack(Id, Tag),
+    ejobman_group_handler:send_ack(Gh_pid, Id, Tag),
     T1 = now(),
     ejobman_stat:add(Id, 'http_start',
                      [{'header', mpln_misc_web:make_proplist_binary(Hdr)},
@@ -216,7 +214,8 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag,
 %%
 %% @doc sends result to ejobman_handler and ejobman_stat
 %%
-process_result(#child{id=Id, group=Group}, Res, T1, T2) ->
+process_result(#child{id=Id, gh_pid=Pid, group=Group}, Res, T1, T2) ->
+    ejobman_group_handler:cmd_result(Pid, Res, T1, T2, Id),
     send_stat(Id, Res),
     ejobman_handler:cmd_result(Res, T1, T2, Group, Id).
 

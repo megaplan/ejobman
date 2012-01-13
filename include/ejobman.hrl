@@ -2,6 +2,7 @@
 -define(ejobman_params, true).
 
 -include("nums.hrl").
+-include("chi.hrl").
 
 % state of a worker gen_server
 -record(child, {
@@ -9,6 +10,7 @@
     port,
     id,
     os_pid,
+    gh_pid,
     group,
     tag,
     duration,
@@ -31,17 +33,6 @@
     max_children
 }).
 
--record(chi, {
-    pid,
-    id,
-    mon,
-    os_pid,
-    tag,
-    alive=true,
-    stop={0,0,0}, % time of marking dead
-    start={0,0,0} % time in now() format
-}).
-
 -record(pool, {
     id,
     w_duration = 86400, % seconds
@@ -61,8 +52,8 @@
 
 % state of a handler and a receiver gen_server
 -record(ejm, {
-    ch_queues, % dict: group -> queue of jobs
-    ch_data, % dict: group -> spawned children list
+    ch_queues :: dict(), % dict: group -> queue of jobs
+    ch_data   :: dict(), % dict: group -> spawned children list
     max_children = 32767,
     http_connect_timeout = ?HTTP_CONNECT_TIMEOUT,
     http_timeout = ?HTTP_TIMEOUT,
@@ -72,6 +63,8 @@
     web_server_opts,
     log,
     pid_file,
+    group_handler = [], % config for group handlers
+    group_handler_run = [], % started group handlers. Unnecessary, in fact
     job_groups = [], % configured job groups
     job_log, % filename for job log
     job_log_last,

@@ -9,7 +9,12 @@
     conn,
     log,
     pid_file,
-    debug
+
+    % for this rt key look into job's group field for real rt key
+    temp_rt_key_for_group :: binary(),
+
+    groups = [] :: list(),
+    debug = [] :: list()
 }).
 
 -endif.
