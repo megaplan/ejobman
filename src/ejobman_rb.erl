@@ -47,7 +47,7 @@
 -export([setup_consumer/2, cancel_consumer/2]).
 -export([start_receiver/1, make_prop_id/1, get_prop_id/1]).
 -export([send_message/4, send_message/5, send_message2/4]).
--export([channel_qos/3]).
+-export([channel_qos/3, send_dur_message/4, send_dur_message/5]).
 
 %%%----------------------------------------------------------------------------
 %%% Defines
@@ -254,10 +254,29 @@ get_prop_id(Props) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc publishes AMQP message with given payload to exchange
+%% @doc publishes persistent AMQP message with given payload to exchange
+%% @since 2011-07-15
+%%
+-spec send_dur_message(binary(), binary(), binary(), binary()) -> ok.
+
+send_dur_message(Channel, X, RoutingKey, Payload, Id) ->
+    Pr = make_prop_id(Id),
+    Props = Pr#'P_basic'{delivery_mode = 2},
+    send_message(Channel, X, RoutingKey, Payload, Props).
+
+send_dur_message(Channel, X, RoutingKey, Payload) ->
+    Props = #'P_basic'{delivery_mode = 2},
+    send_message(Channel, X, RoutingKey, Payload, Props).
+
+%%
+%% @doc publishes AMQP message with given payload (and properties) to exchange
 %% @since 2011-07-15
 %%
 -spec send_message(binary(), binary(), binary(), binary()) -> ok.
+
+send_message(Channel, X, RoutingKey, Payload, #'P_basic'{} = Props) ->
+    Msg = #amqp_msg{payload = Payload, props = Props},
+    send_message2(Channel, X, RoutingKey, Msg);
 
 send_message(Channel, X, RoutingKey, Payload, Id) ->
     Props = make_prop_id(Id),

@@ -85,7 +85,7 @@ store_consumer_tag(State, _Tag) ->
 -spec push_message(#ejr{}, binary(), reference(), binary()) -> ok.
 
 push_message(#ejr{conn=Conn} = St, Gid, Ref, Payload) ->
-    case find_exchange(St, Gid) of
+    case find_exchange(St, Gid, Payload) of
         undefined ->
             % receiver got a message, but group handlers have not appeared
             % in receiver's state yet
@@ -97,7 +97,8 @@ push_message(#ejr{conn=Conn} = St, Gid, Ref, Payload) ->
             mpln_p_debug:pr({?MODULE, 'push_message', ?LINE,
                              Conn#conn.channel, Gid, Ex, Rkey, Payload, Bref},
                             St#ejr.debug, msg, 4),
-            ejobman_rb:send_message(Conn#conn.channel, Ex, Rkey, Payload, Bref)
+            ejobman_rb:send_dur_message(Conn#conn.channel,
+                                        Ex, Rkey, Payload, Bref)
     end.
 
 %%-----------------------------------------------------------------------------
@@ -131,7 +132,7 @@ store_rabbit_cmd(State, Tag, Ref, Bin) ->
 %%
 -spec get_conn_params(#ejr{}) -> {binary(), #conn{}}.
 
-get_conn_params(#ejr{conn=Conn, rses=Rses} = St) ->
+get_conn_params(#ejr{conn=Conn, rses=Rses}) ->
     {Rses#rses.vhost, Conn}.
 
 %%%----------------------------------------------------------------------------
@@ -184,8 +185,6 @@ make_job(Tag, Ref, Data) ->
     Flat_params = mpln_misc_web:flatten(Params, true),
 
     Group = ejobman_data:get_group(Info),
-    T_data = ejobman_data:get_time(Info),
-    T = make_time(T_data),
     A#job{
         id = Ref,
         tag = Tag,
@@ -194,8 +193,7 @@ make_job(Tag, Ref, Data) ->
         host = Host,
         ip = Ip,
         params = Flat_params,
-        group = Group,
-        run_time = T
+        group = Group
     }.
 
 %%-----------------------------------------------------------------------------
@@ -235,29 +233,56 @@ fill_auth_data(_, Auth) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc fills in #rt record
-%%
--spec make_time(any()) -> #rt{}.
-
-make_time(Data) ->
-    #rt{}
-.
-%%-----------------------------------------------------------------------------
-%%
 %% @doc returns either an exchange for the given routing key or
 %% an exchange for the default key, or undefined otherwise
 %%
-find_exchange(St, Key) ->
-    find_exchange(St, Key, false).
+-spec find_exchange(#ejr{}, binary(), binary()) ->
+                           undefined
+                               | { binary(), binary()}.
 
-find_exchange(#ejr{groups=Groups} = St, Key, Last) ->
+find_exchange(#ejr{temp_rt_key_for_group=Key} = St, Key, Bin) ->
+    % this brunch is a temporary stub. When the input rt key is the same as
+    % the configured temp_rt_key then the real rt key should be extracted
+    % from the group field of payload
+    case catch mochijson2:decode(Bin) of
+        {'EXIT', Reason} ->
+            mpln_p_debug:pr({?MODULE, 'find_exchange error', ?LINE, Reason},
+                            St#ejr.debug, run, 2),
+            find_exchange2(St, Key, false);
+        Data ->
+            mpln_p_debug:pr({?MODULE, 'find_exchange json dat', ?LINE, Data},
+                            St#ejr.debug, json, 3),
+            Type = ejobman_data:get_type(Data),
+            proceed_with_type(St, Key, Type, Data)
+    end;
+
+find_exchange(St, Key, _) ->
+    find_exchange2(St, Key, false).
+
+find_exchange2(#ejr{groups=Groups} = St, Key, Last) ->
+    mpln_p_debug:pr({?MODULE, 'find_exchange2', ?LINE, Key, Last},
+                    St#ejr.debug, run, 4),
     case lists:keyfind(Key, 1, Groups) of
         false when Last == true ->
             undefined;
         false ->
-            find_exchange(St, ?GID_DEFAULT, true);
+            find_exchange2(St, ?GID_DEFAULT, true);
         {_Key, Exchange, Bind_key} ->
             {Exchange, Bind_key}
     end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc extracts group data from payload. Temporary solution.
+%%
+proceed_with_type(St, _Key, <<"rest">>, Data) ->
+    Info = ejobman_data:get_rest_info(Data),
+    Group = ejobman_data:get_group(Info),
+    mpln_p_debug:pr({?MODULE, 'proceed_with_type rest', ?LINE, Group},
+                    St#ejr.debug, run, 4),
+    find_exchange2(St, Group, false);
+    
+proceed_with_type(St, Key, _, _) ->
+    find_exchange2(St, Key, false).
 
 %%-----------------------------------------------------------------------------

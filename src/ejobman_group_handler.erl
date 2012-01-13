@@ -81,7 +81,9 @@ handle_call(_N, _From, St) ->
     {reply, {error, unknown_request}, St, ?T}.
 
 %------------------------------------------------------------------------------
--spec handle_cast(any(), #egh{}) -> any().
+-spec handle_cast(any(), #egh{}) ->
+                         {stop, normal, #egh{}}
+                             | {noreply, #egh{}, non_neg_integer()}.
 %%
 %% Handling cast messages
 %% @since 2011-07-15 11:00

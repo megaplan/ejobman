@@ -205,6 +205,8 @@ fill_config_receiver(List) ->
     Rses = ejobman_conf_rabbit:stuff_rabbit_with(List),
     #ejr{
         rses = Rses,
+        temp_rt_key_for_group = proplists:get_value(temp_rt_key_for_group,
+                                                    List),
         debug = proplists:get_value(debug, List, []),
         log = proplists:get_value(log, List),
         pid_file = proplists:get_value(pid_file, List)
