@@ -241,12 +241,14 @@ do_commands_proceed(#egh{ch_queue=Q, max=Max, ch_run=Ch, id=Id, group=Gid} =
 %%
 -spec do_one_command(#egh{}, non_neg_integer()) -> #egh{}.
 
-do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid} = St, Len) ->
+do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid,
+                   conn=Conn, queue=Rqueue} = St, Len) ->
     {{value, Job}, Q2} = queue:out(Q),
+    N = ejobman_rb:queue_len(Conn, Rqueue),
     ejobman_stat:add(Job#job.id, 'from_queue',
                              [{max, Max},
                               {running, Len},
-                              {queued, queue:len(Q)},
+                              {queued, N},
                               {group, Gid}]),
     New_ch = do_one_command_real(St, Ch, Job),
     St#egh{ch_queue=Q2, ch_run=New_ch}.

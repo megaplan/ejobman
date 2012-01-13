@@ -48,6 +48,7 @@
 -export([start_receiver/1, make_prop_id/1, get_prop_id/1]).
 -export([send_message/4, send_message/5, send_message2/4]).
 -export([channel_qos/3, send_dur_message/4, send_dur_message/5]).
+-export([queue_len/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Defines
@@ -58,6 +59,18 @@
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
+%%
+%% @doc gets queue message count by declaring existing queue
+%% @since 2012-01-13 20:11
+%%
+-spec queue_len(#conn{}, binary()) -> non_neg_integer().
+
+queue_len(Conn, Queue) ->
+    #'queue.declare_ok'{queue=Queue, message_count=N} =
+        create_queue(Conn, Queue),
+    N.
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc starts full amqp receiver:
 %% connection, channel, fanout exchange, queue, binding
@@ -91,15 +104,16 @@ start_channel(#conn{connection=Connection} = Conn, Vhost) ->
 %% @doc declares an amqp queue
 %% @since 2011-12-30 17:03
 %%
--spec create_queue(#conn{}, binary()) -> binary().
+-spec create_queue(#conn{}, binary()) -> #'queue.declare_ok'{}.
 
 create_queue(#conn{channel=Channel, ticket=Ticket}, Q) ->
     QueueDeclare = #'queue.declare'{ticket = Ticket, queue = Q,
         passive = false, durable = true,
         exclusive = false, auto_delete = false,
         nowait = false, arguments = []},
-    #'queue.declare_ok'{queue = Q} = amqp_channel:call(Channel, QueueDeclare),
-    Q.
+    Res = amqp_channel:call(Channel, QueueDeclare),
+    #'queue.declare_ok'{queue = Q} = Res,
+    Res.
 
 %%-----------------------------------------------------------------------------
 %%
