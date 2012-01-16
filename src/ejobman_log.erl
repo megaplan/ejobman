@@ -29,7 +29,7 @@
 %%% 
 
 -module(ejobman_log).
--export([log_job/2, log_job_result/3]).
+%-export([log_job/2, log_job_result/3]).
 -export([make_jlog_xml/1, make_jlog_xml/2]).
 -export([get_last_jobs/0, get_last_jobs/1, get_last_jobs/2]).
 -export([get_last_jobs_rss/2]).
@@ -120,65 +120,9 @@ make_jlog_xml(File, Size) ->
     Foot = get_jlog_foot(),
     Head ++ Data ++ Foot.
 
-%%-----------------------------------------------------------------------------
-%%
-%% @doc writes rss message with job request to file descriptor
-%% @since 2011-10-20 11:35
-%%
--spec log_job(#ejm{}, #job{}) -> ok.
-
-log_job(#ejm{debug=D} = St, J) ->
-    N = proplists:get_value(job, D, -1),
-    if  N > 0 ->
-            log_job_2(St, J);
-        true ->
-            ok
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc writes rss message with job result to file descriptor
-%% @since 2011-10-20 11:35
-%%
--spec log_job_result(#ejm{}, tuple(), reference()) -> ok.
-
-log_job_result(#ejm{debug=D} = St, R, Id) ->
-    N = proplists:get_value(job, D, -1),
-    if  N > 0 ->
-            log_job_result_2(St, R, Id);
-        true ->
-            ok
-    end.
-
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
-%%
-%% @doc continues with writing rss message with result
-%%
-log_job_result_2(#ejm{jlog=Fd} = St, R, Id) ->
-    T1 = msg_head(),
-    Title = make_title(R, Id),
-    T2 = msg_title(Title),
-    T3 = msg_date(),
-    T4 = msg_res_body(St, R),
-    T5 = msg_foot(),
-    write_string(Fd, [T1, T2, T3, T4, T5]).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc continues with writing rss message
-%%
-log_job_2(#ejm{jlog=Fd} = St, J) ->
-    T1 = msg_head(),
-    Title = make_title(J#job.id),
-    T2 = msg_title(Title),
-    T3 = msg_date(),
-    T4 = msg_body(St, J),
-    T5 = msg_foot(),
-    write_string(Fd, [T1, T2, T3, T4, T5]).
-
-%%-----------------------------------------------------------------------------
 %%
 %% @doc returns rss message header
 %%
@@ -194,24 +138,6 @@ msg_foot() ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc writes string/binary to file descriptor
-%%
-write_string(Fd, Str) ->
-    Bin = unicode:characters_to_binary(Str),
-    % @todo are the error logging/handling necessary here?
-    catch file:write(Fd, Bin).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc returns rss message title
-%%
-msg_title(Title) ->
-    Beg = "<title><![CDATA[",
-    End = "]]></title>\n",
-    [Beg, Title, End].
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc returns rss message date
 %%
 msg_date() ->
@@ -220,44 +146,6 @@ msg_date() ->
     Beg = "<pubDate>",
     End = "</pubDate>\n",
     [Beg, Ts, End].
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc returns rss message description
-%%
-msg_body(St, J) ->
-    Beg = "<description><![CDATA[<pre>",
-    Body = make_msg_body(St, J),
-    End = "</pre>]]></description>\n",
-    [Beg, Body, End].
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates rss message description in dependence of the configured
-%% debug level
-%%
--spec make_msg_body(#ejm{}, #job{}) -> string().
-
-make_msg_body(#ejm{debug=D}, J) ->
-    N = proplists:get_value(job, D, 0),
-    if  N >= 6 -> % everything
-            make_short_info(J)
-            ++ io_lib:format( "auth=~p~nparams=~p~nrun_time=~p~n",
-                [J#job.auth, J#job.params, J#job.run_time]);
-        N >= 4 -> % no passwords/auth
-            make_short_info(J)
-            ++ io_lib:format("params=~p~nrun_time=~p~n",
-                [J#job.params, J#job.run_time]);
-        N >= 3 -> % short info
-            make_short_info(J);
-        N >= 2 -> % very short info
-            io_lib:format("id=~p~nmethod=~p~nurl=~p~n",
-                [J#job.id, J#job.method, J#job.url]);
-        N > 0 ->  % id
-            io_lib:format("id=~p~n", [J#job.id]);
-        true ->
-            ""
-    end.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -345,20 +233,6 @@ msg_res_body(St, R) ->
         end,
     Text4 = "]]></description>\n",
     [Text1, Text3, Text4].
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates title with id for rss item
-%%
-make_title(Id) ->
-    make_title({ok, {request, "", ""}}, Id).
-
-make_title({ok, {Scode, _Body}}, Id) ->
-    io_lib:format("Job ~p, ~p - ok", [Scode, Id]);
-make_title({ok, {Stline, _Hdr, _Body}}, Id) ->
-    io_lib:format("Job ~p - ~p", [Stline, Id]);
-make_title({error, Reason}, Id) ->
-    io_lib:format("Job ~p, ~p - error", [Reason, Id]).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -749,8 +623,8 @@ make_one_jst_rss(St, {Id, #jst{job=J,
     Dur_child = create_dur_item("dur_child", Stop_c, Start_c),
     Dur_req = create_dur_item("dur_request", Stop_r, Start_r),
     Head = msg_head(),
-    Title = make_title(Res, Id),
-    Msg_title = msg_title(Title),
+    %Title = make_title(Res, Id),
+    Msg_title = "", %msg_title(Title),
     Date = msg_date(),
     Body = msg_res_body(St, Res),
     Foot = msg_foot(),

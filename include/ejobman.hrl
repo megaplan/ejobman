@@ -66,11 +66,6 @@
     group_handler = [], % config for group handlers
     group_handler_run = [], % started group handlers. Unnecessary, in fact
     job_groups = [], % configured job groups
-    job_log, % filename for job log
-    job_log_last,
-    job_log_rotate :: never | minute | hour | day | {dow, 0..7} | month | year,
-    jlog, % file descriptor
-    jlog_f, % expanded file name
     stat_t       :: #stat_t{}, % time series
     stat_r       :: dict(), % last N job information
     stat_limit_n :: non_neg_integer(), % amount

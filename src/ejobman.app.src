@@ -1,7 +1,7 @@
 {application, ejobman, [
     {description, "ejobman"},
     {id, "ejobman"},
-    {vsn, "2.2"},
+    {vsn, "2.3"},
     {modules, [
         ejobman_app,
         ejobman_child,
@@ -14,7 +14,6 @@
         ejobman_group_handler,
         ejobman_group_handler_spawn,
         ejobman_group_sup,
-        ejobman_handler_cmd,
         ejobman_handler,
         ejobman_log,
         ejobman_print_stat,

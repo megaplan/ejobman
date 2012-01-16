@@ -39,8 +39,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 
--export([get_job_log_filename/0]).
--export([stat_r/0, stat_rss/1, stat_q/0, stat_t/0, stat_t/1]).
+-export([stat_r/0, stat_q/0, stat_t/0, stat_t/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Defines
@@ -80,11 +79,6 @@ init(_) ->
     {reply , any(), #ejm{}, non_neg_integer()}
     | {stop, normal, ok, #ejm{}}.
 
-%% @doc returns job log file name
-handle_call(get_job_log_filename, _From, St) ->
-    New = do_smth(St),
-    {reply, New#ejm.jlog_f, New, ?T};
-
 %% @doc set new debug level for facility
 handle_call({set_debug_item, Facility, Level}, _From, St) ->
     % no api for this, use message passing
@@ -103,12 +97,6 @@ handle_call(stat_q, _From, St) ->
 %% @doc returns time statistic
 handle_call({stat_t, Type}, _From, St) ->
     Res = ejobman_print_stat:make_stat_t_info(St, Type),
-    {reply, Res, St, ?T};
-
-%% @doc returns statistic for the last running jobs as an rss
-handle_call({stat_rss, N}, _From, St) ->
-    mpln_p_debug:pr({?MODULE, 'call stat_rss', ?LINE, N}, St#ejm.debug, run, 3),
-    Res = ejobman_log:get_last_jobs_rss(St, N),
     {reply, Res, St, ?T};
 
 handle_call(stop, _From, St) ->
@@ -139,7 +127,6 @@ handle_cast(_N, St) ->
 %% @doc Note: it won't be called unless trap_exit is set
 %%
 terminate(_, State) ->
-    close_job_log(State),
     mpln_p_debug:pr({?MODULE, 'terminate', ?LINE}, State#ejm.debug, run, 1),
     ok.
 
@@ -202,15 +189,6 @@ stop() ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc asks ejobman_handler for job log file name
-%%
--spec get_job_log_filename() -> string() | undefined.
-
-get_job_log_filename() ->
-    gen_server:call(?MODULE, get_job_log_filename).
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc asks ejobman_handler for time statistic
 %%
 -spec stat_t() -> string().
@@ -239,15 +217,6 @@ stat_q() ->
 stat_r() ->
     gen_server:call(?MODULE, stat_r).
 
-%%-----------------------------------------------------------------------------
-%%
-%% @doc asks ejobman_handler for statistic for the last jobs as rss
-%%
--spec stat_rss(non_neg_integer()) -> binary().
-
-stat_rss(N) ->
-    gen_server:call(?MODULE, {stat_rss, N}).
-
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -257,20 +226,9 @@ stat_rss(N) ->
 %%
 -spec do_smth(#ejm{}) -> #ejm{}.
 
-do_smth(State) ->
-    St = job_log_rotate(State),
+do_smth(St) ->
     mpln_p_debug:pr({?MODULE, 'do_smth', ?LINE}, St#ejm.debug, run, 5),
-    Stc = check_children(St),
-    check_queued_commands(Stc).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc calls to process all the queued commands
-%%
--spec check_queued_commands(#ejm{}) -> #ejm{}.
-
-check_queued_commands(St) ->
-    ejobman_handler_cmd:do_short_commands(St).
+    check_children(St).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -324,8 +282,7 @@ check_child(_) ->
 
 prepare_all(St) ->
     St_gh = ejobman_group_handler_spawn:prepare_group_handlers(St),
-    St_st = prepare_stat(St_gh),
-    prepare_job_log(St_st).
+    prepare_stat(St_gh).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -341,51 +298,6 @@ prepare_stat(St) ->
         stat_t = D,
         stat_r = dict:new()  % last N jobs. Hash: ref -> item
     }.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc prepares log for jobs and results
-%%
--spec prepare_job_log(#ejm{}) -> #ejm{}.
-
-prepare_job_log(#ejm{job_log=undefined} = St) ->
-    St;
-prepare_job_log(#ejm{job_log=Base} = St) ->
-    File = mpln_misc_log:get_fname(Base),
-    filelib:ensure_dir(File),
-    case file:open(File, [raw, append, binary]) of
-        {ok, Fd} ->
-            St#ejm{jlog=Fd, jlog_f=File};
-        {error, Reason} ->
-            mpln_p_debug:pr({?MODULE, "prepare_job_log error", ?LINE, Reason},
-                St#ejm.debug, run, 0),
-            St#ejm{jlog_f=undefined}
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc close log with jobs
-%%
-close_job_log(#ejm{jlog = undefined}) ->
-    ok;
-close_job_log(#ejm{jlog = Fd}) ->
-    file:close(Fd).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc rotates job log only. Does not touch error log.
-%%
--spec job_log_rotate(#ejm{}) -> #ejm{}.
-
-job_log_rotate(#ejm{job_log_last=Last, job_log_rotate=Dur} = St) ->
-    case mpln_misc_log:need_rotate(Last, Dur) of
-        true ->
-            close_job_log(St),
-            St_f = prepare_job_log(St),
-            St_f#ejm{job_log_last = calendar:local_time()};
-        false ->
-            St
-    end.
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
