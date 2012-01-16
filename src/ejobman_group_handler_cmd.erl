@@ -295,8 +295,6 @@ do_one_command_real(St, Ch, J) ->
         {ok, Pid, _Info} ->
             add_child(Ch, Pid, J#job.id, J#job.tag);
         _ ->
-            Now = now(),
-            ejobman_handler:cmd_result(Res, Now, Now, J#job.group, J#job.id),
             mpln_p_debug:pr({?MODULE, 'do_one_command_real res', ?LINE, 'error',
                 J#job.id, J#job.group, Res}, St#egh.debug, handler_child, 1),
             Ch

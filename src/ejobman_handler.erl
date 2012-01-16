@@ -39,7 +39,6 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 
--export([cmd/1, remove_child/2]).
 -export([get_job_log_filename/0]).
 -export([stat_r/0, stat_rss/1, stat_q/0, stat_t/0, stat_t/1]).
 
@@ -130,21 +129,6 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 
-%% @doc calls disposable child
-handle_cast({cmd, Job}, St) ->
-    St_d = do_smth(St),
-    New = ejobman_handler_cmd:do_command(St_d, 'From', Job),
-    mpln_p_debug:pr({?MODULE, 'cmd started', ?LINE}, St#ejm.debug, run, 3),
-    {noreply, New, ?T};
-
-%% @doc deletes disposable child from the state
-handle_cast({remove_child, Pid, Group}, St) ->
-    mpln_p_debug:pr({?MODULE, "remove child", ?LINE, Pid, Group},
-        St#ejm.debug, run, 4),
-    St_r = ejobman_handler_cmd:remove_child(St, Pid, Group),
-    New = do_smth(St_r),
-    {noreply, New, ?T};
-
 handle_cast(_N, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _N}, St#ejm.debug, run, 2),
     New = do_smth(St),
@@ -218,31 +202,12 @@ stop() ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc sends received command to be executed by disposable child
-%% @since 2011-07-15 11:00
-%%
--spec cmd(#job{}) -> ok.
-
-cmd(Job) ->
-    gen_server:cast(?MODULE, {cmd, Job}).
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc asks ejobman_handler for job log file name
 %%
 -spec get_job_log_filename() -> string() | undefined.
 
 get_job_log_filename() ->
     gen_server:call(?MODULE, get_job_log_filename).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc asks ejobman_handler to remove child from the list
-%%
--spec remove_child(pid(), any()) -> ok.
-
-remove_child(Pid, Group) ->
-    gen_server:cast(?MODULE, {remove_child, Pid, Group}).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -426,13 +391,6 @@ job_log_rotate(#ejm{job_log_last=Last, job_log_rotate=Dur} = St) ->
 %%% EUnit tests
 %%%----------------------------------------------------------------------------
 -ifdef(TEST).
-remove_child_test() ->
-    Pid = self(),
-    Me = #chi{pid=Pid, start=now()},
-    Ch = make_fake_children(),
-    St = #ejm{ch_data = [Me | Ch]},
-    ?assert(#ejm{ch_data=Ch} =:= remove_child(St, Pid)).
-
 check_mix_children_test() ->
     Me = #chi{pid=self(), start=now()},
     Ch = make_fake_children(),

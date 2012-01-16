@@ -94,8 +94,7 @@ handle_cast(_, St) ->
     {noreply, New, ?TC}.
 
 %%-----------------------------------------------------------------------------
-terminate(_, #child{id=Id, group=Group} = State) ->
-    ejobman_handler:remove_child(self(), Group),
+terminate(_, #child{id=Id} = State) ->
     mpln_p_debug:pr({?MODULE, terminate, ?LINE, Id, self()},
         State#child.debug, run, 2),
     ok.
@@ -214,7 +213,7 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
 %%
 %% @doc sends result to ejobman_handler and ejobman_stat
 %%
-process_result(#child{id=Id, gh_pid=Pid, group=Group}, Res, T1, T2) ->
+process_result(#child{id=Id, gh_pid=Pid}, Res, T1, T2) ->
     ejobman_group_handler:cmd_result(Pid, Res, T1, T2, Id),
     send_stat(Id, Res).
 
