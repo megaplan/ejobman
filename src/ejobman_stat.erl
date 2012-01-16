@@ -298,7 +298,7 @@ real_log_procs(St) ->
 get_procs_info() ->
     F = fun(X, Acc) ->
                 L = process_info(X, [memory]),
-                case proplists:get_value(memory, L) of
+                case catch proplists:get_value(memory, L) of
                     N when is_integer(N) ->
                         Acc + N;
                     _ ->
