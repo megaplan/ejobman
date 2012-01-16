@@ -35,7 +35,6 @@
 %%%----------------------------------------------------------------------------
 
 -export([do_command/3, do_short_commands/1]).
--export([do_command_result/6]).
 -export([remove_child/3]).
 
 %%%----------------------------------------------------------------------------
@@ -84,25 +83,6 @@ do_short_commands(#ejm{ch_queues=Data} = St) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc removes the child from the list of
-%% children, logs a command result to the job log
-%% @since 2011-10-19 18:00
-%%
--spec do_command_result(#ejm{}, tuple(), tuple(), tuple(),
-    default | binary(), reference()) -> #ejm{}.
-
-do_command_result(St, Res, T1, T2, Group, Id) ->
-    Dur = timer:now_diff(T2, T1),
-    mpln_p_debug:pr({?MODULE, 'do_command_result', ?LINE, Group, Id, Dur, Res},
-        St#ejm.debug, run, 4),
-    Now = now(),
-    Start_c = fetch_start_time(St, Group, Id),
-    St_st = res_cmd_stat(St, Res, Start_c, T1, T2, Id, Now),
-    log_child_duration(St_st, Group, Id, Now),
-    St_st.
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc removes child from the list of children
 %% @since 2011-11-14 17:14
 %%
@@ -122,25 +102,6 @@ remove_child(St, Pid, Group) ->
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
-%%
-%% @doc logs duration for children
-%%
-log_child_duration(St, Group, Id, Now) ->
-    Ch = fetch_spawned_children(St, Group),
-    F = fun(#chi{id=X}) when X == Id ->
-            true;
-        (_) ->
-            false
-    end,
-    Term = lists:filter(F, Ch),
-    F2 = fun(#chi{id=Id2, start=T}) ->
-        Dur = timer:now_diff(Now, T),
-        mpln_p_debug:pr({?MODULE, 'log_child_duration', ?LINE, Group, Id2, Dur},
-            St#ejm.debug, run, 2)
-    end,
-    lists:foreach(F2, Term).
-
-%%-----------------------------------------------------------------------------
 %%
 %% @doc does one iteration for given group over queue and spawned children.
 %% Returns updated state with new queue and spawned children
@@ -425,53 +386,6 @@ add_cmd_stat(#ejm{stat_r=Stat} = St, #job{id=Id} = Job_src) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc marks job as "request done" in the last jobs
-%%
-res_cmd_stat(#ejm{stat_r=Stat} = St, Res, Start_c, Ht1, Ht2, Id, Now) ->
-    Dur = timer:now_diff(Ht2, Ht1),
-    Rc = make_title(Res),
-    New_info = 
-        case dict:find(Id, Stat) of
-            {ok, Info} ->
-                Time = Info#jst.start,
-                Info#jst{result=Rc, result_full=Res, status=done, time=Now,
-                    t_start_child=Start_c, t_stop_child=Now,
-                    t_start_req=Ht1, t_stop_req=Ht2,
-                    dur_req=Dur, dur_all=timer:now_diff(Now, Time)};
-            error ->
-                % too old job was removed from stat_r
-                mpln_p_debug:pr({?MODULE, 'res_cmd_stat', ?LINE, 'error',
-                    Id, Dur}, St#ejm.debug, run, 3),
-                Time = now(), % this gives negative duration, so keep an eye
-                #jst{result=Rc, result_full=Res, status=done, time=Now,
-                    t_start_child=Start_c, t_stop_child=Now,
-                    t_start_req=Ht1, t_stop_req=Ht2,
-                    dur_req=Dur, dur_all=timer:now_diff(Now, Time)}
-        end,
-    New_stat = dict:store(Id, New_info, Stat),
-    St#ejm{stat_r=New_stat}.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc fetches start time for the given job id and group
-%%
-fetch_start_time(St, Group, Id) ->
-    Ch = fetch_spawned_children(St, Group),
-    F = fun(#chi{id=X}) ->
-            X =/= Id
-        end,
-    Res = lists:dropwhile(F, Ch),
-    case Res of
-        [] ->
-            mpln_p_debug:pr({?MODULE, 'fetch_start_time', ?LINE,
-                'no start time', Group, Id}, St#ejm.debug, run, 0),
-            {0,0,0};
-        [Item | _] ->
-            Item#chi.start
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc extracts path from the full url
 %%
 make_path(#job{url=Url}) ->
@@ -482,17 +396,6 @@ make_path(#job{url=Url}) ->
         {_Scheme, _Auth, _Host, _Port, Path, _Query} ->
             Path
     end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc extracts code and reason from a result tuple
-%%
-make_title({ok, {Scode, _Body}}) ->
-    {ok, Scode};
-make_title({ok, {Stline, _Hdr, _Body}}) ->
-    {ok, Stline};
-make_title({error, Reason}) ->
-    {error, Reason}.
 
 %%-----------------------------------------------------------------------------
 %%

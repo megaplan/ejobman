@@ -40,7 +40,6 @@
 -export([terminate/2, code_change/3]).
 
 -export([cmd/1, remove_child/2]).
--export([cmd_result/5]).
 -export([get_job_log_filename/0]).
 -export([stat_r/0, stat_rss/1, stat_q/0, stat_t/0, stat_t/1]).
 
@@ -138,15 +137,6 @@ handle_cast({cmd, Job}, St) ->
     mpln_p_debug:pr({?MODULE, 'cmd started', ?LINE}, St#ejm.debug, run, 3),
     {noreply, New, ?T};
 
-%% @doc result of work of disposable child
-handle_cast({cmd_result, Res, T1, T2, Group, Id}, St) ->
-    Dur = timer:now_diff(T2, T1),
-    mpln_p_debug:pr({?MODULE, 'cast cmd res', ?LINE, Group, Id, Dur},
-        St#ejm.debug, run, 2),
-    St_r = ejobman_handler_cmd:do_command_result(St, Res, T1, T2, Group, Id),
-    New = do_smth(St_r),
-    {noreply, New, ?T};
-
 %% @doc deletes disposable child from the state
 handle_cast({remove_child, Pid, Group}, St) ->
     mpln_p_debug:pr({?MODULE, "remove child", ?LINE, Pid, Group},
@@ -235,17 +225,6 @@ stop() ->
 
 cmd(Job) ->
     gen_server:cast(?MODULE, {cmd, Job}).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc sends message to server to log cmd result
-%% @since 2011-07-15 11:00
-%%
--spec cmd_result(tuple(), tuple(), tuple(),
-    default | binary(), reference()) -> ok.
-
-cmd_result(Res, T1, T2, Group, Id) ->
-    gen_server:cast(?MODULE, {cmd_result, Res, T1, T2, Group, Id}).
 
 %%-----------------------------------------------------------------------------
 %%
