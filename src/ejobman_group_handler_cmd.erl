@@ -213,8 +213,8 @@ do_commands(#egh{ch_queue=Q} = State, Job) ->
 %%
 -spec do_commands_proceed(#egh{}) -> #egh{}.
 
-do_commands_proceed(#egh{ch_queue=Q, max=Max, ch_run=Ch, id=Id, group=Gid} =
-                   St) ->
+do_commands_proceed(#egh{ch_queue=Q, max=Max, ch_run=Ch, id=Id, group=Gid,
+                        conn=Conn, queue=Rqueue} = St) ->
     Len = length(Ch),
     mpln_p_debug:pr({?MODULE, 'do_command_proceed', ?LINE, Id, Gid, Len, Max},
                     St#egh.debug, run, 4),
@@ -224,8 +224,9 @@ do_commands_proceed(#egh{ch_queue=Q, max=Max, ch_run=Ch, id=Id, group=Gid} =
             do_commands_proceed(New);
         false ->
             Qlen = queue:len(Q),
+            N = ejobman_rb:queue_len(Conn, Rqueue),
             mpln_p_debug:pr({?MODULE, 'do_command_proceed too many children',
-                             ?LINE, Id, Gid, Qlen, Len, Max},
+                             ?LINE, Id, Gid, N, Qlen, Len, Max},
                             St#egh.debug, run, 2),
             St;
         _ ->
