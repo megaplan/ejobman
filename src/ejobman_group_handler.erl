@@ -121,8 +121,9 @@ terminate(_, #egh{conn=Conn} = State) ->
 %%
 %% Handling all non call/cast messages
 %%
-handle_info(timeout, State) ->
-    mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#egh.debug, run, 6),
+handle_info(timeout, #egh{id=Id, group=Group}=State) ->
+    mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE, Id, Group},
+                    State#egh.debug, run, 6),
     {noreply, State, ?T};
 
 handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
