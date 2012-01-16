@@ -33,7 +33,6 @@
 %%% Exports
 %%%----------------------------------------------------------------------------
 
--export([store_rabbit_cmd/4]).
 -export([store_consumer_tag/2]).
 -export([get_conn_params/1]).
 -export([push_message/4]).
@@ -103,30 +102,6 @@ push_message(#ejr{conn=Conn} = St, Gid, Ref, Payload) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc sends received command to a command handler. Returns nothing actually.
-%% @since 2011-07-15
-%%
--spec store_rabbit_cmd(#ejr{}, binary(), reference(), binary()) -> #ejr{}.
-
-store_rabbit_cmd(State, Tag, Ref, Bin) ->
-    mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Ref, Bin},
-        State#ejr.debug, msg, 4),
-    case catch mochijson2:decode(Bin) of
-        {'EXIT', Reason} ->
-            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd error',
-                ?LINE, Ref, Reason}, State#ejr.debug, run, 2),
-            ejobman_rb:send_ack(State#ejr.conn, Tag);
-        Data ->
-            mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json dat',
-                ?LINE, Ref, Data}, State#ejr.debug, json, 3),
-            Type = ejobman_data:get_type(Data),
-            send_to_estat(Ref, Data),
-            proceed_cmd_type(State, Type, Tag, Ref, Data)
-    end,
-    State.
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc returns vhost and connection parameters
 %% @since 2012-01-10 14:55
 %%
@@ -138,100 +113,6 @@ get_conn_params(#ejr{conn=Conn, rses=Rses}) ->
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
-%%
-%% @doc removes auth data from data and sends the rest to ejobman_stat
-%%
-send_to_estat(Ref, Data) ->
-    Info = ejobman_data:get_rest_info(Data),
-    Clean = ejobman_data:del_auth_info(Info),
-    ejobman_stat:add(Ref, 'message', {'rest_info', Clean}).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc calls ejobman_handler with received command info
-%%
--spec proceed_cmd_type(#ejr{}, binary(), binary(), reference(), any()) -> ok.
-
-proceed_cmd_type(State, <<"rest">>, Tag, Ref, Data) ->
-    Job = make_job(Tag, Ref, Data),
-    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type job_id', ?LINE, Job#job.id},
-        State#ejr.debug, job, 2),
-    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type job', ?LINE, Job},
-        State#ejr.debug, job, 4),
-    Res = (catch ejobman_handler:cmd(Job)),
-    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type res', ?LINE, Res},
-        State#ejr.debug, run, 5);
-
-proceed_cmd_type(State, Other, Tag, Ref, _Data) ->
-    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Ref, Other},
-                    State#ejr.debug, run, 2),
-    ejobman_rb:send_ack(State#ejr.conn, Tag).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc fills in a #job record
-%%
--spec make_job(binary(), reference(), any()) -> #job{}.
-
-make_job(Tag, Ref, Data) ->
-    Info = ejobman_data:get_rest_info(Data),
-    A = make_job_auth(Info),
-    Method = ejobman_data:get_method(Info),
-    Url = ejobman_data:get_url(Info),
-    Host = ejobman_data:get_host(Info),
-    Ip = ejobman_data:get_ip(Info),
-
-    Params = ejobman_data:get_params(Info),
-    Flat_params = mpln_misc_web:flatten(Params, true),
-
-    Group = ejobman_data:get_group(Info),
-    A#job{
-        id = Ref,
-        tag = Tag,
-        method = Method,
-        url = Url,
-        host = Host,
-        ip = Ip,
-        params = Flat_params,
-        group = Group
-    }.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates a #job record with auth data filled in
-%%
--spec make_job_auth(any()) -> #job{}.
-
-make_job_auth(Info) ->
-    Auth = ejobman_data:get_auth_info(Info),
-    Type = ejobman_data:get_auth_type(Auth),
-    Str = mpln_misc_web:make_string(Type),
-    #job{
-        auth = fill_auth_data(Str, Auth)
-    }.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates a filled #auth record
-%%
--spec fill_auth_data(any(), any()) -> #auth{}.
-
-fill_auth_data("megaplan", Auth) ->
-    F = fun ({<<"type">>, _}) -> false;
-            ({"type", _})     -> false;
-            ({_, _})          -> true;
-            (_)               -> false
-    end,
-    List = ejobman_data:get_auth_data_list(Auth),
-    Data = lists:filter(F, List),
-    {A, S} = ejobman_data:get_auth_keys(Auth),
-    #auth{type='megaplan', data = Data, auth_key = A, secret_key = S};
-fill_auth_data(_, Auth) ->
-    User = ejobman_data:get_auth_user(Auth),
-    Pass = ejobman_data:get_auth_password(Auth),
-    #auth{type='basic', user = User, password = Pass}.
-
-%%-----------------------------------------------------------------------------
 %%
 %% @doc returns either an exchange for the given routing key or
 %% an exchange for the default key, or undefined otherwise
