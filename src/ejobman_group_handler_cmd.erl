@@ -248,7 +248,7 @@ do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid,
     ejobman_stat:add(Job#job.id, 'from_queue',
                              [{max, Max},
                               {running, Len},
-                              {queued, N},
+                              {queued, N + queue:len(Q)},
                               {group, Gid}]),
     New_ch = do_one_command_real(St, Ch, Job),
     St#egh{ch_queue=Q2, ch_run=New_ch}.
