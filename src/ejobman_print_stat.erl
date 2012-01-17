@@ -174,19 +174,6 @@ get_stat_t_info2(Data) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc fetches names and sizes from a queued stat dictionary
-%%
--spec get_stat_queue_info(dict()) -> [{any(), non_neg_integer()}].
-
-get_stat_queue_info(Data) ->
-    F = fun(Gid, Cur, Acc) ->
-                Len = queue:len(Cur),
-                [{Gid, Len} | Acc]
-        end,
-    dict:fold(F, [], Data).
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc fetches names and sizes from a working stat dictionary
 %%
 -spec get_stat_work_info(dict()) -> [{any(), non_neg_integer()}].
@@ -204,9 +191,8 @@ get_stat_work_info(Data) ->
 %%
 -spec make_stat_queue_info(#ejm{}) -> list().
 
-make_stat_queue_info(St) ->
-    List = get_stat_queue_info(St#ejm.ch_queues),
-    make_list(List).
+make_stat_queue_info(_St) ->
+    make_list([]).
 
 %%-----------------------------------------------------------------------------
 %%

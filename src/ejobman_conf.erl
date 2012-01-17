@@ -252,7 +252,6 @@ fill_ejm_handler_config(List) ->
         group_handler = Gh_list,
         job_groups = fill_job_groups(Gh_list),
         ch_data = dict:new(),
-        ch_queues = dict:new(),
         http_connect_timeout = proplists:get_value(http_connect_timeout,
             Hdl_list, ?HTTP_CONNECT_TIMEOUT),
         http_timeout = proplists:get_value(http_timeout, Hdl_list,

@@ -52,7 +52,6 @@
 
 % state of a handler and a receiver gen_server
 -record(ejm, {
-    ch_queues :: dict(), % dict: group -> queue of jobs
     ch_data   :: dict(), % dict: group -> spawned children list
     max_children = 32767,
     http_connect_timeout = ?HTTP_CONNECT_TIMEOUT,
