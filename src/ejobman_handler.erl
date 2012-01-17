@@ -39,7 +39,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 
--export([stat_r/0, stat_q/0, stat_t/0, stat_t/1]).
+-export([stat_q/0, stat_t/0, stat_t/1]).
 
 %%%----------------------------------------------------------------------------
 %%% Defines
@@ -84,10 +84,6 @@ handle_call({set_debug_item, Facility, Level}, _From, St) ->
     % no api for this, use message passing
     New = mpln_misc_run:update_debug_level(St#ejm.debug, Facility, Level),
     {reply, St#ejm.debug, St#ejm{debug=New}, ?T};
-
-%% @doc returns statistic for the last running jobs
-handle_call(stat_r, _From, St) ->
-    {reply, St#ejm.stat_r, St, ?T};
 
 %% @doc returns state of queues
 handle_call(stat_q, _From, St) ->
@@ -208,15 +204,6 @@ stat_t(Type) ->
 stat_q() ->
     gen_server:call(?MODULE, stat_q).
 
-%%-----------------------------------------------------------------------------
-%%
-%% @doc asks ejobman_handler for statistic for the last jobs
-%%
--spec stat_r() -> dict().
-
-stat_r() ->
-    gen_server:call(?MODULE, stat_r).
-
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -295,8 +282,7 @@ prepare_stat(St) ->
         h = dict:new()  % hour step
     },
     St#ejm{
-        stat_t = D,
-        stat_r = dict:new()  % last N jobs. Hash: ref -> item
+        stat_t = D
     }.
 
 %%%----------------------------------------------------------------------------

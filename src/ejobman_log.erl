@@ -29,10 +29,8 @@
 %%% 
 
 -module(ejobman_log).
-%-export([log_job/2, log_job_result/3]).
 -export([make_jlog_xml/1, make_jlog_xml/2]).
 -export([get_last_jobs/0, get_last_jobs/1, get_last_jobs/2]).
--export([get_last_jobs_rss/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -63,18 +61,6 @@
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
-%%
-%% @doc creates rss with last jobs
-%% @since 2011-12-19 17:45
-%%
--spec get_last_jobs_rss(#ejm{}, non_neg_integer()) -> binary().
-
-get_last_jobs_rss(#ejm{stat_r=Stat} = St, N) ->
-    List = cut_job_list(Stat, N),
-    make_job_rss(St, List)
-.
-
-%%-----------------------------------------------------------------------------
 %%
 %% @doc creates an output page with last jobs
 %% @since 2011-12-19 13:55
@@ -124,72 +110,6 @@ make_jlog_xml(File, Size) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------------
 %%
-%% @doc returns rss message header
-%%
-msg_head() ->
-    "<item>\n".
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc returns rss message footer
-%%
-msg_foot() ->
-    "</item>\n".
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc returns rss message date
-%%
-msg_date() ->
-    Lt = erlang:localtime(),
-    Ts = httpd_util:rfc1123_date(Lt),
-    Beg = "<pubDate>",
-    End = "</pubDate>\n",
-    [Beg, Ts, End].
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates rss message description with job result body
-%% in dependence of the configured debug level
-%%
--spec make_msg_result_body(#ejm{}, tuple()) ->
-    string() | {string(), string(), binary()}.
-
-make_msg_result_body(#ejm{debug=D}, {Status, Hdr, Body}) ->
-    N = proplists:get_value(job_result, D, 0),
-    % N=3 seems most useful level
-    if
-        N >= 5, is_binary(Body) ->
-            Beg_str = io_lib:format("status=~p~nheaders=~p~n", [Status, Hdr]),
-            Body_str = io_lib:format("body_str=~p~n", [Body]),
-            {Beg_str, Body_str, Body};
-        N >= 5, is_list(Body) ->
-            Bin = unicode:characters_to_binary(Body),
-            Beg_str = io_lib:format("status=~p~nheaders=~p~n", [Status, Hdr]),
-            Body_str = io_lib:format("body_str=~p~n", [Body]),
-            {Beg_str, Body_str, Bin};
-        N >= 4 ->
-            io_lib:format("status=~p~nheaders=~p~nbody=~p~n",
-                [Status, Hdr, Body]);
-        N >= 3, is_binary(Body) ->
-            Str = io_lib:format("status=~p~nheaders=~p~n",
-                [Status, Hdr]),
-            {Str, "", Body};
-        N >= 3, is_list(Body) ->
-            Bin = unicode:characters_to_binary(Body),
-            Str = io_lib:format("status=~p~nheaders=~p~n",
-                [Status, Hdr]),
-            {Str, "", Bin};
-        N >= 2 ->
-            io_lib:format("status=~p~nheaders=~p~n", [Status, Hdr]);
-        N >= 1 ->
-            io_lib:format("status=~p~n", [Status]);
-        true ->
-            ""
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc creates short debug info from a job
 %%
 make_short_info(#job{} = J) ->
@@ -206,33 +126,6 @@ make_short_info(#job{} = J) ->
 make_short_info(J) ->
     % happened once, so it was interesting to see - what had come...
     io_lib:format("unknown record:~n~p~n", [J]).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc returns rss message description with job result body
-%%
--spec msg_res_body(#ejm{}, tuple()) -> list().
-
-msg_res_body(St, R) ->
-    Text1 = "<description><![CDATA[",
-    Text2 =
-        case R of
-            {ok, {_, _, _}=Result} ->
-                make_msg_result_body(St, Result);
-            {error, Reason} ->
-                make_msg_result_body(St, {error, [], Reason});
-            {Code, Body} ->
-                make_msg_result_body(St, {Code, [], Body})
-        end,
-    Text3 =
-        case Text2 of
-            {Beg_str, Body_str, Body_bin} ->
-                [Beg_str, "\nbody_bin=", Body_bin, "\n", Body_str, "\n"];
-            _ ->
-                Text2
-        end,
-    Text4 = "]]></description>\n",
-    [Text1, Text3, Text4].
 
 %%-----------------------------------------------------------------------------
 %%
@@ -485,39 +378,6 @@ create_item_description(I) ->
     "</pre>]]></description>\n"].
 
 %%-----------------------------------------------------------------------------
-create_dur_item(Tag, T2, T1) ->
-    Dur = timer:now_diff(T2, T1),
-    Str = io_lib:format("~.3f", [Dur/1000.0]),
-    [
-        "<", Tag, ">",
-        Str,
-        "</", Tag, ">\n"
-    ].
-
-%%-----------------------------------------------------------------------------
-create_time_item(Tag, undefined) ->
-    [
-        "<", Tag, ">",
-        "</", Tag, ">\n"
-    ];
-
-create_time_item(Tag, Time) ->
-    Str = mpln_misc_time:get_time_str_us(Time),
-    [
-        "<", Tag, ">",
-        Str,
-        "</", Tag, ">\n"
-    ].
-
-%%-----------------------------------------------------------------------------
-create_path_item(Path) ->
-    [
-        "<author>",
-        Path,
-        "</author>\n"
-    ].
-
-%%-----------------------------------------------------------------------------
 create_item_date(I) ->
     ["<pubDate>",
     I#item.date,
@@ -538,8 +398,7 @@ create_item_title(I) ->
 -spec get_job_list(non_neg_integer()) -> [{reference(), #jst{}}].
 
 get_job_list(N) ->
-    Stat = ejobman_handler:stat_r(),
-    cut_job_list(Stat, N).
+    cut_job_list(dict:new(), N).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -559,18 +418,6 @@ cut_job_list(Stat, N) ->
         end,
     %lists:reverse(L3)
     L3.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates text from list of jobs
-%%
--spec make_job_rss(#ejm{}, [{reference(), #jst{}}]) -> binary().
-
-make_job_rss(St, List) ->
-    Body = [make_one_jst_rss(St, X) || X <- List],
-    Head = get_jlog_head(),
-    Foot = get_jlog_foot(),
-    unicode:characters_to_binary([Head, Body, Foot]).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -600,49 +447,6 @@ make_job_html(List) ->
 make_job_text(List) ->
     L2 = [make_one_jst_text(X) || X <- List],
     lists:flatten(L2).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates an rss item from a data item of type {reference(), #jst{}}.
-%% Output durations are in milliseconds
-%%
--spec make_one_jst_rss(#ejm{}, {reference(), #jst{}}) -> list().
-
-make_one_jst_rss(St, {Id, #jst{job=J,
-        t_start_child=Start_c, t_stop_child=Stop_c,
-        t_start_req=Start_r, t_stop_req=Stop_r,
-        start=Start, result_full=Res}}) ->
-    mpln_p_debug:pr({?MODULE, 'make_one_jst_rss', ?LINE, Id},
-        St#ejm.debug, run, 4),
-    Path_str = create_path_item(J#job.path),
-    Start_str = create_time_item("start", Start),
-    Start_c_str = create_time_item("start_child", Start_c),
-    Stop_c_str = create_time_item("stop_child", Stop_c),
-    Start_r_str = create_time_item("start_request", Start_r),
-    Dur_all = create_dur_item("dur_all", Stop_c, Start),
-    Dur_child = create_dur_item("dur_child", Stop_c, Start_c),
-    Dur_req = create_dur_item("dur_request", Stop_r, Start_r),
-    Head = msg_head(),
-    %Title = make_title(Res, Id),
-    Msg_title = "", %msg_title(Title),
-    Date = msg_date(),
-    Body = msg_res_body(St, Res),
-    Foot = msg_foot(),
-    Out_item = [
-        Head, Msg_title, Date,
-        Start_str,
-        Start_c_str,
-        Stop_c_str,
-        Start_r_str,
-        Dur_all,
-        Dur_child,
-        Dur_req,
-        Path_str,
-        Body, Foot
-    ],
-    mpln_p_debug:pr({?MODULE, 'make_one_jst_rss item', ?LINE, Id, Out_item},
-        St#ejm.debug, run, 5),
-    Out_item.
 
 %%-----------------------------------------------------------------------------
 %%

@@ -62,7 +62,6 @@
     group_handler_run = [], % started group handlers. Unnecessary, in fact
     job_groups = [], % configured job groups
     stat_t       :: #stat_t{}, % time series
-    stat_r       :: dict(), % last N job information
     stat_limit_n :: non_neg_integer(), % amount
     stat_limit_t :: non_neg_integer(), % time, seconds
     debug
