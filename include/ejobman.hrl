@@ -54,10 +54,6 @@
 -record(ejm, {
     ch_data   :: dict(), % dict: group -> spawned children list
     max_children = 32767,
-    http_connect_timeout = ?HTTP_CONNECT_TIMEOUT,
-    http_timeout = ?HTTP_TIMEOUT,
-    schema_rewrite,
-    url_rewrite,
     web_server_pid,
     web_server_opts,
     log,

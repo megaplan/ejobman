@@ -252,12 +252,6 @@ fill_ejm_handler_config(List) ->
         group_handler = Gh_list,
         job_groups = fill_job_groups(Gh_list),
         ch_data = dict:new(),
-        http_connect_timeout = proplists:get_value(http_connect_timeout,
-            Hdl_list, ?HTTP_CONNECT_TIMEOUT),
-        http_timeout = proplists:get_value(http_timeout, Hdl_list,
-            ?HTTP_TIMEOUT),
-        schema_rewrite = proplists:get_value(schema_rewrite, Hdl_list, []),
-        url_rewrite = proplists:get_value(url_rewrite, Hdl_list, []),
         max_children = proplists:get_value(max_children, Gh_list, 3),
         debug = proplists:get_value(debug, Hdl_list, [])
     }.
@@ -336,7 +330,8 @@ fill_ejm_config_test() ->
          {src_url,[49,50,55,46,48,46,48,46,127,43]},
          {dst_url,"127.0.0.1"},
          {dst_host,"host3.localdomain"}]],
-    ?assert(C#ejm.url_rewrite =:= C2)
+    %?assert(C#ejm.url_rewrite =:= C2)
+    ?assert(false and C =:= C2) % url_rewrite moved to other record
 .
 
 %%-----------------------------------------------------------------------------
