@@ -101,7 +101,7 @@ handle_call(status, _From, St) ->
     {reply, St, St};
 handle_call(_N, _From, St) ->
     mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N}, St#ejm.debug, run, 2),
-    New = do_smth(St),
+    New = periodic_check(St),
     {reply, {error, unknown_request}, New}.
 %%-----------------------------------------------------------------------------
 %%
@@ -115,7 +115,7 @@ handle_cast(stop, St) ->
 
 handle_cast(_N, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _N}, St#ejm.debug, run, 2),
-    New = do_smth(St),
+    New = periodic_check(St),
     {noreply, New}.
 
 %%-----------------------------------------------------------------------------
@@ -135,18 +135,18 @@ terminate(_, State) ->
 
 handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, info_timeout, ?LINE}, State#ejm.debug, run, 6),
-    New = do_smth(State),
+    New = periodic_check(State),
     {noreply, New};
 
 handle_info(periodic_check, State) ->
     mpln_p_debug:pr({?MODULE, 'info_periodic_check', ?LINE},
                     State#ejm.debug, run, 6),
-    New = do_smth(State),
+    New = periodic_check(State),
     {noreply, New};
 
 handle_info(_Req, State) ->
     mpln_p_debug:pr({?MODULE, other, ?LINE, _Req}, State#ejm.debug, run, 2),
-    New = do_smth(State),
+    New = periodic_check(State),
     {noreply, New}.
 
 %%-----------------------------------------------------------------------------
@@ -218,10 +218,10 @@ stat_q() ->
 %% @doc does miscellaneous periodic checks. E.g.: check for children. Returns
 %% updated state.
 %%
--spec do_smth(#ejm{}) -> #ejm{}.
+-spec periodic_check(#ejm{}) -> #ejm{}.
 
-do_smth(#ejm{timer=Ref} = St) ->
-    mpln_p_debug:pr({?MODULE, 'do_smth', ?LINE}, St#ejm.debug, run, 5),
+periodic_check(#ejm{timer=Ref} = St) ->
+    mpln_p_debug:pr({?MODULE, 'periodic_check', ?LINE}, St#ejm.debug, run, 5),
     mpln_misc_run:cancel_timer(Ref),
     St_c = check_children(St),
     Nref = erlang:send_after(?T * 1000, self(), periodic_check),
