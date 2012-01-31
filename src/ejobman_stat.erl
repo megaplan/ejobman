@@ -265,18 +265,11 @@ stop_storage(#est{storage_fd=Fd} = St) ->
     file:close(Fd).
 
 %%-----------------------------------------------------------------------------
-cancel_timer(undefined) ->
-    ok;
-
-cancel_timer(Ref) ->
-    erlang:cancel_timer(Ref).
-    
-%%-----------------------------------------------------------------------------
 %%
 %% @doc logs memory information, establishes a new timer for the next iteration
 %%
 log_procs(#est{timer_log=Ref, log_procs_interval=T} = St) ->
-    cancel_timer(Ref),
+    mpln_misc_run:cancel_timer(Ref),
     real_log_procs(St),
     Nref = erlang:send_after(T * 1000, self(), log_procs),
     St#est{timer_log=Nref}.
@@ -314,7 +307,7 @@ get_procs_info() ->
 -spec periodic_check(#est{}) -> #est{}.
 
 periodic_check(#est{timer=Ref, flush_interval=T} = St) ->
-    cancel_timer(Ref),
+    mpln_misc_run:cancel_timer(Ref),
     St_e = check_existing_file(St),
     St_f = do_flush(St_e),
     St_r = check_rotate(St_f),
