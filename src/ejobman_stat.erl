@@ -25,7 +25,7 @@
 %%% @since 2011-12-20 12:45
 %%% @license MIT
 %%% @doc Receives messages with jobs workflow data, keeps a limited number
-%%% of messages in a storage.
+%%% of messages in a storage, writes received data to a file storage.
 %%% 
 
 -module(ejobman_stat).
