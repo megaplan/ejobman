@@ -276,8 +276,8 @@ cancel_timer(Ref) ->
 %% @doc logs memory information, establishes a new timer for the next iteration
 %%
 log_procs(#est{timer_log=Ref, log_procs_interval=T} = St) ->
-    real_log_procs(St),
     cancel_timer(Ref),
+    real_log_procs(St),
     Nref = erlang:send_after(T * 1000, self(), log_procs),
     St#est{timer_log=Nref}.
 
