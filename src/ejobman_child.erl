@@ -668,12 +668,12 @@ process_cmd_test() ->
 make_schema_rewrite_conf() ->
     [
             [
-                {src_host_part, "test.megaplan.kulikov"},
+                {src_host_part, "test.megaplan"},
                 % true - on, false - off, other - don't change
                 {https, true}
             ],
             [
-                {src_host_part, "promo.megaplan.kulikov"},
+                {src_host_part, "promo.megaplan"},
                 % true - on, false - off, other - don't change
                 {https, false}
             ],
@@ -689,12 +689,12 @@ make_url_rewrite_conf() ->
     [
         [
             {src_host_part, "192.168.9.183"},
-            {dst_host_hdr, "promo.megaplan.kulikov"}
+            {dst_host_hdr, "promo.megaplan"}
         ],
         [
-            {src_host_part, "promo.megaplan.kulikov"},
+            {src_host_part, "promo.megaplan"},
             {dst_host_part, "192.168.9.183"},
-            {dst_host_hdr, "promo.megaplan.kulikov"}
+            {dst_host_hdr, "promo.megaplan"}
         ],
         [
             {src_type, regex},
@@ -731,7 +731,7 @@ find_matching_host_test() ->
     {ok, Item} = find_matching_host(Conf, Host),
     Item_orig = [
         {src_host_part, "192.168.9.183"},
-        {dst_host_hdr, "promo.megaplan.kulikov"}
+        {dst_host_hdr, "promo.megaplan"}
     ],
     ?assert(Item =:= Item_orig)
 .
@@ -741,7 +741,7 @@ make_url1_test() ->
     Bin = <<"http://192.168.9.183/new/order/send-messages">>,
     R1 = make_url(#child{url=Bin, url_rewrite=Conf, debug=[]}, post),
     R0 = { "http://192.168.9.183:80/new/order/send-messages", 
-        [{"Host", "promo.megaplan.kulikov"}, {"User-Agent","Ejobman"}]},
+        [{"Host", "promo.megaplan"}, {"User-Agent","Ejobman"}]},
     %?debugFmt("~p:make_url1_test:~p~n~p~n~p~n", [?MODULE, ?LINE, R0, R1]),
     ?assert(R0 =:= R1),
     ok
@@ -755,7 +755,7 @@ make_url2_test() ->
         auth=#auth{user="usr1", password="psw2"}}, post),
     R0 = { "http://192.168.9.183:80/new/order/send-messages", 
         [{"Authorization","Basic dXNyMTpwc3cy"},
-            {"Host", "promo.megaplan.kulikov"}, {"User-Agent","Ejobman"}]},
+            {"Host", "promo.megaplan"}, {"User-Agent","Ejobman"}]},
     %?debugFmt("~p:make_url2_test:~p~n~p~n~p~n", [?MODULE, ?LINE, R0, R1]),
     ?assert(R0 =:= R1),
     ok
@@ -769,15 +769,15 @@ rewrite_scheme_test() ->
         {'https', "", "192.168.9.183", 443, "/new/order/send-messages", []}
         },
         {
-        "promo.megaplan.kulikov",
-        {'https', "", "promo.megaplan.kulikov", 443,
+        "promo.megaplan",
+        {'https', "", "promo.megaplan", 443,
             "/new/order/send-messages", []}
         }
         ],
     % Pars - config, matched for src host
     Pars = [
         {src_type, regex},
-        {src_host_part, ".+\\.megaplan\\.kulikov"},
+        {src_host_part, ".+\\.megaplan"},
         {https, true}
     ],
     F = fun({Url, Res}) ->
@@ -797,51 +797,51 @@ rewrite_url_test() ->
     Data = [
         {
             "http://192.168.9.183/new/order/send-messages", % request url
-            "promo.megaplan.kulikov",                       % request host
+            "promo.megaplan",                       % request host
             #auth{user="usr1", password="psw2"},            % request auth
             { "http://192.168.9.183:80/new/order/send-messages", % response
                 [{"Authorization","Basic dXNyMTpwc3cy"},
-                 {"Host", "promo.megaplan.kulikov"},
+                 {"Host", "promo.megaplan"},
                  {"User-Agent","Ejobman"}
                 ]
             }
         },
         {
-            "http://promo.megaplan.kulikov/new/order/send-messages",
+            "http://promo.megaplan/new/order/send-messages",
             undefined,
             undefined,
             { "http://192.168.9.183:80/new/order/send-messages",
-                [{"Host", "promo.megaplan.kulikov"},
+                [{"Host", "promo.megaplan"},
                  {"User-Agent","Ejobman"}
                 ]
             }
         },
         {
-            "http://test.megaplan.kulikov/new/order/send-messages",
+            "http://test.megaplan/new/order/send-messages",
             undefined,
             undefined,
-            { "https://test.megaplan.kulikov:443/new/order/send-messages",
-                [{"Host", "test.megaplan.kulikov"},
+            { "https://test.megaplan:443/new/order/send-messages",
+                [{"Host", "test.megaplan"},
                  {"User-Agent","Ejobman"}
                 ]
             }
         },
         {
-            "https://promo.megaplan.kulikov/new/order/send-messages",
+            "https://promo.megaplan/new/order/send-messages",
             undefined,
             undefined,
             { "http://192.168.9.183:80/new/order/send-messages",
-                [{"Host", "promo.megaplan.kulikov"},
+                [{"Host", "promo.megaplan"},
                  {"User-Agent","Ejobman"}
                 ]
             }
         },
         {
-            "https://promo.megaplan.kulikov:8080/new/order/send-messages",
+            "https://promo.megaplan:8080/new/order/send-messages",
             undefined,
             undefined,
             { "http://192.168.9.183:8080/new/order/send-messages",
-                [{"Host", "promo.megaplan.kulikov"},
+                [{"Host", "promo.megaplan"},
                  {"User-Agent","Ejobman"}
                 ]
             }
@@ -869,31 +869,31 @@ rewrite_addr_test() ->
     Data = [
         {
             "http://192.168.9.183/new/order/send-messages", % request url
-            "promo.megaplan.kulikov",                       % request host
+            "promo.megaplan",                       % request host
             #auth{user="usr1", password="psw2"},            % request auth
             { "http://192.168.9.183/new/order/send-messages", % response
                 [{"Authorization","Basic dXNyMTpwc3cy"},
-                 {"Host", "promo.megaplan.kulikov"},
+                 {"Host", "promo.megaplan"},
                  {"User-Agent","Ejobman"}
                 ]
             }
         },
         {
-            "http://promo.megaplan.kulikov/new/order/send-messages",
+            "http://promo.megaplan/new/order/send-messages",
             undefined,
             undefined,
             { "http://192.168.9.183:80/new/order/send-messages",
-                [{"Host", "promo.megaplan.kulikov"},
+                [{"Host", "promo.megaplan"},
                  {"User-Agent","Ejobman"}
                 ]
             }
         },
         {
-            "https://promo.megaplan.kulikov:8080/new/order/send-messages",
+            "https://promo.megaplan:8080/new/order/send-messages",
             undefined,
             undefined,
             { "https://192.168.9.183:8080/new/order/send-messages",
-                [{"Host", "promo.megaplan.kulikov"},
+                [{"Host", "promo.megaplan"},
                  {"User-Agent","Ejobman"}
                 ]
             }
