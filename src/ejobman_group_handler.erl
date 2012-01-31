@@ -57,10 +57,12 @@ init([List]) ->
     process_flag(trap_exit, true), % to perform amqp channel teardown
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE, New#egh.id, New#egh.group},
                     New#egh.debug, run, 1),
-    {ok, New, ?T}.
+    {ok, New}.
 
 %------------------------------------------------------------------------------
--spec handle_call(any(), any(), #egh{}) -> {stop|reply, any(), any(), any()}.
+-spec handle_call(any(), any(), #egh{}) ->
+                         {stop, normal, ok, #egh{}}
+                         | {reply, any(), #egh{}}.
 %%
 %% Handling call messages
 %% @since 2011-07-15 11:00
@@ -69,21 +71,21 @@ handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
 
 handle_call(status, _From, St) ->
-    {reply, St, St, ?T};
+    {reply, St, St};
 
 handle_call({set_debug_item, Facility, Level}, _From, St) ->
     % no api for this, use message passing
     New = mpln_misc_run:update_debug_level(St#egh.debug, Facility, Level),
-    {reply, St#egh.debug, St#egh{debug=New}, ?T};
+    {reply, St#egh.debug, St#egh{debug=New}};
 
 handle_call(_N, _From, St) ->
     mpln_p_debug:pr({?MODULE, 'call other', ?LINE, _N}, St#egh.debug, run, 2),
-    {reply, {error, unknown_request}, St, ?T}.
+    {reply, {error, unknown_request}, St}.
 
 %------------------------------------------------------------------------------
 -spec handle_cast(any(), #egh{}) ->
                          {stop, normal, #egh{}}
-                             | {noreply, #egh{}, non_neg_integer()}.
+                             | {noreply, #egh{}}.
 %%
 %% Handling cast messages
 %% @since 2011-07-15 11:00
@@ -97,18 +99,18 @@ handle_cast({cmd_result, _Res, T1, T2, Id}, St) ->
                     St#egh.debug, job, 2),
     St_r = ejobman_group_handler_cmd:process_cmd_result(St, Id),
     New = ejobman_group_handler_cmd:do_waiting_jobs(St_r),
-    {noreply, New, ?T};
+    {noreply, New};
 
 handle_cast({send_ack, Id, Tag}, #egh{conn=Conn} = St) ->
     Res = ejobman_rb:send_ack(Conn, Tag),
     mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res},
         St#egh.debug, msg, 2),
-    {noreply, St, ?T};
+    {noreply, St};
 
 handle_cast(_Other, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
         St#egh.debug, run, 2),
-    {noreply, St, ?T}.
+    {noreply, St}.
 
 %------------------------------------------------------------------------------
 terminate(_, #egh{conn=Conn} = State) ->
@@ -124,7 +126,7 @@ terminate(_, #egh{conn=Conn} = State) ->
 handle_info(timeout, #egh{id=Id, group=Group}=State) ->
     mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE, Id, Group},
                     State#egh.debug, run, 6),
-    {noreply, State, ?T};
+    {noreply, State};
 
 handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
             #egh{id=Id} = State) ->
@@ -135,15 +137,15 @@ handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
     Sid = ejobman_rb:get_prop_id(Props),
     ejobman_stat:add(Sid, 'group_queue', undefined),
     New = ejobman_group_handler_cmd:store_rabbit_cmd(State, Tag, Sid, Payload),
-    {noreply, New, ?T};
+    {noreply, New};
 
 handle_info(#'basic.consume_ok'{consumer_tag = _Tag}, State) ->
     %New = ejobman_receiver_cmd:store_consumer_tag(State, Tag),
-    {noreply, State, ?T};
+    {noreply, State};
 
 handle_info(_Req, State) ->
     mpln_p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#egh.debug, run, 2),
-    {noreply, State, ?T}.
+    {noreply, State}.
 
 %------------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
