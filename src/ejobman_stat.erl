@@ -89,7 +89,7 @@ handle_call({get, Start, Stop}, _From, St) ->
 handle_call({set_debug_item, Facility, Level}, _From, St) ->
     % no api for this, use message passing
     New = mpln_misc_run:update_debug_level(St#est.debug, Facility, Level),
-    {reply, St#est.debug, St#est{debug=New}, ?T};
+    {reply, St#est.debug, St#est{debug=New}};
 
 handle_call(_N, _From, St) ->
     mpln_p_debug:pr({?MODULE, other, ?LINE, _N}, St#est.debug, run, 2),
