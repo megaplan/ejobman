@@ -42,15 +42,8 @@
 %%%----------------------------------------------------------------------------
 
 -include("receiver.hrl").
-%-include("ejobman.hrl").
 -include("job.hrl").
 -include("rabbit_session.hrl").
-
-%%%----------------------------------------------------------------------------
-%%% Defines
-%%%----------------------------------------------------------------------------
-
-%-define(HTTP_TIMEOUT, 15000).
 
 %%%----------------------------------------------------------------------------
 %%% API
@@ -86,8 +79,8 @@ store_consumer_tag(State, _Tag) ->
 push_message(#ejr{conn=Conn} = St, Gid, Ref, Payload) ->
     case find_exchange(St, Gid, Payload) of
         undefined ->
-            % receiver got a message, but group handlers have not appeared
-            % in receiver's state yet
+            % receiver got a message, but group handlers have not reported
+            % yet
             mpln_p_debug:pr({?MODULE, 'push_message undefined', ?LINE,
                              Ref, Gid, Payload}, St#ejr.debug, msg, 1),
             ok;
