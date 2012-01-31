@@ -60,7 +60,9 @@ init(_) ->
     {ok, New, ?T}.
 
 %------------------------------------------------------------------------------
--spec handle_call(any(), any(), #ejr{}) -> {stop|reply, any(), any(), any()}.
+-spec handle_call(any(), any(), #ejr{}) ->
+                         {stop, normal, ok, #ejr{}}
+                             | {reply, any(), #ejr{}}.
 %%
 %% Handling call messages
 %% @since 2011-07-15 11:00
@@ -69,21 +71,21 @@ handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
 
 handle_call(status, _From, St) ->
-    {reply, St, St, ?T};
+    {reply, St, St};
 
 handle_call(get_conn_params, _From, St) ->
     Res = ejobman_receiver_cmd:get_conn_params(St),
-    {reply, Res, St, ?T};
+    {reply, Res, St};
 
 handle_call({set_debug_item, Facility, Level}, _From, St) ->
     % no api for this, use message passing
     New = mpln_misc_run:update_debug_level(St#ejr.debug, Facility, Level),
-    {reply, St#ejr.debug, St#ejr{debug=New}, ?T};
+    {reply, St#ejr.debug, St#ejr{debug=New}};
 
 handle_call(_N, _From, St) ->
     mpln_p_debug:p("~p::~p other:~n~p~n",
         [?MODULE, ?LINE, _N], St#ejr.debug, run, 2),
-    {reply, {error, unknown_request}, St, ?T}.
+    {reply, {error, unknown_request}, St}.
 
 %------------------------------------------------------------------------------
 -spec handle_cast(any(), #ejr{}) -> any().
@@ -96,24 +98,24 @@ handle_cast(stop, St) ->
 
 handle_cast(logrotate, St) ->
     prepare_log(St),
-    {noreply, St, ?T};
+    {noreply, St};
 
 handle_cast({tell_group, Gid, Exchange, Key}, St) ->
     mpln_p_debug:pr({?MODULE, 'tell_group', ?LINE, Gid, Exchange, Key},
         St#ejr.debug, run, 3),
     New = store_group(St, Gid, Exchange, Key),
-    {noreply, New, ?T};
+    {noreply, New};
 
 handle_cast({send_ack, Id, Tag}, #ejr{conn=Conn} = St) ->
     Res = ejobman_rb:send_ack(Conn, Tag),
     mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res},
         St#ejr.debug, msg, 2),
-    {noreply, St, ?T};
+    {noreply, St};
 
 handle_cast(_Other, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
         St#ejr.debug, run, 2),
-    {noreply, St, ?T}.
+    {noreply, St}.
 
 %------------------------------------------------------------------------------
 terminate(_, #ejr{conn=Conn, pid_file=File} = State) ->
@@ -129,7 +131,7 @@ terminate(_, #ejr{conn=Conn, pid_file=File} = State) ->
 %%
 handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#ejr.debug, run, 6),
-    {noreply, State, ?T};
+    {noreply, State};
 
 handle_info({#'basic.deliver'{delivery_tag=Tag, routing_key=Gid}, Content} =
             _Req, #ejr{conn=Conn} = State) ->
@@ -141,15 +143,15 @@ handle_info({#'basic.deliver'{delivery_tag=Tag, routing_key=Gid}, Content} =
     ejobman_stat:add(Ref, 'start', {'start', Props#'P_basic'.timestamp}),
     ejobman_receiver_cmd:push_message(State, Gid, Ref, Payload),
     ejobman_rb:send_ack(Conn, Tag),
-    {noreply, State, ?T};
+    {noreply, State};
 
 handle_info(#'basic.consume_ok'{consumer_tag = Tag}, State) ->
     New = ejobman_receiver_cmd:store_consumer_tag(State, Tag),
-    {noreply, New, ?T};
+    {noreply, New};
 
 handle_info(_Req, State) ->
     mpln_p_debug:pr({?MODULE, 'other', ?LINE, _Req}, State#ejr.debug, run, 2),
-    {noreply, State, ?T}.
+    {noreply, State}.
 
 %------------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
