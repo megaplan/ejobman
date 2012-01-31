@@ -64,6 +64,7 @@
     stat_t       :: #stat_t{}, % time series
     stat_limit_n :: non_neg_integer(), % amount
     stat_limit_t :: non_neg_integer(), % time, seconds
+    timer        :: reference(),       % timer for periodic actions
     debug
 }).
 

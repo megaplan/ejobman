@@ -76,33 +76,33 @@ init(_) ->
 %% @since 2011-07-15 11:00
 %%
 -spec handle_call(any(), any(), #ejm{}) ->
-    {reply , any(), #ejm{}, non_neg_integer()}
+    {reply , any(), #ejm{}}
     | {stop, normal, ok, #ejm{}}.
 
 %% @doc set new debug level for facility
 handle_call({set_debug_item, Facility, Level}, _From, St) ->
     % no api for this, use message passing
     New = mpln_misc_run:update_debug_level(St#ejm.debug, Facility, Level),
-    {reply, St#ejm.debug, St#ejm{debug=New}, ?T};
+    {reply, St#ejm.debug, St#ejm{debug=New}};
 
 %% @doc returns state of queues
 handle_call(stat_q, _From, St) ->
     Res = ejobman_print_stat:make_stat_cur_info(St),
-    {reply, Res, St, ?T};
+    {reply, Res, St};
 
 %% @doc returns time statistic
 handle_call({stat_t, Type}, _From, St) ->
     Res = ejobman_print_stat:make_stat_t_info(St, Type),
-    {reply, Res, St, ?T};
+    {reply, Res, St};
 
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
 handle_call(status, _From, St) ->
-    {reply, St, St, ?T};
+    {reply, St, St};
 handle_call(_N, _From, St) ->
     mpln_p_debug:pr({?MODULE, 'other', ?LINE, _N}, St#ejm.debug, run, 2),
     New = do_smth(St),
-    {reply, {error, unknown_request}, New, ?T}.
+    {reply, {error, unknown_request}, New}.
 %%-----------------------------------------------------------------------------
 %%
 %% Handling cast messages
@@ -116,7 +116,7 @@ handle_cast(stop, St) ->
 handle_cast(_N, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _N}, St#ejm.debug, run, 2),
     New = do_smth(St),
-    {noreply, New, ?T}.
+    {noreply, New}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -131,16 +131,23 @@ terminate(_, State) ->
 %% Handling all non call/cast messages
 %% @since 2011-07-15 11:00
 %%
--spec handle_info(any(), #ejm{}) -> {noreply, #ejm{}, non_neg_integer()}.
+-spec handle_info(any(), #ejm{}) -> {noreply, #ejm{}}.
 
 handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, info_timeout, ?LINE}, State#ejm.debug, run, 6),
     New = do_smth(State),
-    {noreply, New, ?T};
+    {noreply, New};
+
+handle_info(periodic_check, State) ->
+    mpln_p_debug:pr({?MODULE, 'info_periodic_check', ?LINE},
+                    State#ejm.debug, run, 6),
+    New = do_smth(State),
+    {noreply, New};
+
 handle_info(_Req, State) ->
     mpln_p_debug:pr({?MODULE, other, ?LINE, _Req}, State#ejm.debug, run, 2),
     New = do_smth(State),
-    {noreply, New, ?T}.
+    {noreply, New}.
 
 %%-----------------------------------------------------------------------------
 code_change(_Old_vsn, State, _Extra) ->
@@ -213,9 +220,12 @@ stat_q() ->
 %%
 -spec do_smth(#ejm{}) -> #ejm{}.
 
-do_smth(St) ->
+do_smth(#ejm{timer=Ref} = St) ->
     mpln_p_debug:pr({?MODULE, 'do_smth', ?LINE}, St#ejm.debug, run, 5),
-    check_children(St).
+    mpln_misc_run:cancel_timer(Ref),
+    St_c = check_children(St),
+    Nref = erlang:send_after(?T * 1000, self(), periodic_check),
+    St_c#ejm{timer=Nref}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -269,7 +279,9 @@ check_child(_) ->
 
 prepare_all(St) ->
     St_gh = ejobman_group_handler_spawn:prepare_group_handlers(St),
-    prepare_stat(St_gh).
+    Stp = prepare_stat(St_gh),
+    Ref = erlang:send_after(?T * 1000, self(), periodic_check),
+    Stp#ejm{timer=Ref}.
 
 %%-----------------------------------------------------------------------------
 %%
