@@ -57,7 +57,7 @@ init(_) ->
     New = prepare_all(C),
     process_flag(trap_exit, true), % to perform amqp teardown
     mpln_p_debug:pr({'init done', ?MODULE, ?LINE}, New#ejr.debug, run, 1),
-    {ok, New, ?T}.
+    {ok, New}.
 
 %------------------------------------------------------------------------------
 -spec handle_call(any(), any(), #ejr{}) ->
