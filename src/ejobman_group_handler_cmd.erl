@@ -246,10 +246,12 @@ do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid,
                    conn=Conn, queue=Rqueue} = St, Len) ->
     {{value, Job}, Q2} = queue:out(Q),
     N = ejobman_rb:queue_len(Conn, Rqueue),
+    Queued = N + queue:len(Q),
+    ejobman_stat:upd_stat_t(Gid, Len, Queued),
     ejobman_stat:add(Job#job.id, 'from_queue',
                              [{max, Max},
                               {running, Len},
-                              {queued, N + queue:len(Q)},
+                              {queued, Queued},
                               {group, Gid}]),
     New_ch = do_one_command_real(St, Ch, Job),
     St#egh{ch_queue=Q2, ch_run=New_ch}.

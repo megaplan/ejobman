@@ -39,7 +39,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
 
--export([stat_q/0, stat_t/0, stat_t/1]).
+-export([stat_q/0]).
 
 %%%----------------------------------------------------------------------------
 %%% Defines
@@ -88,11 +88,6 @@ handle_call({set_debug_item, Facility, Level}, _From, St) ->
 %% @doc returns state of queues
 handle_call(stat_q, _From, St) ->
     Res = ejobman_print_stat:make_stat_cur_info(St),
-    {reply, Res, St};
-
-%% @doc returns time statistic
-handle_call({stat_t, Type}, _From, St) ->
-    Res = ejobman_print_stat:make_stat_t_info(St, Type),
     {reply, Res, St};
 
 handle_call(stop, _From, St) ->
@@ -189,18 +184,6 @@ start_link(Config) ->
 %%
 stop() ->
     gen_server:call(?MODULE, stop).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc asks ejobman_handler for time statistic
-%%
--spec stat_t() -> string().
-
-stat_t() ->
-    stat_t(raw).
-
-stat_t(Type) ->
-    gen_server:call(?MODULE, {stat_t, Type}).
 
 %%-----------------------------------------------------------------------------
 %%

@@ -40,6 +40,7 @@
 -export([terminate/2, code_change/3]).
 -export([add/2, add/3, add/5]).
 -export([get/2]).
+-export([stat_t/0, stat_t/1, add_stat_t/2, upd_stat_t/3, upd_stat_t/4]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -80,6 +81,11 @@ handle_call(stop, _From, St) ->
 handle_call(status, _From, St) ->
     {reply, St, St};
 
+%% @doc returns time statistic
+handle_call({stat_t, Type}, _From, St) ->
+    Res = ejobman_print_stat:make_stat_t_info(St, Type),
+    {reply, Res, St};
+
 handle_call({get, Start, Stop}, _From, St) ->
     mpln_p_debug:pr({?MODULE, get1, ?LINE, Start, Stop}, St#est.debug, run, 2),
     Res = get_items(St, Start, Stop),
@@ -114,6 +120,12 @@ handle_cast({add_job, Time, Tag}, St) ->
     mpln_p_debug:pr({?MODULE, 'cast add_job', ?LINE, Time, Tag},
         St#est.debug, run, 4),
     add_job_stat(Time, Tag),
+    {noreply, St};
+
+handle_cast({upd_job, Time, Tag, Work, Queued}, St) ->
+    mpln_p_debug:pr({?MODULE, 'cast upd_job', ?LINE, Time, Tag},
+        St#est.debug, run, 4),
+    upd_job_stat(Time, Tag, Work, Queued),
     {noreply, St};
 
 handle_cast(_Other, St) ->
@@ -232,6 +244,43 @@ add(Id1, Id2, Time, Now, Data) ->
 get(Start, Stop) ->
     gen_server:call(?MODULE, {get, Start, Stop}).
 
+%%-----------------------------------------------------------------------------
+%%
+%% @doc asks ejobman_stat for time statistic
+%% @since 2012-02-02 14:09
+%%
+-spec stat_t() -> string().
+
+stat_t() ->
+    stat_t(raw).
+
+stat_t(Type) ->
+    gen_server:call(?MODULE, {stat_t, Type}).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc api call to add time statistic
+%% @since 2012-02-02 14:09
+%%
+-spec add_stat_t(tuple(), any()) -> ok.
+
+add_stat_t(Time, Tag) ->
+    gen_server:cast(?MODULE, {add_job, Time, Tag}).
+
+%%
+%% @doc api call to update time statistic
+%% @since 2012-02-02 14:09
+%%
+-spec upd_stat_t(any(), non_neg_integer(), non_neg_integer()) -> ok.
+
+upd_stat_t(Tag, Work, Queued) ->
+    upd_stat_t(now(), Tag, Work, Queued).
+
+-spec upd_stat_t(tuple(), any(), non_neg_integer(), non_neg_integer()) -> ok.
+
+upd_stat_t(Time, Tag, Work, Queued) ->
+    gen_server:cast(?MODULE, {upd_job, Time, Tag, Work, Queued}).
+
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -344,9 +393,34 @@ add_item(#est{storage=S} = St, Id, {Time, Now}, Data) ->
 
 %%-----------------------------------------------------------------------------
 %%
+%% @doc updates items in job statistic (minute and hourly)
+%%
+-spec upd_job_stat(tuple(), any(), non_neg_integer(), non_neg_integer()) ->
+                          true.
+
+upd_job_stat(Time, Tag, Work, Queued) ->
+    upd_minute_job_stat(Time, Tag, Work, Queued),
+    upd_hourly_job_stat(Time, Tag, Work, Queued).
+
+upd_minute_job_stat(Time, Tag, Work, Queued) ->
+    estat_misc:set_max_timed_stat(?STAT_TAB_M, 'minute', Time, {Tag, 'work'},
+                                  Work),
+    estat_misc:set_max_timed_stat(?STAT_TAB_M, 'minute', Time, {Tag, 'queued'},
+                                  Queued).
+
+upd_hourly_job_stat(Time, Tag, Work, Queued) ->
+    estat_misc:set_max_timed_stat(?STAT_TAB_H, 'hour', Time, {Tag, 'work'},
+                                  Work),
+    estat_misc:set_max_timed_stat(?STAT_TAB_H, 'hour', Time, {Tag, 'queued'},
+                                  Queued).
+
+
+%%-----------------------------------------------------------------------------
+%%
 %% @doc adds item to job statistic (minute and hourly)
 %%
 -spec add_job_stat(tuple(), any()) -> true.
+
 add_job_stat(Time, Tag) ->
     add_minute_job_stat(Time, Tag),
     add_hourly_job_stat(Time, Tag).
