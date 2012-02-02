@@ -76,7 +76,8 @@ store_rabbit_cmd(State, Tag, Ref, Bin) ->
 %%
 -spec process_cmd_result(#egh{}, binary() | reference()) -> #egh{}.
 
-process_cmd_result(#egh{ch_run=Ch} = St, Id) ->
+process_cmd_result(#egh{ch_queue=Q, ch_run=Ch, group=Gid,
+                   conn=Conn, queue=Rqueue} = St, Id) ->
     F = fun(#chi{id=X}) ->
                 X == Id
         end,
@@ -85,6 +86,12 @@ process_cmd_result(#egh{ch_run=Ch} = St, Id) ->
                     St#egh.debug, handler_job, 3),
     mpln_p_debug:pr({?MODULE, 'process_cmd_result continue', ?LINE, Id, Cont},
                     St#egh.debug, handler_job, 5),
+
+    Len = length(Cont),
+    N = ejobman_rb:queue_len(Conn, Rqueue),
+    Queued = N + queue:len(Q),
+    ejobman_stat:upd_stat_t(Gid, Len, Queued),
+    
     St#egh{ch_run=Cont}.
 
 %%-----------------------------------------------------------------------------
