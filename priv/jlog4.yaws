@@ -35,8 +35,8 @@ make_resp(A) ->
             Text = make_stat_t_info_html(),
             {content, "text/html", Text};
         _ ->
-            Text = make_stat_t_info_text(),
-            {content, "text/plain", Text}
+            Text = make_stat_t_info_html(),
+            {content, "text/html", Text}
     end.
 
 make_stat_t_info_html() ->
