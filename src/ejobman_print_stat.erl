@@ -164,13 +164,13 @@ make_stat_t_info_text(St) ->
 %%
 -spec get_stat_t_info(#ejm{}) -> [{any(), any()}].
 
-get_stat_t_info(#ejm{stat_t=Stat}) ->
-    Min = get_stat_t_info2(Stat#stat_t.m),
-    Hour = get_stat_t_info2(Stat#stat_t.h),
+get_stat_t_info(St) ->
+    Min = get_stat_t_info2(?STAT_TAB_M),
+    Hour = get_stat_t_info2(?STAT_TAB_H),
     [{"minute data", Min}, {"hour data", Hour}].
 
-get_stat_t_info2(Data) ->
-    lists:sort(dict:to_list(Data)).
+get_stat_t_info2(Tab) ->
+    lists:sort(ets:tab2list(Tab)).
 
 %%-----------------------------------------------------------------------------
 %%

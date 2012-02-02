@@ -45,11 +45,6 @@
     min_workers = 5
 }).
 
--record(stat_t, {
-          m :: dict(), % stat with 1 minute step. {time, group} -> {cur, max}
-          h :: dict()  % stat with 1 hour step. {time, group} -> {cur, max}
-         }).
-
 % state of a handler and a receiver gen_server
 -record(ejm, {
     ch_data   :: dict(), % dict: group -> spawned children list
@@ -61,7 +56,6 @@
     group_handler = [], % config for group handlers
     group_handler_run = [], % started group handlers. Unnecessary, in fact
     job_groups = [], % configured job groups
-    stat_t       :: #stat_t{}, % time series
     stat_limit_n :: non_neg_integer(), % amount
     stat_limit_t :: non_neg_integer(), % time, seconds
     timer        :: reference(),       % timer for periodic actions

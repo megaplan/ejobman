@@ -23,4 +23,7 @@
 
 -define(TABC, "border=1 cellspacing=4 cellpadding=4 frame=border rules=all").
 
+-define(STAT_TAB_M, ejobman_stat_t_m).
+-define(STAT_TAB_H, ejobman_stat_t_h).
+
 -endif.

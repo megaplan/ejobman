@@ -110,6 +110,12 @@ handle_cast({add, Id, Time_info, Data}, St) ->
     New = add_item(St, Id, Time_info, Data),
     {noreply, New};
 
+handle_cast({add_job, Time, Tag}, St) ->
+    mpln_p_debug:pr({?MODULE, 'cast add_job', ?LINE, Time, Tag},
+        St#est.debug, run, 4),
+    add_job_stat(Time, Tag),
+    {noreply, St};
+
 handle_cast(_Other, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
         St#est.debug, run, 2),
@@ -235,10 +241,20 @@ get(Start, Stop) ->
 -spec prepare_all(#est{}) -> #est{}.
 
 prepare_all(#est{log_procs_interval=T} = C) ->
+    Stp = prepare_stat(C),
     erlang:send_after(T, self(), log_procs),
     erlang:send_after(?STAT_T, self(), periodic_check), % for redundancy
-    prepare_storage(C).
+    prepare_storage(Stp).
     
+%%-----------------------------------------------------------------------------
+%%
+%% @doc prepares statistic
+%%
+prepare_stat(St) ->
+    ets:new(?STAT_TAB_M, [named_table, set, protected, {keypos,1}]),
+    ets:new(?STAT_TAB_H, [named_table, set, protected, {keypos,1}]),
+    St.
+
 %%-----------------------------------------------------------------------------
 %%
 %% @doc opens storage file
@@ -325,6 +341,21 @@ add_item(#est{storage=S} = St, Id, {Time, Now}, Data) ->
     Item = {Id, Time, Now, Data},
     New = St#est{storage = [Item | S]},
     check_flush(New).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc adds item to job statistic (minute and hourly)
+%%
+-spec add_job_stat(tuple(), any()) -> true.
+add_job_stat(Time, Tag) ->
+    add_minute_job_stat(Time, Tag),
+    add_hourly_job_stat(Time, Tag).
+
+add_minute_job_stat(Time, Tag) ->
+    estat_misc:add_timed_stat(?STAT_TAB_M, 'minute', Time, Tag).
+
+add_hourly_job_stat(Time, Tag) ->
+    estat_misc:add_timed_stat(?STAT_TAB_H, 'hour', Time, Tag).
 
 %%-----------------------------------------------------------------------------
 %%

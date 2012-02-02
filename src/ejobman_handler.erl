@@ -279,23 +279,8 @@ check_child(_) ->
 
 prepare_all(St) ->
     St_gh = ejobman_group_handler_spawn:prepare_group_handlers(St),
-    Stp = prepare_stat(St_gh),
     Ref = erlang:send_after(?T * 1000, self(), periodic_check),
-    Stp#ejm{timer=Ref}.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc prepares statistic
-%%
-prepare_stat(St) ->
-    D = #stat_t{
-        % Hashes: {time, group} -> {cur, max}
-        m = dict:new(), % minute step
-        h = dict:new()  % hour step
-    },
-    St#ejm{
-        stat_t = D
-    }.
+    St_gh#ejm{timer=Ref}.
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
