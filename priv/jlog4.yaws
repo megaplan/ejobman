@@ -1,0 +1,111 @@
+<erl>
+-define(TABC, "border=1 cellspacing=4 cellpadding=4 frame=border rules=all").
+% show ejobman job stat
+
+out(A) ->
+    {Ip, _} = A#arg.client_ip_port,
+    case Ip of
+        {127,_,_,_} ->
+            make_resp(A);
+        {192,168,_,_} ->
+            make_resp(A);
+        {10,20,30,_} ->
+            make_resp(A);
+        _ ->
+            Str = io_lib:format("forbidden ip address: ~p", [Ip]),
+            {content, "text/plain", Str}
+    end.
+
+make_resp(A) ->
+    Q = yaws_api:parse_query(A),
+    error_logger:info_report({?MODULE, 'jlog4 make_resp', ?LINE,
+        A#arg.client_ip_port, Q}),
+    Size =
+        case catch list_to_integer(proplists:get_value("n", Q)) of
+            N when is_integer(N) andalso N > 0 ->
+                N;
+            _ ->
+                1000
+        end,
+    case proplists:get_value("t", Q) of
+        "stat_t_text" ->
+            Text = make_stat_t_info_text(),
+            {content, "text/plain", Text};
+        "stat_t" ->
+            Text = make_stat_t_info_html(),
+            {content, "text/html", Text};
+        _ ->
+            Text = make_stat_t_info_text(),
+            {content, "text/plain", Text}
+    end.
+
+make_stat_t_info_html() ->
+    List = ejobman_stat:stat_t(),
+    L1 = proplists:get_value("minute data", List),
+    L2 = proplists:get_value("hour data", List),
+    L1j = estat_misc:make_joined_list(L1),
+    L2j = estat_misc:make_joined_list(L2),
+    make_one_stat_html([{"minute data", L1j}, {"hour data", L2j}]).
+
+make_one_stat_html(List) ->
+    F = fun({{Dt, Group}, {W_cur, W_max, Q_cur, Q_max}}) ->
+                [
+                 "<tr>",
+                 "<td>", mpln_misc_time:make_str2_int(Dt), "</td>",
+                 "<td>", mpln_misc_web:make_string(Group), "</td>",
+                 "<td>", mpln_misc_web:make_string(W_cur), "</td>",
+                 "<td>", mpln_misc_web:make_string(W_max), "</td>",
+                 "<td>", mpln_misc_web:make_string(Q_cur), "</td>",
+                 "<td>", mpln_misc_web:make_string(Q_max), "</td>",
+                 "</tr>\n"
+                ];
+           ({K, V}) ->
+                [
+                 "<tr>",
+                 "<td colspan=2>",
+                 mpln_misc_web:make_term_string(K),
+                 "</td>",
+                 "<td colspan=4>",
+                 mpln_misc_web:make_term_string(V),
+                 "</td>",
+                 "</tr>\n"
+                ]
+        end,
+    F_big = fun({Tag, L}) ->
+                    [
+                     "<html><body>\n<p>\n",
+                     "<table ", ?TABC, ">",
+                     "<tr><td colspan=6 bgcolor=\"#CCCCDA\">",
+                     mpln_misc_web:make_term_string(Tag),
+                     "</td></tr>\n",
+                     "<tr>",
+                     "<td>time</td>",
+                     "<td>group</td>",
+                     "<td>work current</td>",
+                     "<td>work max</td>\n",
+                     "<td>queue current</td>",
+                     "<td>queue max</td>",
+                     "</tr>\n",
+                     lists:map(F, L),
+                     "<table>\n",
+                     "<p>\n",
+                     "</body></html>\n"
+                    ]
+            end,
+    lists:flatten(lists:map(F_big, List)).
+
+make_stat_t_info_text() ->
+    List = ejobman_stat:stat_t(),
+    F = fun({K, V1, V2}) ->
+                io_lib:format("~p: ~p, ~p~n", [K, V1, V2])
+        end,
+    F_big = fun({Tag, L}) ->
+                    [io_lib:format("~p~n~n", [Tag]),
+                     lists:map(F, L),
+                     io_lib:format("----------------------------------------"
+                                   "~n~n", [])
+                    ]
+            end,
+    lists:flatten(lists:map(F_big, List)).
+
+</erl>
