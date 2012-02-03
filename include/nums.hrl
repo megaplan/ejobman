@@ -13,6 +13,8 @@
 -define(STAT_STORAGE, "/var/lib/erpher/estat").
 -define(STAT_LIMIT_N, 100). % amount
 -define(STAT_LIMIT_T, 100). % seconds
+-define(STAT_LIMIT_CT_H, 25). % hours
+-define(STAT_LIMIT_CT_M, 61). % minutes
 
 -define(HTTP_CONNECT_TIMEOUT, 15000).
 -define(HTTP_TIMEOUT, 3600000).

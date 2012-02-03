@@ -223,6 +223,15 @@ fill_config_receiver(List) ->
 fill_config_stat(All_list) ->
     List = proplists:get_value(estat, All_list, []),
     #est{
+        % amount and time for last jobs
+        stat_limit_n = proplists:get_value(stat_limit_n, List, ?STAT_LIMIT_N),
+        stat_limit_t = proplists:get_value(stat_limit_t, List, ?STAT_LIMIT_T),
+        % time limit for working/queued counters
+        stat_limit_cnt_h = proplists:get_value(stat_limit_cnt_h, List,
+                                             ?STAT_LIMIT_CT_H),
+        stat_limit_cnt_m = proplists:get_value(stat_limit_cnt_m, List,
+                                             ?STAT_LIMIT_CT_M),
+
         log_procs_interval = proplists:get_value(log_procs_interval, List,
                                                  ?LOG_PROCS_INTERVAL),
         rotate_interval = proplists:get_value(rotate_interval, List, 'hour'),
@@ -245,10 +254,6 @@ fill_ejm_handler_config(List) ->
     Gh_list = proplists:get_value(group_handler, List, []),
     Hdl_list = proplists:get_value(handler, List, []),
     #ejm{
-        stat_limit_n = proplists:get_value(stat_limit_n, Hdl_list,
-            ?STAT_LIMIT_N),
-        stat_limit_t = proplists:get_value(stat_limit_t, Hdl_list,
-            ?STAT_LIMIT_T),
         group_handler = Gh_list,
         job_groups = fill_job_groups(Gh_list),
         ch_data = dict:new(),

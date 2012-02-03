@@ -5,7 +5,7 @@
 
 % state of ejobman_stat
 -record(est, {
-    tid,
+    start          :: tuple(),     % server start time in now() format
     timer          :: reference(), % timer ref
     timer_log      :: reference(), % timer for log processes memory
     storage = []   :: list(),
@@ -20,6 +20,10 @@
     flush_number   :: non_neg_integer(), % number of messages to flush storage.
     flush_last = {0,0,0} :: tuple(),     % last time of flush. Now.
     log_procs_interval   :: non_neg_integer(), % log processes memory
+    stat_limit_n   :: non_neg_integer(), % amount
+    stat_limit_t   :: non_neg_integer(), % time, seconds
+    stat_limit_cnt_h :: non_neg_integer(), % time, hours
+    stat_limit_cnt_m :: non_neg_integer(), % time, minutes
     debug
 }).
 

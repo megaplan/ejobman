@@ -290,7 +290,7 @@ upd_stat_t(Time, Tag, Work, Queued) ->
 -spec prepare_all(#est{}) -> #est{}.
 
 prepare_all(#est{log_procs_interval=T} = C) ->
-    Stp = prepare_stat(C),
+    Stp = prepare_stat(C#est{start=now()}),
     erlang:send_after(T, self(), log_procs),
     erlang:send_after(?STAT_T, self(), periodic_check), % for redundancy
     prepare_storage(Stp).
@@ -434,11 +434,20 @@ add_hourly_job_stat(Time, Tag) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc cleans old job info files
+%% @doc cleans old statistic and job info files
 %%
 -spec clean_old(#est{}) -> #est{}.
 
-clean_old(#est{keep_time=Keep} = St) ->
+clean_old(St) ->
+    Stc = clean_old_estat_files(St),
+    clean_old_statistic(Stc),
+    Stc.
+
+clean_old_statistic(#est{stat_limit_cnt_h=Hlimit, stat_limit_cnt_m=Mlimit}) ->
+    estat_misc:clean_timed_stat(?STAT_TAB_H, Hlimit),
+    estat_misc:clean_timed_stat(?STAT_TAB_M, Mlimit).
+
+clean_old_estat_files(#est{keep_time=Keep} = St) ->
     T1 = mpln_misc_time:make_gregorian_seconds(0),
     T2a = mpln_misc_time:make_gregorian_seconds(),
     T2 = T2a - (3600 * (Keep+1)),
@@ -716,8 +725,8 @@ rand_delay(_) ->
 fill2_test_storage(St) ->
     add_item(St, {123456, fill2}, 1, "test2").
     
-fill_test_storage(#est{tid=T}= St) ->
-    fill_test_storage(#est{tid=T}= St, 0).
+fill_test_storage(St) ->
+    fill_test_storage(St, 0).
 
 fill_test_storage(St, Delay) ->
     R1 = make_ref(),
