@@ -312,6 +312,7 @@ prepare_storage(#est{storage_base=Base} = C) ->
     Name = mpln_misc_log:get_fname(Base),
     mpln_p_debug:pr({?MODULE, 'prepare_storage', ?LINE, Name},
                     C#est.debug, file, 2),
+    filelib:ensure_dir(Name),
     case file:open(Name, [append, raw, binary]) of
         {ok, Fd} ->
             C#est{storage_fd=Fd, storage_start=now(), storage_cur_name=Name};
