@@ -50,6 +50,7 @@
 
 -include("estat.hrl").
 -include("ejobman.hrl").
+-include("ejobman_child.hrl").
 -include("group_handler.hrl").
 -include("receiver.hrl").
 

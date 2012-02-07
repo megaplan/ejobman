@@ -4,30 +4,6 @@
 -include("nums.hrl").
 -include("chi.hrl").
 
-% state of a worker gen_server
--record(child, {
-    name,
-    port,
-    id,
-    os_pid,
-    gh_pid,
-    group,
-    tag,
-    duration,
-    from,
-    method,
-    url,
-    host,
-    ip,
-    auth,
-    schema_rewrite = [],
-    url_rewrite,
-    http_connect_timeout,
-    http_timeout,
-    params,
-    debug
-}).
-
 -record(jgroup, {
     id,
     max_children

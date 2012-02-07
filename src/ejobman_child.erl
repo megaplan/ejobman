@@ -45,7 +45,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--include("ejobman.hrl").
+-include("ejobman_child.hrl").
 -include("job.hrl").
 -include("amqp_client.hrl").
 -include("sign_req.hrl").
@@ -68,7 +68,8 @@ init(Params) ->
 %% Handling call messages
 %% @since 2011-07-15 11:00
 %%
--spec handle_call(any(), any(), #ejm{}) -> {stop|reply, any(), any(), any()}.
+-spec handle_call(any(), any(), #child{}) -> {stop, normal, ok, #child{}}
+    | {reply, any(), #child{}, non_neg_integer()}.
 
 handle_call(stop, _From, St) ->
     {stop, normal, ok, St};
@@ -85,7 +86,7 @@ handle_call(_N, _From, St) ->
 %% Handling cast messages
 %% @since 2011-07-15 11:00
 %%
--spec handle_cast(any(), #ejm{}) -> any().
+-spec handle_cast(any(), #child{}) -> any().
 
 handle_cast(stop, St) ->
     {stop, normal, St};
