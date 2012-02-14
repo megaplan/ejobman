@@ -235,6 +235,7 @@ fill_config_stat(All_list) ->
 
         log_procs_interval = proplists:get_value(log_procs_interval, List,
                                                  ?LOG_PROCS_INTERVAL),
+        rt_info_file = proplists:get_value(rt_info_file, List),
         rotate_interval = proplists:get_value(rotate_interval, List, 'hour'),
         debug = proplists:get_value(debug, List, []),
         storage_base = proplists:get_value(storage_base, List, ?STAT_STORAGE),

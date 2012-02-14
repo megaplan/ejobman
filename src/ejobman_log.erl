@@ -31,6 +31,7 @@
 -module(ejobman_log).
 -export([make_jlog_xml/1, make_jlog_xml/2]).
 -export([get_last_jobs/0, get_last_jobs/1, get_last_jobs/2]).
+-export([log_job/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -61,6 +62,22 @@
 %%%----------------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------------
+log_job(Debug, Job) ->
+    Level = proplists:get_value(job, Debug, 0),
+    if  Level >= 5  ->
+            mpln_p_debug:pr({?MODULE, 'log_job', ?LINE, Job},
+                            [], job, 0);
+        Level >= 3  ->
+            mpln_p_debug:pr({?MODULE, 'log_job', ?LINE,
+                        Job#job{auth=undefined}}, [], job, 0);
+        Level >= 2  ->
+            mpln_p_debug:pr({?MODULE, 'log_job', ?LINE, Job#job.id},
+                            [], job, 0);
+        true ->
+            ok
+    end.
+
+%%-----------------------------------------------------------------------------
 %%
 %% @doc creates an output page with last jobs
 %% @since 2011-12-19 13:55

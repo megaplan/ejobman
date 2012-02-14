@@ -123,10 +123,7 @@ send_to_estat(Ref, Data) ->
 
 proceed_cmd_type(State, <<"rest">>, Tag, Ref, Data) ->
     Job = make_job(Tag, Ref, Data),
-    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type job_id', ?LINE, Job#job.id},
-        State#egh.debug, job, 2),
-    mpln_p_debug:pr({?MODULE, 'proceed_cmd_type job', ?LINE, Job},
-        State#egh.debug, job, 4),
+    ejobman_log:log_job(State#egh.debug, Job),
     do_commands(State, Job);
 
 proceed_cmd_type(State, Other, Tag, Ref, _Data) ->

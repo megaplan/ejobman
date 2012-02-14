@@ -337,17 +337,67 @@ stop_storage(#est{storage_fd=Fd} = St) ->
 log_procs(#est{timer_log=Ref, log_procs_interval=T} = St) ->
     mpln_misc_run:cancel_timer(Ref),
     real_log_procs(St),
+    log_procs_info(St),
     Nref = erlang:send_after(T * 1000, self(), log_procs),
     St#est{timer_log=Nref}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc logs the following: pid, registered_name, memory, message_queue_len,
+%% reductions. Ordered by memory, reductions, message_queue_len, pid
+%% @todo make it lazy. Otherwise, for very often logging it will cause
+%% troubles
+%%
+log_procs_info(St) ->
+    L1 = [one_proc_info(X) || X <- processes()],
+    L2 = lists:sort(fun compare_proc_info/2, L1),
+    mpln_p_debug:pr({?MODULE, 'log_procs_info', ?LINE}, St#est.debug, stat, 5),
+    mpln_p_debug:pr(L2, St#est.debug, stat, 5).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc compares memory, then reductions, then message queue length
+%%
+compare_proc_info(A, B) ->
+    {_Pid1, _Name1, _Fun1, Mem1, Reds1, Len1} = A,
+    {_Pid2, _Name2, _Fun2, Mem2, Reds2, Len2} = B,
+    if  Mem1 > Mem2  -> true;
+        Mem1 == Mem2 ->
+            if  Reds1 > Reds2  -> true;
+                Reds1 == Reds2 ->
+                    if  Len1 > Len2  -> true;
+                        true         -> false
+                    end;
+                true -> false
+            end;
+        true -> false
+    end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc returns pid, registered_name, memory, message_queue_len, reductions,
+%% current_function as a tuple for the given pid
+%%
+one_proc_info(Pid) ->
+    List = process_info(Pid, [registered_name, memory, message_queue_len,
+        reductions, current_function]),
+    Fun = proplists:get_value(current_function, List),
+    Mem = proplists:get_value(memory, List),
+    Name = proplists:get_value(registered_name, List),
+    Len = proplists:get_value(message_queue_len, List),
+    Reds = proplists:get_value(reductions, List),
+    {Pid, Name, Fun, Mem, Reds, Len}.
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc sends sum of memory to be written to storage
 %%
 real_log_procs(St) ->
-    Sum = get_procs_info(),
-    mpln_p_debug:pr({?MODULE, 'real_log_procs', ?LINE, Sum},
+    {Sum, Nproc} = Res = get_procs_info(),
+    ejobman_stat_rt_info:write_rt_info(St, Res),
+    mpln_p_debug:pr({?MODULE, 'real_log_procs', ?LINE, Nproc, Sum},
                     St#est.debug, stat, 4),
+    add('memory', 'num_proc', Nproc),
     add('memory', 'memory_sum', Sum).
 
 %%-----------------------------------------------------------------------------
@@ -364,7 +414,9 @@ get_procs_info() ->
                         Acc
                 end
         end,
-    lists:foldl(F, 0, processes()).
+    P = processes(),
+    Sum = lists:foldl(F, 0, P),
+    {Sum, length(P)}.
 
 %%-----------------------------------------------------------------------------
 %%

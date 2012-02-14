@@ -1,7 +1,7 @@
 {application, ejobman, [
     {description, "ejobman"},
     {id, "ejobman"},
-    {vsn, "2.3"},
+    {vsn, "2.3.2"},
     {modules, [
         ejobman_app,
         ejobman_child,
@@ -22,6 +22,7 @@
         ejobman_receiver,
         ejobman_req_sign,
         ejobman_stat,
+        ejobman_stat_rt_info,
         ejobman_sup
     ]},
     {registered, [
