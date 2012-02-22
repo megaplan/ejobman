@@ -405,17 +405,8 @@ real_log_procs(St) ->
 %% @doc calculates sum of memories for processes
 %%
 get_procs_info() ->
-    F = fun(X, Acc) ->
-                L = process_info(X, [memory]),
-                case catch proplists:get_value(memory, L) of
-                    N when is_integer(N) ->
-                        Acc + N;
-                    _ ->
-                        Acc
-                end
-        end,
     P = processes(),
-    Sum = lists:foldl(F, 0, P),
+    Sum = estat_misc:fetch_sum_pids_memory(P),
     {Sum, length(P)}.
 
 %%-----------------------------------------------------------------------------
