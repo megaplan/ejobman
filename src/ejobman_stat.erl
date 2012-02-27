@@ -393,21 +393,12 @@ one_proc_info(Pid) ->
 %% @doc sends sum of memory to be written to storage
 %%
 real_log_procs(St) ->
-    {Sum, Nproc} = Res = get_procs_info(),
+    {Sum, Nproc} = Res = estat_misc:get_procs_info(),
     ejobman_stat_rt_info:write_rt_info(St, Res),
     mpln_p_debug:pr({?MODULE, 'real_log_procs', ?LINE, Nproc, Sum},
                     St#est.debug, stat, 4),
     add('memory', 'num_proc', Nproc),
     add('memory', 'memory_sum', Sum).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc calculates sum of memories for processes
-%%
-get_procs_info() ->
-    P = processes(),
-    Sum = estat_misc:fetch_sum_pids_memory(P),
-    {Sum, length(P)}.
 
 %%-----------------------------------------------------------------------------
 %%
