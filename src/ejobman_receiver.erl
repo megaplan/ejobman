@@ -140,6 +140,7 @@ handle_info({#'basic.deliver'{delivery_tag=Tag, routing_key=Gid}, Content} =
                     State#ejr.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
     Props = Content#amqp_msg.props,
+    erpher_et:trace_me(50, ?MODULE, Gid, forward, {Ref, Content}),
     ejobman_stat:add(Ref, 'start', {'start', Props#'P_basic'.timestamp}),
     ejobman_receiver_cmd:push_message(State, Gid, Ref, Payload),
     ejobman_rb:send_ack(Conn, Tag),

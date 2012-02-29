@@ -129,12 +129,14 @@ handle_info(timeout, #egh{id=Id, group=Group}=State) ->
     {noreply, State};
 
 handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
-            #egh{id=Id} = State) ->
+            #egh{id=Id, group=Group} = State) ->
     mpln_p_debug:pr({?MODULE, 'basic.deliver', ?LINE, Id, _Req},
                     State#egh.debug, msg, 3),
     Payload = Content#amqp_msg.payload,
     Props = Content#amqp_msg.props,
     Sid = ejobman_rb:get_prop_id(Props),
+    erpher_et:trace_me(50, {?MODULE, Group}, 'group_queue', 'receive',
+        {Id, Sid, Content}),
     ejobman_stat:add(Sid, 'group_queue', undefined),
     New = ejobman_group_handler_cmd:store_rabbit_cmd(State, Tag, Sid, Payload),
     {noreply, New};

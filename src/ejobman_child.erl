@@ -195,6 +195,8 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
         St#child.debug, run, 2),
     ejobman_group_handler:send_ack(Gh_pid, Id, Tag),
     T1 = now(),
+    erpher_et:trace_me(50, {?MODULE, Id}, {St#child.group, Gh_pid},
+        http_start, {Id, Req}),
     ejobman_stat:add(Id, 'http_start',
                      [{'header', mpln_misc_web:make_proplist_binary(Hdr)},
                       {'url', mpln_misc_web:make_binary(Url)}]),
@@ -224,6 +226,7 @@ process_result(#child{id=Id, gh_pid=Pid}, Res, T1, T2) ->
 %%
 send_stat(Id, Res) ->
     Params = make_send_stat_params(Res),
+    erpher_et:trace_me(50, {?MODULE, Id}, undefined, http_stop, {Id, Res}),
     ejobman_stat:add(Id, 'http_stop', Params).
 
 %%-----------------------------------------------------------------------------

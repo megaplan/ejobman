@@ -52,13 +52,15 @@
 %%
 -spec store_rabbit_cmd(#egh{}, binary(), binary(), binary()) -> #egh{}.
 
-store_rabbit_cmd(State, Tag, Ref, Bin) ->
+store_rabbit_cmd(#egh{group=Group} = State, Tag, Ref, Bin) ->
     mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json', ?LINE, Ref, Bin},
         State#egh.debug, msg, 4),
     case catch mochijson2:decode(Bin) of
         {'EXIT', Reason} ->
             mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd error',
                 ?LINE, Ref, Reason}, State#egh.debug, run, 2),
+            erpher_et:trace_me(60, {?MODULE, Group},
+                'mochijson2:decode', 'decode', {Ref, Bin}),
             ejobman_rb:send_ack(State#egh.conn, Tag),
             State;
         Data ->
@@ -113,6 +115,7 @@ do_waiting_jobs(St) ->
 send_to_estat(Ref, Data) ->
     Info = ejobman_data:get_rest_info(Data),
     Clean = ejobman_data:del_auth_info(Info),
+    erpher_et:trace_me(40, ?MODULE, undefined, rest_info, {Ref, Clean}),
     ejobman_stat:add(Ref, 'message', {'rest_info', Clean}).
 
 %%-----------------------------------------------------------------------------
@@ -126,10 +129,12 @@ proceed_cmd_type(State, <<"rest">>, Tag, Ref, Data) ->
     ejobman_log:log_job(State#egh.debug, Job),
     do_commands(State, Job);
 
-proceed_cmd_type(State, Other, Tag, Ref, _Data) ->
+proceed_cmd_type(#egh{group=Group} = State, Other, Tag, Ref, _Data) ->
     mpln_p_debug:pr({?MODULE, 'proceed_cmd_type other', ?LINE, Ref, Other},
                     State#egh.debug, run, 2),
     ejobman_rb:send_ack(State#egh.conn, Tag),
+    erpher_et:trace_me(30, {?MODULE, Group}, 'proceed_cmd_type',
+        'not rest', {Ref, Other, _Data}),
     State.
 
 %%-----------------------------------------------------------------------------
@@ -251,6 +256,8 @@ do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid,
     {{value, Job}, Q2} = queue:out(Q),
     N = ejobman_rb:queue_len(Conn, Rqueue),
     Queued = N + queue:len(Q),
+    erpher_et:trace_me(45, {?MODULE, Gid}, do_one_command, 'from_queue',
+        {Max, Len, Queued}),
     ejobman_stat:add(Job#job.id, 'from_queue',
                              [{max, Max},
                               {running, Len},
@@ -303,6 +310,9 @@ do_one_command_real(St, Ch, J) ->
         {ok, Pid, _Info} ->
             add_child(Ch, Pid, J#job.id, J#job.tag);
         _ ->
+            erpher_et:trace_me(40, {?MODULE, St#egh.group},
+                'ejobman_child_supervisor', 'start_child error',
+                {Res, Child_params}),
             mpln_p_debug:pr({?MODULE, 'do_one_command_real res', ?LINE, 'error',
                 J#job.id, J#job.group, Res}, St#egh.debug, handler_child, 1),
             Ch
