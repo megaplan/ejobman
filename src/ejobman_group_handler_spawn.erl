@@ -34,6 +34,9 @@
 %%%----------------------------------------------------------------------------
 
 -export([prepare_group_handlers/1]).
+-export([
+         terminate_children/1
+        ]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -44,6 +47,27 @@
 -endif.
 
 -include("ejobman.hrl").
+
+%%%----------------------------------------------------------------------------
+%%% API
+%%%----------------------------------------------------------------------------
+%%
+%% @doc terminate spawned children
+%% @since 2012-03-01 17:21
+%%
+-spec terminate_children(#ejm{}) -> ok.
+
+terminate_children(#ejm{group_handler_run=List}) ->
+    F = fun({Pars, {ok, _Pid}}) ->
+                Id = proplists:get_value(id, Pars),
+                supervisor:terminate_child(ejobman_group_supervisor, Id);
+           ({Pars, {ok, _Pid, _}}) ->
+                Id = proplists:get_value(id, Pars),
+                supervisor:terminate_child(ejobman_group_supervisor, Id);
+           (_) ->
+                ok
+    end,
+    lists:foreach(F, List).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -60,21 +84,24 @@ prepare_group_handlers(#ejm{group_handler=Gh, job_groups=Groups,
                     St#ejm.debug, run, 3),
     St#ejm{group_handler_run=Res}.
 
-%%-----------------------------------------------------------------------------
+%%%----------------------------------------------------------------------------
+%%% Internal functions
+%%%----------------------------------------------------------------------------
 %%
 %% @doc starts one group handler with given parameters. Returned value
 %% unnecessary in fact, just for runtime debugging
 %%
 start_group_handler(Gh_params, #jgroup{id=Gid, max_children=Max}) ->
     Id = make_ref(),
-    Ch_params = [{group_handler, Gh_params},
+    Short_params = [
                  {id, Id},
                  {group, Gid},
                  {max_children, Max}
                 ],
+    Ch_params = [{group_handler, Gh_params} | Short_params],
     StartFunc = {ejobman_group_handler, start_link, [Ch_params]},
     Child = {Id, StartFunc, permanent, 1000, worker, [ejobman_group_handler]},
     Res = supervisor:start_child(ejobman_group_supervisor, Child),
-    {Ch_params, Res}.
+    {Short_params, Res}.
 
 %%-----------------------------------------------------------------------------

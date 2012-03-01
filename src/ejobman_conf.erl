@@ -34,6 +34,7 @@
 %%%----------------------------------------------------------------------------
 
 -export([get_config_hdl/0]).
+-export([get_config_hdl/1]).
 -export([get_config_child/1]).
 -export([get_config_receiver/0]).
 -export([get_config_stat/0]).
@@ -126,8 +127,16 @@ get_config_child(List) ->
 -spec get_config_hdl() -> #ejm{}.
 
 get_config_hdl() ->
+    C = #ejm{
+            ch_data = dict:new()
+        },
+    get_config_hdl(C).
+
+-spec get_config_hdl(#ejm{}) -> #ejm{}.
+
+get_config_hdl(Src) ->
     List = get_config_list(),
-    fill_ejm_handler_config(List).
+    fill_ejm_handler_config(List, Src).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -250,15 +259,14 @@ fill_config_stat(All_list) ->
 %%
 %% @doc creates a handler config
 %%
--spec fill_ejm_handler_config(list()) -> #ejm{}.
+-spec fill_ejm_handler_config(list(), #ejm{}) -> #ejm{}.
 
-fill_ejm_handler_config(List) ->
+fill_ejm_handler_config(List, Src) ->
     Gh_list = proplists:get_value(group_handler, List, []),
     Hdl_list = proplists:get_value(handler, List, []),
-    #ejm{
+    Src#ejm{
         group_handler = Gh_list,
         job_groups = fill_job_groups(Gh_list),
-        ch_data = dict:new(),
         max_children = proplists:get_value(max_children, Gh_list, 3),
         debug = proplists:get_value(debug, Hdl_list, [])
     }.
@@ -327,7 +335,7 @@ get_test_config() ->
 %%-----------------------------------------------------------------------------
 fill_ejm_config_test() ->
     Config = get_test_config(),
-    C = fill_ejm_handler_config(Config),
+    C = fill_ejm_handler_config(Config, #ejm{}),
     C2 = [[{src_url,"192.168.9.183"},
          {dst_host,"promo.megaplan.kulikov"}],
         [{src_url,"promo.megaplan.kulikov"},
@@ -350,7 +358,7 @@ get_test_config_2() ->
 %%-----------------------------------------------------------------------------
 fill_ejm_handler_config_test() ->
     Config = get_test_config_2(),
-    C = fill_ejm_handler_config(Config),
+    C = fill_ejm_handler_config(Config, #ejm{}),
     C2 = #ejm{
     },
     ?assert(C =:= C2).

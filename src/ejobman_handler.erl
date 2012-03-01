@@ -40,6 +40,9 @@
 -export([terminate/2, code_change/3]).
 
 -export([stat_q/0]).
+-export([
+         reload_config_signal/0
+        ]).
 
 %%%----------------------------------------------------------------------------
 %%% Defines
@@ -108,6 +111,10 @@ handle_call(_N, _From, St) ->
 handle_cast(stop, St) ->
     {stop, normal, St};
 
+handle_cast(reload_config_signal, St) ->
+    New = process_reload_config(St),
+    {noreply, New};
+
 handle_cast(_N, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _N}, St#ejm.debug, run, 2),
     New = periodic_check(St),
@@ -118,6 +125,7 @@ handle_cast(_N, St) ->
 %% @doc Note: it won't be called unless trap_exit is set
 %%
 terminate(_, State) ->
+    ejobman_group_handler_spawn:terminate_children(State),
     mpln_p_debug:pr({?MODULE, 'terminate', ?LINE}, State#ejm.debug, run, 1),
     ok.
 
@@ -194,6 +202,16 @@ stop() ->
 stat_q() ->
     gen_server:call(?MODULE, stat_q).
 
+%%-----------------------------------------------------------------------------
+%%
+%% @doc send a message to the server to reload own config
+%% @since 2012-03-01 16:47
+%%
+-spec reload_config_signal() -> ok.
+
+reload_config_signal() ->
+    gen_server:cast(?MODULE, reload_config_signal).
+
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -264,6 +282,17 @@ prepare_all(St) ->
     St_gh = ejobman_group_handler_spawn:prepare_group_handlers(St),
     Ref = erlang:send_after(?T * 1000, self(), periodic_check),
     St_gh#ejm{timer=Ref}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fetches config from updated environment and stores it in the state
+%%
+-spec process_reload_config(#ejm{}) -> #ejm{}.
+
+process_reload_config(St) ->
+    ejobman_group_handler_spawn:terminate_children(St),
+    C = ejobman_conf:get_config_hdl(St),
+    prepare_all(C).
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests

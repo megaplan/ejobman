@@ -30,7 +30,7 @@
     log,
     pid_file,
     group_handler = [], % config for group handlers
-    group_handler_run = [], % started group handlers. Unnecessary, in fact
+    group_handler_run = [], % started group handlers
     job_groups = [], % configured job groups
     timer        :: reference(),       % timer for periodic actions
     debug
