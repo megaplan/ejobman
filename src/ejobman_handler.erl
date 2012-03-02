@@ -281,7 +281,7 @@ check_child(_) ->
 prepare_all(St) ->
     St_gh = ejobman_group_handler_spawn:prepare_group_handlers(St),
     Ref = erlang:send_after(?T * 1000, self(), periodic_check),
-    St_gh#ejm{timer=Ref}.
+    St_gh#ejm{timer=Ref, pid=self()}.
 
 %%-----------------------------------------------------------------------------
 %%

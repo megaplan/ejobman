@@ -23,6 +23,7 @@
 
 % state of a handler and a receiver gen_server
 -record(ejm, {
+    pid       :: pid(),  % own pid
     ch_data   :: dict(), % dict: group -> spawned children list
     max_children = 32767,
     web_server_pid,
