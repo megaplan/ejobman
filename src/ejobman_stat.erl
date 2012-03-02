@@ -41,6 +41,9 @@
 -export([add/2, add/3, add/5]).
 -export([get/2]).
 -export([stat_t/0, stat_t/1, add_stat_t/2, upd_stat_t/3, upd_stat_t/4]).
+-export([
+         reload_config_signal/0
+        ]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -127,6 +130,10 @@ handle_cast({upd_job, Time, Tag, Work, Queued}, St) ->
         St#est.debug, run, 4),
     upd_job_stat(Time, Tag, Work, Queued),
     {noreply, St};
+
+handle_cast(reload_config_signal, St) ->
+    New = process_reload_config(St),
+    {noreply, New};
 
 handle_cast(_Other, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
@@ -280,6 +287,16 @@ upd_stat_t(Tag, Work, Queued) ->
 
 upd_stat_t(Time, Tag, Work, Queued) ->
     gen_server:cast(?MODULE, {upd_job, Time, Tag, Work, Queued}).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc send a message to the server to reload own config
+%% @since 2012-03-02 14:49
+%%
+-spec reload_config_signal() -> ok.
+
+reload_config_signal() ->
+    gen_server:cast(?MODULE, reload_config_signal).
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions
@@ -744,6 +761,19 @@ create_binary_data_item(St, File, Sum_size) ->
                              File, Reason, Sum_size}, St#est.debug, run, 0),
             {<<>>, Sum_size}
     end.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fetches config from updated environment and stores it in the state.
+%%
+-spec process_reload_config(#est{}) -> #est{}.
+
+process_reload_config(St) ->
+    Stf = do_flush(St),
+    stop_storage(Stf),
+
+    C = ejobman_conf:get_config_stat(),
+    prepare_storage(C).
 
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
