@@ -5,6 +5,7 @@
 
 % state of a receiver gen_server
 -record(ejr, {
+    pid :: pid(), % own pid
     rses,
     conn,
     log,

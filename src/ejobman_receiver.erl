@@ -41,6 +41,9 @@
 -export([logrotate/0]).
 -export([send_ack/2]).
 -export([tell_group/3, get_conn_params/0]).
+-export([
+         reload_config_signal/0
+        ]).
 
 %%%----------------------------------------------------------------------------
 %%% Includes
@@ -111,6 +114,10 @@ handle_cast({send_ack, Id, Tag}, #ejr{conn=Conn} = St) ->
     mpln_p_debug:pr({?MODULE, 'send_ack res', ?LINE, Id, Tag, Res},
         St#ejr.debug, msg, 2),
     {noreply, St};
+
+handle_cast(reload_config_signal, St) ->
+    New = process_reload_config(St),
+    {noreply, New};
 
 handle_cast(_Other, St) ->
     mpln_p_debug:pr({?MODULE, 'cast other', ?LINE, _Other},
@@ -239,6 +246,16 @@ tell_group(Gid, Exchange, Key) ->
 get_conn_params() ->
     gen_server:call(?MODULE, get_conn_params).
 
+%%-----------------------------------------------------------------------------
+%%
+%% @doc send a message to the server to reload own config
+%% @since 2012-03-02 13:53
+%%
+-spec reload_config_signal() -> ok.
+
+reload_config_signal() ->
+    gen_server:cast(?MODULE, reload_config_signal).
+
 %%%----------------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------------
@@ -249,10 +266,17 @@ get_conn_params() ->
 -spec prepare_all(#ejr{}) -> #ejr{}.
 
 prepare_all(C) ->
-    prepare_log(C),
-    write_pid(C),
-    log_sys_info(C),
-    prepare_q(C).
+    New = prepare_part(C),
+    prepare_q(New).
+
+-spec prepare_part(#ejr{}) -> #ejr{}.
+
+prepare_part(C) ->
+    New = C#ejr{pid=self()},
+    prepare_log(New),
+    write_pid(New),
+    log_sys_info(New),
+    New.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -308,5 +332,19 @@ write_pid(#ejr{pid_file=File}) ->
 store_group(#ejr{groups=Groups} = St, Gid, Exchange, Key) ->
     New = lists:keystore(Gid, 1, Groups, {Gid, Exchange, Key}),
     St#ejr{groups=New}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc fetches config from updated environment and stores it in the state.
+%% We don't reconnect to amqp here as this requires group handlers restart
+%% which we avoid by all means
+%%
+-spec process_reload_config(#ejr{}) -> #ejr{}.
+
+process_reload_config(#ejr{rses=Rses, conn=Conn, pid_file=File}) ->
+    mpln_misc_run:remove_pid(File),
+
+    C = ejobman_conf:get_config_receiver(),
+    prepare_part(C#ejr{rses=Rses, conn=Conn}).
 
 %%-----------------------------------------------------------------------------
