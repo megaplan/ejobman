@@ -5,6 +5,7 @@
 
 % state of ejobman_stat
 -record(est, {
+    pid            :: pid(),       % own pid
     start          :: tuple(),     % server start time in now() format
     timer          :: reference(), % timer ref
     timer_log      :: reference(), % timer for log processes memory

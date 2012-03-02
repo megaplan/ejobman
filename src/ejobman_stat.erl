@@ -307,7 +307,7 @@ reload_config_signal() ->
 -spec prepare_all(#est{}) -> #est{}.
 
 prepare_all(#est{log_procs_interval=T} = C) ->
-    Stp = prepare_stat(C#est{start=now()}),
+    Stp = prepare_stat(C#est{start=now(), pid=self()}),
     erlang:send_after(T, self(), log_procs),
     erlang:send_after(?STAT_T, self(), periodic_check), % for redundancy
     prepare_storage(Stp).
