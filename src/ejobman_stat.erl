@@ -395,9 +395,17 @@ compare_proc_info(A, B) ->
 %% @doc returns pid, registered_name, memory, message_queue_len, reductions,
 %% current_function as a tuple for the given pid
 %%
+-spec one_proc_info(pid()) -> tuple().
+
 one_proc_info(Pid) ->
-    List = process_info(Pid, [registered_name, memory, message_queue_len,
-        reductions, current_function]),
+    List =
+        case process_info(Pid, [registered_name, memory, message_queue_len,
+                reductions, current_function]) of
+            L when is_list(L) ->
+                L;
+            _ ->
+                []
+        end,
     Fun = proplists:get_value(current_function, List),
     Mem = proplists:get_value(memory, List),
     Name = proplists:get_value(registered_name, List),
