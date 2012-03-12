@@ -33,6 +33,7 @@
         ejobman_child_supervisor
     ]},
     {mod, {ejobman_app,[]}},
-    {applications, [kernel, stdlib, inets, ssl, rabbit]}
+	% eworkman for local config
+    {applications, [kernel, stdlib, inets, ssl, rabbit, eworkman]}
 ]}.
 
