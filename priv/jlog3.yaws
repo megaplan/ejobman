@@ -22,7 +22,7 @@ make_resp(A) ->
         A#arg.client_ip_port, Q}),
     Start = make_seconds(Q, "start", -3600),
     Stop = make_seconds(Q, "end", 3600),
-    Text = ejobman_stat:get(Start, Stop),
+    Text = erpher_rt_stat:get(Start, Stop),
     {content, "application/json", Text}.
 
 make_seconds(List, Tag) ->
