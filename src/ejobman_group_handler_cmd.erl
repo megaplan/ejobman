@@ -110,13 +110,13 @@ do_waiting_jobs(St) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------------
 %%
-%% @doc removes auth data from data and sends the rest to ejobman_stat
+%% @doc removes auth data from data and sends the rest to erpher_rt_stat
 %%
 send_to_estat(Ref, Data) ->
     Info = ejobman_data:get_rest_info(Data),
     Clean = ejobman_data:del_auth_info(Info),
     erpher_et:trace_me(40, ?MODULE, undefined, rest_info, {Ref, Clean}),
-    ejobman_stat:add(Ref, 'message', {'rest_info', Clean}).
+    erpher_rt_stat:add(Ref, 'message', {'rest_info', Clean}).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -258,7 +258,7 @@ do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid,
     Queued = N + queue:len(Q),
     erpher_et:trace_me(45, {?MODULE, Gid}, do_one_command, 'from_queue',
         {Max, Len, Queued}),
-    ejobman_stat:add(Job#job.id, 'from_queue',
+    erpher_rt_stat:add(Job#job.id, 'from_queue',
                              [{max, Max},
                               {running, Len},
                               {queued, Queued},

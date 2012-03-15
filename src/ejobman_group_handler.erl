@@ -137,7 +137,7 @@ handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
     Sid = ejobman_rb:get_prop_id(Props),
     erpher_et:trace_me(50, {?MODULE, Group}, 'group_queue', 'receive',
         {Id, Sid, Content}),
-    ejobman_stat:add(Sid, 'group_queue', undefined),
+    erpher_rt_stat:add(Sid, 'group_queue', undefined),
     New = ejobman_group_handler_cmd:store_rabbit_cmd(State, Tag, Sid, Payload),
     {noreply, New};
 

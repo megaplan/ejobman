@@ -197,7 +197,7 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
     T1 = now(),
     erpher_et:trace_me(50, {?MODULE, Id}, {St#child.group, Gh_pid},
         http_start, {Id, Req}),
-    ejobman_stat:add(Id, 'http_start',
+    erpher_rt_stat:add(Id, 'http_start',
                      [{'header', mpln_misc_web:make_proplist_binary(Hdr)},
                       {'url', mpln_misc_web:make_binary(Url)}]),
     Res = httpc:request(Method, Req,
@@ -214,7 +214,7 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc sends result to ejobman_handler and ejobman_stat
+%% @doc sends result to ejobman_handler and erpher_rt_stat
 %%
 process_result(#child{id=Id, gh_pid=Pid}, Res, T1, T2) ->
     ejobman_group_handler:cmd_result(Pid, Res, T1, T2, Id),
@@ -222,16 +222,16 @@ process_result(#child{id=Id, gh_pid=Pid}, Res, T1, T2) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc sends result to ejobman_stat
+%% @doc sends result to erpher_rt_stat
 %%
 send_stat(Id, Res) ->
     Params = make_send_stat_params(Res),
     erpher_et:trace_me(50, {?MODULE, Id}, undefined, http_stop, {Id, Res}),
-    ejobman_stat:add(Id, 'http_stop', Params).
+    erpher_rt_stat:add(Id, 'http_stop', Params).
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc prepares parameters for sending to ejobman_stat
+%% @doc prepares parameters for sending to erpher_rt_stat
 %%
 make_send_stat_params({ok, {{Ver, St_code, Reason} = _St_line, Hdr, Body}}) ->
     Bin = mpln_misc_web:make_binary(Body),
