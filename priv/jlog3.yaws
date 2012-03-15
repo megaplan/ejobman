@@ -1,6 +1,6 @@
 <erl>
 
-% show ejobman last N jobs
+% show runtime stat for time interval
 
 out(A) ->
     {Ip, _} = A#arg.client_ip_port,
