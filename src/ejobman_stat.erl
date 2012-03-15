@@ -38,8 +38,6 @@
 -export([start/0, start_link/0, stop/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 -export([terminate/2, code_change/3]).
--export([add/2, add/3, add/5]).
--export([get/2]).
 -export([stat_t/0, stat_t/1, add_stat_t/2, upd_stat_t/3, upd_stat_t/4]).
 -export([
          reload_config_signal/0
@@ -89,11 +87,6 @@ handle_call({stat_t, Type}, _From, St) ->
     Res = ejobman_print_stat:make_stat_t_info(St, Type),
     {reply, Res, St};
 
-handle_call({get, Start, Stop}, _From, St) ->
-    mpln_p_debug:pr({?MODULE, get1, ?LINE, Start, Stop}, St#est.debug, run, 2),
-    Res = get_items(St, Start, Stop),
-    {reply, Res, St};
-
 %% @doc set new debug level for facility
 handle_call({set_debug_item, Facility, Level}, _From, St) ->
     % no api for this, use message passing
@@ -112,12 +105,6 @@ handle_call(_N, _From, St) ->
 %%
 handle_cast(stop, St) ->
     {stop, normal, St};
-
-handle_cast({add, Id, Time_info, Data}, St) ->
-    mpln_p_debug:pr({?MODULE, 'cast add', ?LINE, Id, Time_info},
-        St#est.debug, run, 4),
-    New = add_item(St, Id, Time_info, Data),
-    {noreply, New};
 
 handle_cast({add_job, Time, Tag}, St) ->
     mpln_p_debug:pr({?MODULE, 'cast add_job', ?LINE, Time, Tag},
@@ -220,39 +207,6 @@ stop() ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc sends input id, time, data to the server to store them in the storage
-%% @since 2011-12-20 19:00
-%%
--spec add(any(), any()) -> ok.
-
-add(Id, Data) ->
-    add(Id, undefined, Data).
-
--spec add(any(), any(), any()) -> ok.
-
-add(Id1, Id2, Data) ->
-    Now = now(),
-    add(Id1, Id2, mpln_misc_time:get_gmt_time(Now), Now, Data).
-
--spec add(any(), any(), non_neg_integer(), tuple(), any()) -> ok.
-
-add(Id1, Id2, Time, Now, Data) ->
-    List = make_list(Data),
-    gen_server:cast(?MODULE, {add, {Id1, Id2}, {Time, Now}, List}).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc receives start/stop times and returns json binary with stat items
-%% for this interval. Times are unix times, namely seconds from 1970-01-01
-%% @since 2011-12-20 19:03
-%%
--spec get(string(), string()) -> binary().
-
-get(Start, Stop) ->
-    gen_server:call(?MODULE, {get, Start, Stop}).
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc asks ejobman_stat for time statistic
 %% @since 2012-02-02 14:09
 %%
@@ -308,9 +262,10 @@ reload_config_signal() ->
 
 prepare_all(#est{log_procs_interval=T} = C) ->
     Stp = prepare_stat(C#est{start=now(), pid=self()}),
-    erlang:send_after(T, self(), log_procs),
+    %erlang:send_after(T, self(), log_procs),
     erlang:send_after(?STAT_T, self(), periodic_check), % for redundancy
-    prepare_storage(Stp).
+    %prepare_storage(Stp).
+    Stp.
     
 %%-----------------------------------------------------------------------------
 %%
@@ -352,11 +307,7 @@ stop_storage(#est{storage_fd=Fd} = St) ->
 %% @doc logs memory information, establishes a new timer for the next iteration
 %%
 log_procs(#est{timer_log=Ref, log_procs_interval=T} = St) ->
-    mpln_misc_run:cancel_timer(Ref),
-    real_log_procs(St),
-    log_procs_info(St),
-    Nref = erlang:send_after(T * 1000, self(), log_procs),
-    St#est{timer_log=Nref}.
+    St.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -419,11 +370,11 @@ one_proc_info(Pid) ->
 %%
 real_log_procs(St) ->
     {Sum, Nproc} = Res = estat_misc:get_procs_info(),
-    ejobman_stat_rt_info:write_rt_info(St, Res),
+    erpher_rt_stat_info:write_rt_info(St, Res),
     mpln_p_debug:pr({?MODULE, 'real_log_procs', ?LINE, Nproc, Sum},
                     St#est.debug, stat, 4),
-    add('memory', 'num_proc', Nproc),
-    add('memory', 'memory_sum', Sum).
+    erpher_rt_stat:add('memory', 'num_proc', Nproc),
+    erpher_rt_stat:add('memory', 'memory_sum', Sum).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -431,25 +382,14 @@ real_log_procs(St) ->
 %%
 -spec periodic_check(#est{}) -> #est{}.
 
-periodic_check(#est{timer=Ref, flush_interval=T} = St) ->
+periodic_check(#est{timer=Ref, clean_interval=T} = St) ->
     mpln_misc_run:cancel_timer(Ref),
-    St_e = check_existing_file(St),
-    St_f = do_flush(St_e),
-    St_r = check_rotate(St_f),
-    New = clean_old(St_r),
+    %St_e = check_existing_file(St),
+    %St_f = do_flush(St_e),
+    %St_r = check_rotate(St_f),
+    New = clean_old(St),
     Nref = erlang:send_after(T * 1000, self(), periodic_check),
     New#est{timer=Nref}.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc stores id, time, data in the storage
-%%
--spec add_item(#est{}, any(), {non_neg_integer(), tuple()}, any()) -> #est{}.
-
-add_item(#est{storage=S} = St, Id, {Time, Now}, Data) ->
-    Item = {Id, Time, Now, Data},
-    New = St#est{storage = [Item | S]},
-    check_flush(New).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -498,9 +438,9 @@ add_hourly_job_stat(Time, Tag) ->
 -spec clean_old(#est{}) -> #est{}.
 
 clean_old(St) ->
-    Stc = clean_old_estat_files(St),
-    clean_old_statistic(Stc),
-    Stc.
+    %Stc = clean_old_estat_files(St),
+    clean_old_statistic(St),
+    St.
 
 clean_old_statistic(#est{stat_limit_cnt_h=Hlimit, stat_limit_cnt_m=Mlimit}) ->
     estat_misc:clean_timed_stat(?STAT_TAB_H, Hlimit),
@@ -783,49 +723,4 @@ process_reload_config(St) ->
     C = ejobman_conf:get_config_stat(),
     prepare_storage(C).
 
-%%%----------------------------------------------------------------------------
-%%% EUnit tests
-%%%----------------------------------------------------------------------------
--ifdef(TEST).
-
-rand_delay(N) when is_integer(N) andalso N >= 1 ->
-    R = random:uniform(N),
-    timer:sleep(R);
-rand_delay(_) ->
-    ok.
-
-fill2_test_storage(St) ->
-    add_item(St, {123456, fill2}, 1, "test2").
-    
-fill_test_storage(St) ->
-    fill_test_storage(St, 0).
-
-fill_test_storage(St, Delay) ->
-    R1 = make_ref(),
-    R2 = make_ref(),
-    L = [
-         {R1, push_to_rabbit, "json"},
-         {R1, fetch_from_rabbit, "queue"},
-         {R1, http_start, "none"},
-         {R1, http_stop, "empty"},
-
-         {R2, push_to_rabbit, "json"},
-         {R2, fetch_from_rabbit, "queue"},
-         {R2, http_start, "none"},
-         {R2, http_stop, "empty"}
-        ],
-    F = fun({Id, Stage, Data}) ->
-                rand_delay(Delay),
-                Time = mpln_misc_time:get_gmt_time(),
-                add_item(St, {Id, Stage}, Time, Data)
-        end,
-    lists:foreach(F, L).
-
-add_items_test() ->
-    St = #est{debug=[]},
-    fill2_test_storage(St),
-    fill_test_storage(St)
-    .
-
--endif.
 %%-----------------------------------------------------------------------------
