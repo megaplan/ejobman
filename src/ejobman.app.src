@@ -1,7 +1,7 @@
 {application, ejobman, [
     {description, "ejobman"},
     {id, "ejobman"},
-    {vsn, "2.3.4"},
+    {vsn, "2.3.5"},
     {modules, [
         ejobman_app,
         ejobman_child,
@@ -33,7 +33,7 @@
         ejobman_child_supervisor
     ]},
     {mod, {ejobman_app,[]}},
-	% eworkman for local config
+    % eworkman for local config
     {applications, [kernel, stdlib, inets, ssl, rabbit, eworkman]}
 ]}.
 
