@@ -34,6 +34,6 @@
     ]},
     {mod, {ejobman_app,[]}},
     % eworkman for local config
-    {applications, [kernel, stdlib, inets, ssl, rabbit, eworkman]}
+    {applications, [kernel, stdlib, inets, ssl, rabbit, eworkman, erpher_rt_stat]}
 ]}.
 
