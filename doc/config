@@ -1,55 +1,9 @@
-The config is a list of {key, value} tuples (the value can be a list itself).
-To change the default values one can use the '-config' parameter at
-the release start.
-
-The list can contain the following sections:
-
-- rabbit
-- mnesia
-- kernel
-- sasl
 - ejobman
   * rabbit
   * debug
+  * group_handler
   * handler
   * log
-- eworkman
-  * web_server_opts
-  * pools
-  * log
-  * debug
-
-
-Rabbit
-======
-
-This section may contain any parameters mentioned in rabbit.app. See rabbit.app
-for the reference.
-
-
-Mnesia
-======
-
-This section contains the parameters for mnesia db. See mnesia documentation
-for the reference.
-
-
-Kernel
-======
-
-This section contains the parameters for kernel app. See kernel app
-documentation for the reference.
-
-
-Sasl
-====
-
-This section contains the parameters for sasl app. See sasl app documentation
-for the reference.
-
-
-Ejobman
-=======
 
 rabbit
 ------
@@ -82,11 +36,28 @@ The possible keys:
   config - config related information
   run - runtime information
 
-handler
--------
+group_handler
+-------------
+job groups and their parameters
 
-The 'handler' section keeps parameters for ejobman_handler. The section
-contains the following items:
+http_connect_timeout - http connect timeout. Milliseconds.
+http_timeout - timeout for one job. Milliseconds.
+max_children - the max number of disposable children. Integer. Default: 3
+
+job_groups - list of groups. Every group is a list containing k-v tuples with
+the following parameters:
+  name - name of a group. Binary.
+  max_children - Integer. If not found, then max_children from group handler
+  is used
+
+schema_rewrite - list of schema rewrite rules. Every item can contain the
+following:
+  src_type - type of src_host_part. Optional. Possible values: regex, none.
+  Default: none
+  src_host_part - string or regex the input host (host only!) is matched
+  against. String. No default
+  https - what to do: true - force https, false - force http, other - don't
+  change the input schema.
 
 url_rewrite - list of rewrite items. Every rewrite item can contain
 the following:
@@ -98,15 +69,22 @@ the following:
   The source host is used if dst_host_part is undefined. No default
   dst_host_hdr - string to be used as "Host" header. String. No default
 
-max_children - the max number of disposable children. Integer. Default: 32767
-
-debug - a list of {key, value} tuples, where the key is an atom and the value
-is an integer. The bigger value is, the more verbose debug logs (and the slower
-the erlang VM works, thanks to error_logger). You are warned.
+debug - a list of {key, value} tuples used for every group in the particular
+group handler process.
 The possible keys:
-  config - config related information
   run - runtime information
-  http - web related information
+  job - job related
+  msg - rabbitmq related
+
+handler
+-------
+
+The 'handler' section keeps parameters for ejobman_handler - the process
+which spawns group handlers. The section contains the following items:
+
+debug - a list of {key, value} tuples.
+The possible keys:
+  run - runtime information
 
 log
 ---
@@ -117,68 +95,4 @@ ejobman and eworkman log parameters.
 The parameters:
   log - the value is a directory name and the beginning part of a filename.
   String. Default: "/var/log/erpher/ejm"
-
-
-Eworkman
-========
-
-web_server_opts
----------------
-
-The 'web_server_opts' section contains parameters for mochiweb that
-is started by eworkman_handler. If the whole section is missing then no
-mochiweb is started.
-The parameters:
-  port - port to bind. Integer. No default
-  name - name of a registered process. Atom. No default
-  ssl - ssl flag. Boolean. No default
-  ssl_opts - list of ssl options (every option is a {key, value} typle).
-  No default.
-  The options:
-    certfile - path to ssl certificate. Must be part of ssl_opts. String.
-    No default
-    keyfile  - path to ssl key file. Must be part of ssl_opts. String. No
-	default
-
-pools
------
-
-Section 'pools' is used by eworkman_handler to create pools of workers. The
-section is a list of pool items. Each pool item is a list of {key, value}
-tuples. The pool item can contain the following items:
-  id - pool id. Atom. No default
-  min_workers - amount of workers to start in the beginning
-  restart_delay - delay in seconds before restarting crashed worker. Integer.
-    Default: 10
-  restart_policy - policy for restarting crashed worker. Atom. Possible values:
-    restart (immediate restart), none (ignore), delay (restart after delay).
-    Default: none
-  worker_duration - time in seconds for worker to operate. After that time
-    eworkman_handler restarts the worker. Integer.
-    Default: 86400
-  worker - list of parameters for a worker. Possible keys:
-    name - string to be used for spawning. String. No default.
-    debug - list of debug items ({key, value} tuples as usual). Possible keys:
-      run - runtime information
-
-log
----
-The 'log' section contains parameters that are used by eworkman_receiver
-to setup external logfile. If there is no log parameter then no attempt
-to setup the logfile is done. It's better to setup only one of
-ejobman and eworkman log parameters.
-The parameters:
-  log - the value is a directory name and the beginning part of a filename.
-  String. Default: "/var/log/erpher/ewm"
-
-debug
------
-
-The 'debug' section keeps parameters for eworkman_receiver. The section
-is a list of {key, value} tuples, where the key is an atom and the value
-is an integer. The bigger value is, the more verbose debug logs (and
-the slower the erlang VM works). You are warned.
-The possible keys:
-  config - config related information
-  run - runtime information
 
