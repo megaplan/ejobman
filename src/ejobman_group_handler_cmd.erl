@@ -67,7 +67,7 @@ store_rabbit_cmd(#egh{group=Group} = State, Tag, Ref, Bin) ->
             mpln_p_debug:pr({?MODULE, 'store_rabbit_cmd json dat',
                 ?LINE, Ref, Data}, State#egh.debug, json, 3),
             Type = ejobman_data:get_type(Data),
-            send_to_estat(Ref, Data),
+            send_to_estat(State, Ref, Data),
             proceed_cmd_type(State, Type, Tag, Ref, Data)
     end.
 
@@ -112,11 +112,12 @@ do_waiting_jobs(St) ->
 %%
 %% @doc removes auth data from data and sends the rest to erpher_rt_stat
 %%
-send_to_estat(Ref, Data) ->
+send_to_estat(St, Ref, Data) ->
     Info = ejobman_data:get_rest_info(Data),
     Clean = ejobman_data:del_auth_info(Info),
     erpher_et:trace_me(40, ?MODULE, undefined, rest_info, {Ref, Clean}),
-    erpher_rt_stat:add(Ref, 'message', {'rest_info', Clean}).
+    erpher_jit_log:add_jit_msg(St#egh.jit_log_data, Ref,
+                               'message', 4, {'rest_info', Clean}).
 
 %%-----------------------------------------------------------------------------
 %%
@@ -258,7 +259,10 @@ do_one_command(#egh{ch_queue=Q, ch_run=Ch, max=Max, group=Gid,
     Queued = N + queue:len(Q),
     erpher_et:trace_me(45, {?MODULE, Gid}, do_one_command, 'from_queue',
         {Max, Len, Queued}),
-    erpher_rt_stat:add(Job#job.id, 'from_queue',
+    erpher_jit_log:add_jit_msg(St#egh.jit_log_data,
+                               Job#job.id,
+                               'from_queue',
+                               4,
                              [{max, Max},
                               {running, Len},
                               {queued, Queued},

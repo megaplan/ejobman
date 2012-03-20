@@ -18,6 +18,10 @@
     http_timeout         = ?HTTP_TIMEOUT         :: non_neg_integer(),
     schema_rewrite = []  :: list(),
     url_rewrite = []     :: list(),
+    jit_log_data, % ets id
+    jit_log_level        :: non_neg_integer(),
+    jit_log_keep_n       :: non_neg_integer(),
+    jit_log_keep_time    :: non_neg_integer(),
     debug = []           :: list()
 }).
 

@@ -79,6 +79,9 @@ get_config_group_handler(List) ->
                   Val
           end,
     #egh{
+          jit_log_level = proplists:get_value(jit_log_level, Gh, 0),
+          jit_log_keep_n = proplists:get_value(jit_log_keep_n, Gh, 1000),
+          jit_log_keep_time = proplists:get_value(jit_log_keep_time, Gh, 72),
           http_connect_timeout = proplists:get_value(http_connect_timeout,
                                                      Gh, ?HTTP_CONNECT_TIMEOUT),
           http_timeout = proplists:get_value(http_timeout, Gh, ?HTTP_TIMEOUT),

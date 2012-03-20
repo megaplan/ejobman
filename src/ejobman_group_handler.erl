@@ -52,9 +52,10 @@
 %%% gen_server callbacks
 %%%----------------------------------------------------------------------------
 init([List]) ->
-    mpln_p_debug:pr({?MODULE, 'init', ?LINE, List}, [], run, 0),
     New = prepare_all(List),
     process_flag(trap_exit, true), % to perform amqp channel teardown
+    erpher_jit_log:add_jit_msg(New#egh.jit_log_data, New#egh.id,
+                               New#egh.group, 2, 'init'),
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE, New#egh.id, New#egh.group},
                     New#egh.debug, run, 1),
     {ok, New}.
@@ -113,8 +114,12 @@ handle_cast(_Other, St) ->
     {noreply, St}.
 
 %------------------------------------------------------------------------------
-terminate(_, #egh{conn=Conn} = State) ->
+terminate(Reason, #egh{id=Id, group=Group, conn=Conn} = State) ->
     ejobman_rb:teardown_channel(Conn),
+    erpher_jit_log:add_jit_msg(State#egh.jit_log_data, Id, Group,
+                               2, 'terminate'),
+    send_jit_log(Reason, State),
+    ets:delete(State#egh.jit_log_data),
     mpln_p_debug:pr({?MODULE, terminate, ?LINE}, State#egh.debug, run, 1),
     ok.
 
@@ -137,7 +142,8 @@ handle_info({#'basic.deliver'{delivery_tag=Tag}, Content} = _Req,
     Sid = ejobman_rb:get_prop_id(Props),
     erpher_et:trace_me(50, {?MODULE, Group}, 'group_queue', 'receive',
         {Id, Sid, Content}),
-    erpher_rt_stat:add(Sid, 'group_queue', undefined),
+    erpher_jit_log:add_jit_msg(State#egh.jit_log_data, Sid,
+                               'group_queue', 4, 'undefined'),
     New = ejobman_group_handler_cmd:store_rabbit_cmd(State, Tag, Sid, Payload),
     {noreply, New};
 
@@ -227,7 +233,16 @@ prepare_all(List) ->
     C = ejobman_conf:get_config_group_handler(List),
     C_conn = get_connection(C),
     C_st = prepare_storage(C_conn),
-    prepare_q(C_st).
+    Cj = prepare_jit_log(C_st),
+    prepare_q(Cj).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc prepare ets for jit log data
+%%
+prepare_jit_log(St) ->
+    Tid = erpher_jit_log:prepare_jit_tab(?MODULE),
+    St#egh{jit_log_data=Tid}.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -273,5 +288,16 @@ prepare_q(#egh{group=Gid} = C) ->
 compose_group_name(Gid) ->
     Bin = mpln_misc_web:make_binary(Gid),
     << <<"ejobman_group_">>/binary, Bin/binary>>.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc send jit log data to stat server if there is an error signs
+%% or configured jit log level is high enough
+%%
+send_jit_log(Reason, St) ->
+    erpher_jit_log:send_jit_log(Reason,
+                                 St#egh.jit_log_level,
+                                 St#egh.jit_log_data,
+                                 St#egh.id).
 
 %%-----------------------------------------------------------------------------

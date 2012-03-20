@@ -40,6 +40,9 @@ group_handler
 -------------
 job groups and their parameters
 
+jit_log_level - log level for 'just in time' messages. Integer. 0
+jit_log_keep_time - time to keep 'just in time' messages. Hours. 72
+jit_log_keep_n - number of 'just in time' messages to keep. Integer. 1000
 http_connect_timeout - http connect timeout. Milliseconds.
 http_timeout - timeout for one job. Milliseconds.
 max_children - the max number of disposable children. Integer. Default: 3
