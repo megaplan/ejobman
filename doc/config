@@ -96,3 +96,9 @@ The parameters:
   log - the value is a directory name and the beginning part of a filename.
   String. Default: "/var/log/erpher/ejm"
 
+temp_rt_key_for_group
+---------------------
+this is a temporary stub. When the input rt key is the same as
+the configured temp_rt_key_for_group then the real rt key should be extracted
+from the group field of payload
+
