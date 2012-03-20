@@ -141,19 +141,13 @@ terminate(_, State) ->
 %%
 handle_info(timeout, State) ->
     mpln_p_debug:pr({?MODULE, 'info_timeout', ?LINE}, State#est.debug, run, 3),
-    St_p = log_procs(State),
-    New = periodic_check(St_p),
+    New = periodic_check(State),
     {noreply, New};
 
 handle_info(periodic_check, State) ->
     mpln_p_debug:pr({?MODULE, 'info_periodic_check', ?LINE},
                     State#est.debug, run, 6),
     New = periodic_check(State),
-    {noreply, New};
-
-handle_info(log_procs, State) ->
-    mpln_p_debug:pr({?MODULE, 'log_procs', ?LINE}, State#est.debug, run, 6),
-    New = log_procs(State),
     {noreply, New};
 
 handle_info(_Req, State) ->
@@ -260,11 +254,9 @@ reload_config_signal() ->
 %%
 -spec prepare_all(#est{}) -> #est{}.
 
-prepare_all(#est{log_procs_interval=T} = C) ->
+prepare_all(C) ->
     Stp = prepare_stat(C#est{start=now(), pid=self()}),
-    %erlang:send_after(T, self(), log_procs),
     erlang:send_after(?STAT_T, self(), periodic_check), % for redundancy
-    %prepare_storage(Stp).
     Stp.
     
 %%-----------------------------------------------------------------------------
@@ -304,89 +296,12 @@ stop_storage(#est{storage_fd=Fd} = St) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc logs memory information, establishes a new timer for the next iteration
-%%
-log_procs(#est{timer_log=Ref, log_procs_interval=T} = St) ->
-    St.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc logs the following: pid, registered_name, memory, message_queue_len,
-%% reductions. Ordered by memory, reductions, message_queue_len, pid
-%% @todo make it lazy. Otherwise, for very often logging it will cause
-%% troubles
-%%
-log_procs_info(St) ->
-    L1 = [one_proc_info(X) || X <- processes()],
-    L2 = lists:sort(fun compare_proc_info/2, L1),
-    mpln_p_debug:pr({?MODULE, 'log_procs_info', ?LINE}, St#est.debug, stat, 5),
-    mpln_p_debug:pr(L2, St#est.debug, stat, 5).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc compares memory, then reductions, then message queue length
-%%
-compare_proc_info(A, B) ->
-    {_Pid1, _Name1, _Fun1, Mem1, Reds1, Len1} = A,
-    {_Pid2, _Name2, _Fun2, Mem2, Reds2, Len2} = B,
-    if  Mem1 > Mem2  -> true;
-        Mem1 == Mem2 ->
-            if  Reds1 > Reds2  -> true;
-                Reds1 == Reds2 ->
-                    if  Len1 > Len2  -> true;
-                        true         -> false
-                    end;
-                true -> false
-            end;
-        true -> false
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc returns pid, registered_name, memory, message_queue_len, reductions,
-%% current_function as a tuple for the given pid
-%%
--spec one_proc_info(pid()) -> tuple().
-
-one_proc_info(Pid) ->
-    List =
-        case process_info(Pid, [registered_name, memory, message_queue_len,
-                reductions, current_function]) of
-            L when is_list(L) ->
-                L;
-            _ ->
-                []
-        end,
-    Fun = proplists:get_value(current_function, List),
-    Mem = proplists:get_value(memory, List),
-    Name = proplists:get_value(registered_name, List),
-    Len = proplists:get_value(message_queue_len, List),
-    Reds = proplists:get_value(reductions, List),
-    {Pid, Name, Fun, Mem, Reds, Len}.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc sends sum of memory to be written to storage
-%%
-real_log_procs(St) ->
-    {Sum, Nproc} = Res = estat_misc:get_procs_info(),
-    erpher_rt_stat_info:write_rt_info(St, Res),
-    mpln_p_debug:pr({?MODULE, 'real_log_procs', ?LINE, Nproc, Sum},
-                    St#est.debug, stat, 4),
-    erpher_rt_stat:add('memory', 'num_proc', Nproc),
-    erpher_rt_stat:add('memory', 'memory_sum', Sum).
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc performs periodic checks, triggers timer for next periodic check
 %%
 -spec periodic_check(#est{}) -> #est{}.
 
 periodic_check(#est{timer=Ref, clean_interval=T} = St) ->
     mpln_misc_run:cancel_timer(Ref),
-    %St_e = check_existing_file(St),
-    %St_f = do_flush(St_e),
-    %St_r = check_rotate(St_f),
     New = clean_old(St),
     Nref = erlang:send_after(T * 1000, self(), periodic_check),
     New#est{timer=Nref}.
@@ -438,84 +353,12 @@ add_hourly_job_stat(Time, Tag) ->
 -spec clean_old(#est{}) -> #est{}.
 
 clean_old(St) ->
-    %Stc = clean_old_estat_files(St),
     clean_old_statistic(St),
     St.
 
 clean_old_statistic(#est{stat_limit_cnt_h=Hlimit, stat_limit_cnt_m=Mlimit}) ->
     estat_misc:clean_timed_stat(?STAT_TAB_H, Hlimit),
     estat_misc:clean_timed_stat(?STAT_TAB_M, Mlimit).
-
-clean_old_estat_files(#est{keep_time=Keep} = St) ->
-    T1 = mpln_misc_time:make_gregorian_seconds(0),
-    T2a = mpln_misc_time:make_gregorian_seconds(),
-    T2 = T2a - (3600 * (Keep+1)),
-    List = get_files(St, T1, T2),
-    [clean_one_file(St, X) || X <- List],
-    St.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc cleans one old job info file
-%%
-clean_one_file(St, File) ->
-    mpln_p_debug:pr({?MODULE, 'clean_one_file', ?LINE, File},
-                    St#est.debug, file, 3),
-    case file:delete(File) of
-        ok ->
-            ok;
-        {error, Reason} ->
-            mpln_p_debug:pr({?MODULE, 'clean_one_file error', ?LINE,
-                             File, Reason}, St#est.debug, file, 0)
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc checks if the current file is still here and reopens it if not
-%%
--spec check_existing_file(#est{}) -> #est{}.
-
-check_existing_file(#est{storage_cur_name=File} = St) ->
-    case file:read_file_info(File) of
-        {ok, _Info} ->
-            St;
-        {error, _} ->
-            stop_storage(St),
-            prepare_storage(St)
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc checks whether the storage file need to be changed
-%%
--spec check_rotate(#est{}) -> #est{}.
-
-check_rotate(#est{storage_start=Start, rotate_interval=Rotate} = St) ->
-    T = calendar:now_to_local_time(Start),
-    case mpln_misc_log:need_rotate(T, Rotate) of
-        true ->
-            stop_storage(St),
-            prepare_storage(St);
-        false ->
-            St
-    end.
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc checks storage limits and flush it to disk
-%%
--spec check_flush(#est{}) -> #est{}.
-
-check_flush(#est{storage=S, flush_interval=T, flush_last=Last,
-                 flush_number=N} = St) ->
-    St_f = check_existing_file(St),
-    Len = length(S),
-    Delta = timer:now_diff(now(), Last),
-    if (Delta > T * 1000000) or (Len >= N) ->
-            do_flush(St_f);
-       true ->
-            St_f
-    end.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -578,20 +421,6 @@ add_separator(#est{storage_fd=Fd} = St) ->
 
 %%-----------------------------------------------------------------------------
 %%
-%% @doc tries to maintain a proper list containing {key, value} tuples. This
-%% list is to be stored in a storage.
-%%
-make_list(undefined) ->
-    undefined;
-
-make_list({_, _} = Data) ->
-    [Data];
-
-make_list(Data) ->
-    Data.
-
-%%-----------------------------------------------------------------------------
-%%
 %% @doc creates json binary from the fetched item list
 %%
 -spec create_binary_item(#est{}, tuple()) -> list().
@@ -615,100 +444,6 @@ create_binary_item(St, _Item) ->
     mpln_p_debug:pr({?MODULE, 'create_binary_item unknown', ?LINE, _Item},
                     St#est.debug, run, 4),
     [].
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc receives start/stop times and returns json binary with stat items
-%% for this interval. Times are unix times, namely seconds from 1970-01-01,
-%% local time zone.
-%%
--spec get_items(#est{}, non_neg_integer(), non_neg_integer()) -> binary().
-
-get_items(St, Start, Stop) ->
-    T1 = mpln_misc_time:make_gregorian_seconds(Start),
-    T2 = mpln_misc_time:make_gregorian_seconds(Stop + 3600 - 1),
-    List = get_files(St, T1, T2),
-    mpln_p_debug:pr({?MODULE, 'get_items', ?LINE, Start, Stop, T1, T2,
-                    length(List)}, St#est.debug, file, 2),
-    mpln_p_debug:pr({?MODULE, 'get_items', ?LINE, List}, St#est.debug, file, 3),
-    create_binary_response(St, List).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc returns list of files matched to the interval
-%%
-get_files(#est{storage_base=Full_base} = St, T1, T2) ->
-    Tstr1 = mpln_misc_time:make_short_str2(
-              calendar:gregorian_seconds_to_datetime(T1), hour),
-    Tstr2 = mpln_misc_time:make_short_str2(
-              calendar:gregorian_seconds_to_datetime(T2), hour),
-    mpln_p_debug:pr({?MODULE, 'get_files', ?LINE, Tstr1, Tstr2},
-                    St#est.debug, file, 4),
-    List = filelib:wildcard(Full_base ++ "*"),
-    mpln_p_debug:pr({?MODULE, 'get_files', ?LINE, List},
-                    St#est.debug, file, 5),
-    Base = filename:basename(Full_base),
-    Blen = length(Base) + 2,
-    lists:filter(
-      fun(X) ->
-              mpln_p_debug:pr({?MODULE, 'get_files', ?LINE, Blen, X},
-                              St#est.debug, file, 6),
-              check_one_filename(St, Blen, Tstr1, Tstr2, X)
-      end,
-      List).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc checks if the filename is between T1 and T2 time stamps.
-%% Comparison is made on strings.
-%%
-check_one_filename(St, Blen, T1, T2, File) ->
-    Fbase = filename:basename(File),
-    Fdate = string:substr(Fbase, Blen),
-    mpln_p_debug:pr({?MODULE, 'check_one_filename', ?LINE,
-                     T1, T2, (Fdate >= T1), (Fdate =< T2), Fbase, Fdate},
-                    St#est.debug, file, 7),
-    (Fdate >= T1) andalso (Fdate =< T2).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates json binary for the fetched file list
-%%
--spec create_binary_response(#est{}, [string()]) -> binary().
-
-create_binary_response(St, List) ->
-    {Data, _Sum_size} = lists:mapfoldl(
-             fun(X, Acc) ->
-                     create_binary_data_item(St, X, Acc)
-             end,
-             0, List),
-    unicode:characters_to_binary(Data).
-
-%%-----------------------------------------------------------------------------
-%%
-%% @doc creates json binary for the file
-%%
--spec create_binary_data_item(#est{}, string(), non_neg_integer()) ->
-                                     {binary(), non_neg_integer()}
-                                         | {iolist(), non_neg_integer()}.
-
-create_binary_data_item(St, File, Sum_size) ->
-    Size = filelib:file_size(File),
-    mpln_p_debug:pr({?MODULE, 'create_binary_data_item size', ?LINE,
-                     File, Size, Sum_size}, St#est.debug, run, 3),
-    case file:read_file(File) of
-        {ok, Bin} when byte_size(Bin) == 0 ->
-            {<<>>, Sum_size};
-        {ok, Bin} when Sum_size > 0 ->
-            Sep = <<",\n">>,
-            {[Sep, Bin], Sum_size + byte_size(Bin) + byte_size(Sep)};
-        {ok, Bin} ->
-            {Bin, byte_size(Bin)};
-        {error, Reason} ->
-            mpln_p_debug:pr({?MODULE, 'create_binary_data_item error', ?LINE,
-                             File, Reason, Sum_size}, St#est.debug, run, 0),
-            {<<>>, Sum_size}
-    end.
 
 %%-----------------------------------------------------------------------------
 %%
