@@ -24,6 +24,9 @@
     http_connect_timeout,
     http_timeout,
     params,
+    jit_log_status :: ok | error,
+    jit_log_data,
+    jit_log_level  :: non_neg_integer(),
     debug
 }).
 

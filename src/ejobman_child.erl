@@ -56,7 +56,8 @@
 %%% gen_server callbacks
 %%%----------------------------------------------------------------------------
 init(Params) ->
-    C = ejobman_conf:get_config_child(Params),
+    process_flag(trap_exit, true), % to send jit logs
+    C = prepare_all(Params),
     mpln_p_debug:pr({?MODULE, 'init', ?LINE, C#child.id, self(), Params, C},
         C#child.debug, config, 4),
     mpln_p_debug:pr({?MODULE, 'init done', ?LINE, C#child.id, self()},
@@ -95,7 +96,11 @@ handle_cast(_, St) ->
     {noreply, New, ?TC}.
 
 %%-----------------------------------------------------------------------------
-terminate(_, #child{id=Id} = State) ->
+terminate(Reason, #child{id=Id} = State) ->
+    erpher_jit_log:add_jit_msg(State#child.jit_log_data, Id, 'terminate',
+                               2, 'terminate'),
+    send_jit_log(Reason, State),
+    ets:delete(State#child.jit_log_data),
     mpln_p_debug:pr({?MODULE, terminate, ?LINE, Id, self()},
         State#child.debug, run, 2),
     ok.
@@ -148,9 +153,9 @@ stop() ->
 -spec main_action(#child{}) -> #child{}.
 
 main_action(State) ->
-    process_cmd(State),
+    New = process_cmd(State),
     gen_server:cast(self(), stop),
-    State#child{method = <<>>, url = <<>>,
+    New#child{method = <<>>, url = <<>>,
         params = 'undefined', from = 'undefined'}.
 
 %%-----------------------------------------------------------------------------
@@ -158,17 +163,17 @@ main_action(State) ->
 %% @doc checks the command, then follows real_cmd
 %% @since 2011-07-15
 %%
--spec process_cmd(#child{}) -> ok.
+-spec process_cmd(#child{}) -> #child{}.
 
-process_cmd(#child{url = <<>>}) ->
-    ok;
+process_cmd(#child{url = <<>>} = St) ->
+    St;
 process_cmd(#child{url = [_ | _]} = St) ->
     real_cmd(St);
 process_cmd(#child{url = <<_, _/binary>> = Url_bin} = St) ->
     Url = binary_to_list(Url_bin),
     real_cmd(St#child{url = Url});
-process_cmd(_) ->
-    ok.
+process_cmd(St) ->
+    St.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -179,6 +184,8 @@ process_cmd(_) ->
 %% https://github.com/cmullaparthi/ibrowse
 %% @since 2011-07-18
 %%
+-spec real_cmd(#child{}) -> #child{}.
+
 real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
         http_connect_timeout=Conn_t, http_timeout=Http_t} = St) ->
     mpln_p_debug:pr({?MODULE, real_cmd, ?LINE, params, Id, self(),
@@ -197,9 +204,13 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
     T1 = now(),
     erpher_et:trace_me(50, {?MODULE, Id}, {St#child.group, Gh_pid},
         http_start, {Id, Req}),
-    erpher_rt_stat:add(Id, 'http_start',
-                     [{'header', mpln_misc_web:make_proplist_binary(Hdr)},
-                      {'url', mpln_misc_web:make_binary(Url)}]),
+    erpher_jit_log:add_jit_msg(St#child.jit_log_data, Id, 'http_start',
+                               4,
+                               [
+                                {'header',
+                                 mpln_misc_web:make_proplist_binary(Hdr)},
+                                {'url', mpln_misc_web:make_binary(Url)}
+                               ]),
     Res = httpc:request(Method, Req,
         [{timeout, Http_t}, {connect_timeout, Conn_t},
          % http/1.0 is necessary, because for some rare cases a http/1.1
@@ -208,52 +219,65 @@ real_cmd(#child{id=Id, method=Method_bin, params=Params, tag=Tag, gh_pid=Gh_pid,
         {version, "HTTP/1.0"}],
         [{body_format, binary}]),
     T2 = now(),
-    process_result(St, Res, T1, T2),
+    New = process_result(St, Res, T1, T2),
     mpln_p_debug:log_http_res({?MODULE, real_cmd, ?LINE, Id, self()},
-        Res, St#child.debug).
+        Res, New#child.debug),
+    New.
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc sends result to ejobman_handler and erpher_rt_stat
 %%
-process_result(#child{id=Id, gh_pid=Pid}, Res, T1, T2) ->
+process_result(#child{id=Id, gh_pid=Pid} = St, Res, T1, T2) ->
     ejobman_group_handler:cmd_result(Pid, Res, T1, T2, Id),
-    send_stat(Id, Res).
+    send_stat(St, Res).
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc sends result to erpher_rt_stat
 %%
-send_stat(Id, Res) ->
-    Params = make_send_stat_params(Res),
+send_stat(#child{id=Id} = St, Res) ->
+    {Status, Params} = make_send_stat_params(Res),
     erpher_et:trace_me(50, {?MODULE, Id}, undefined, http_stop, {Id, Res}),
-    erpher_rt_stat:add(Id, 'http_stop', Params).
+    erpher_jit_log:add_jit_msg(St#child.jit_log_data, Id, 'http_stop',
+                               4, Params),
+    St#child{jit_log_status=Status}.
 
 %%-----------------------------------------------------------------------------
 %%
 %% @doc prepares parameters for sending to erpher_rt_stat
 %%
 make_send_stat_params({ok, {{Ver, St_code, Reason} = _St_line, Hdr, Body}}) ->
+    Status = check_status(St_code),
     Bin = mpln_misc_web:make_binary(Body),
     Short = mpln_misc_web:sub_bin(Bin),
-    [{'status', 'ok'},
-     {'http_version', mpln_misc_web:make_binary(Ver)},
-     {'status_code', St_code},
-     {'reason', mpln_misc_web:make_binary(Reason)},
-     {'header', mpln_misc_web:make_proplist_binary(Hdr)},
-     {'body', Short}];
+    Rparams = [{'status', 'ok'},
+               {'http_version', mpln_misc_web:make_binary(Ver)},
+               {'status_code', St_code},
+               {'reason', mpln_misc_web:make_binary(Reason)},
+               {'header', mpln_misc_web:make_proplist_binary(Hdr)},
+               {'body', Short}],
+    {Status, Rparams};
 
 make_send_stat_params({ok, {St_code, Body}}) ->
+    Status = check_status(St_code),
     Bin = mpln_misc_web:make_binary(Body),
     Short = mpln_misc_web:sub_bin(Bin),
-    [{'status', 'ok'}, {'status_code', St_code},
-     {'body', Short}];
+    Rparams = [{'status', 'ok'}, {'status_code', St_code},
+               {'body', Short}],
+    {Status, Rparams};
 
 make_send_stat_params({error, Reason}) ->
+    Status = error,
     Bin = mpln_misc_web:make_term_binary(Reason),
     Short = mpln_misc_web:sub_bin(Bin),
-    [{'status', 'error'},
-     {'reason', Short}].
+    Rparams = [{'status', 'error'},
+               {'reason', Short}],
+    {Status, Rparams}.
+
+%%-----------------------------------------------------------------------------
+check_status(200) -> ok;
+check_status(_) ->   error.
 
 %%-----------------------------------------------------------------------------
 %%
@@ -658,16 +682,50 @@ make_body(Pars) ->
     mpln_misc_web:query_string(Pars).
     %mochiweb_util:urlencode(Pars).
 
+%%-----------------------------------------------------------------------------
+prepare_all(Params) ->
+    C = ejobman_conf:get_config_child(Params),
+    prepare_jit_log(C).
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc prepare ets for jit log data
+%%
+prepare_jit_log(St) ->
+    Tid = erpher_jit_log:prepare_jit_tab(?MODULE),
+    St#child{jit_log_data=Tid}.
+
+%%-----------------------------------------------------------------------------
+%%
+%% @doc send jit log data to stat server if there is an error signs
+%% or configured jit log level is high enough
+%%
+send_jit_log(_Reason, #child{jit_log_status=error} = St) ->
+    erpher_jit_log:send_jit_log(error,
+                                St#child.jit_log_level,
+                                St#child.jit_log_data,
+                                St#child.id);
+
+send_jit_log(Reason, St) ->
+    erpher_jit_log:send_jit_log(Reason,
+                                St#child.jit_log_level,
+                                St#child.jit_log_data,
+                                St#child.id).
+
 %%%----------------------------------------------------------------------------
 %%% EUnit tests
 %%%----------------------------------------------------------------------------
 -ifdef(TEST).
 process_cmd_test() ->
-    ok = process_cmd(#child{}),
-    ok = process_cmd(#child{from = 'undefined'}),
-    ok = process_cmd(#child{url = <<>>}),
-    ok = process_cmd(#child{url = ""}),
-    ok = process_cmd([]).
+    S1 = #child{},
+    S1 = process_cmd(S1),
+    S2 = #child{from = 'undefined'},
+    S2 = process_cmd(S2),
+    S3 = #child{url = <<>>},
+    S3 = process_cmd(S3),
+    S4 = #child{url = ""},
+    S4 = process_cmd(S4),
+    [] = process_cmd([]).
 
 make_schema_rewrite_conf() ->
     [

@@ -288,6 +288,7 @@ do_one_command_real(St, Ch, J) ->
     % parameters for ejobman_child
     Child_params = [
         {gh_pid, self()},
+        {jit_log_level, St#egh.jit_log_level},
         {http_connect_timeout, St#egh.http_connect_timeout},
         {http_timeout, St#egh.http_timeout},
         {schema_rewrite, St#egh.schema_rewrite},
