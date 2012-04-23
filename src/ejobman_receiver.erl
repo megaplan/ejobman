@@ -63,6 +63,7 @@ init(_) ->
     {ok, New}.
 
 %------------------------------------------------------------------------------
+
 -spec handle_call(any(), any(), #ejr{}) ->
                          {stop, normal, ok, #ejr{}}
                              | {reply, any(), #ejr{}}.
@@ -70,8 +71,8 @@ init(_) ->
 %% Handling call messages
 %% @since 2011-07-15 11:00
 %%
-handle_call(stop, _From, St) ->
-    {stop, normal, ok, St};
+handle_call( stop, _From, St ) ->
+    { stop, normal, ok, St };
 
 handle_call(status, _From, St) ->
     {reply, St, St};
